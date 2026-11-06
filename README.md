@@ -62,13 +62,15 @@ The progress bar shows what's happening. **View build log** opens more detail; c
 After setup, the main screen is just **Play** and the tabs above it.
 
 - **Gameplay** skips the movies and chooses how the game's text is drawn.
-- **Display** has the screen format, fullscreen, frame rate (30 or 60 fps) and V-Sync.
+- **Display** has the screen format, fullscreen, frame rate (30, 60 or 120 fps) and V-Sync.
 - **Graphics** has presets (Low, Medium, High, Ultra and Steam Deck), the renderer (Vulkan, or OpenGL), picture sharpness up to 4×, anti-aliasing, filtering, upscaling and the HD textures.
 - **Controls** sets the keys and controller buttons for each GameCube button, and the sticks, triggers and rumble.
 - **Manage game** has game updates, rebuilding, the setup folder and disc file, and space cleanup.
 - **Launcher** has dark mode, automatic updates, crash reports and your launcher, game and tool versions for support.
 
 The defaults are **HD textures on**, **4×** picture sharpness, **60 fps** and a picture **as wide as the window**. Changes take effect the next time you start the game.
+
+120 fps is optional and works on any display. It needs a faster computer, and a 120 Hz or faster display shows its full benefit. The game runs at its normal speed at every frame rate.
 
 The launcher also works with a game controller: move with the left stick or d-pad and press **A** to select, **B** to go back and **Start** for Settings. The launcher ignores the controller while the game is running.
 

@@ -93,7 +93,7 @@ function normalizeSettings(input = {}, platform = process.platform) {
     // Battle status panels and title portraits at the screen's edges, or in the 4:3 middle.
     hudEdges: input.hudEdges !== false,
     resolution: [1, 2, 3, 4].includes(Number(input.resolution)) ? Number(input.resolution) : 4,
-    frameRate: [30, 60].includes(Number(input.frameRate)) ? Number(input.frameRate) : 60,
+    frameRate: [30, 60, 120].includes(Number(input.frameRate)) ? Number(input.frameRate) : 60,
     fullscreen: Boolean(input.fullscreen),
     // Borderless (desktop) fullscreen, or exclusive, which switches the display to exclusiveResolution.
     fullscreenMode: choiceSetting(input.fullscreenMode, ['desktop', 'exclusive'], 'desktop'),

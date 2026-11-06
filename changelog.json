@@ -1,9 +1,11 @@
 {
   "beta": {
     "launcher": [
-      "The game now builds from the port's own copy of the decompilation."
+      "The game now builds from the port's own copy of the decompilation.",
+      "120 fps: choose it under Settings, Display, Frame rate."
     ],
     "game": [
+      "120 fps: characters, the camera and fades move twice as smoothly, and the game keeps its normal speed.",
       "Fixed the Pokémon faces missing from the Battle Now team screen.",
       "Fixed opposing trainers misjudging a side's conditions and level-based moves.",
       "Fixed the second trainer on a side being mistaken for the first.",

@@ -51,7 +51,7 @@ test('defaults are the port\'s HD settings on every system', () => {
 });
 
 test('settings outside what the game takes fall back', () => {
-  const settings = port.normalizeSettings({ frameRate: 120, resolution: 9, widescreen: '5:4', renderer: 'metal', stickDeadzone: 99, display: 'monitor99',
+  const settings = port.normalizeSettings({ frameRate: 90, resolution: 9, widescreen: '5:4', renderer: 'metal', stickDeadzone: 99, display: 'monitor99',
     exclusiveResolution: 'big', hdText: 'maybe', padMode: 'all' });
   assert.equal(settings.frameRate, 60);
   assert.equal(settings.resolution, 4);
@@ -82,6 +82,7 @@ test('settings reach the variables the game reads', () => {
     textures: false, fullscreen: true, fullscreenMode: 'exclusive', exclusiveResolution: '1920x1080', display: 'monitor2', skipMovies: true, padMode: 'single',
     rumbleStrength: 0, stickDeadzone: 20, triggerClick: 70, backgroundInput: true, brightness: 150 }), 'disc', '/port');
   assert.deepEqual([env.SMS_GX_BACKEND, env.SMS_GX_SCALE, env.COLO_FPS, env.COLO_WIDESCREEN, env.COLO_WIDESCREEN_HUD], ['opengl', '2', '30', '4:3', 'center']);
+  assert.equal(port.buildEnvironment(port.normalizeSettings({ frameRate: 120 }), '/disc.iso', '/port').COLO_FPS, '120');
   assert.equal(env.SMS_TEXTURE_PACKS, '0');
   assert.deepEqual([env.SMS_FULLSCREEN, env.SMS_FULLSCREEN_TYPE, env.SMS_FULLSCREEN_MODE, env.SMS_DISPLAY], ['exclusive', 'exclusive', '1920x1080', '1']);
   assert.equal(env.COLO_SKIP_MOVIES, '1');
