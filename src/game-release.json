@@ -1,9 +1,9 @@
 {
   "version": "2026.11.06.1",
   "repository": "https://git.softwareauralabs.com/chase/pokemon-colosseum.git",
-  "branch": "master",
-  "commit": "6d7fd530a3093df23c0eb0495f5a07db037f5323",
+  "branch": "fix/lost-values-2",
+  "commit": "aaf1a617a0a12b02da1ff3331cb97a59f913735b",
   "portPatch": "port-launcher.patch",
-  "decompRepository": "https://github.com/dougchansan/pkmn-colosseum.git",
-  "decomp": "0275f31498f43ad807d4c91fa2da95ede5f5291b"
+  "decompRepository": "https://github.com/chasem-dev/pkmn-colosseum.git",
+  "decomp": "c2684d5dfc059603c7cb4c0063a9c383b5de8111"
 }
