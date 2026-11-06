@@ -1,23 +1,33 @@
 {
   "beta": {
-    "launcher": [
-      "HD models: people in the field use their detailed models. Turn it off under Graphics.",
-      "The game now builds from the port's own copy of the decompilation."
-    ],
-    "game": [
-      "Wes now has his detailed battle model while walking around, with a sharper face and real fingers.",
-      "Fixed the Pokémon faces missing from the Battle Now team screen.",
-      "Fixed opposing trainers misjudging a side's conditions and level-based moves.",
-      "Fixed the second trainer on a side being mistaken for the first.",
-      "Fixed Pokémon faces staying in memory after being replaced.",
-      "Fixed the Pokédex seen and caught flags on Linux and macOS.",
-      "Fixed Poké Ball catch rates on Linux and macOS.",
-      "Fixed the blue background on the main menus and save screen stopping short of the sides in widescreen.",
-      "Fixed the PC menus leaving black bars at the sides in widescreen.",
-      "Fixed the game crashing when entering a new area after playing for a long time."
-    ]
+    "launcher": [],
+    "game": []
   },
   "releases": [
+    {
+      "version": "0.1.4",
+      "date": "2026-11-06",
+      "launcher": [
+        "HD models: Wes uses his detailed model in the field. Turn it off under Graphics.",
+        "The game now builds from the port's own copy of the decompilation."
+      ],
+      "game": {
+        "version": "2026.11.06.2",
+        "commit": "616e01ab6f3ab2841bbda376de4cac3aefc6c27d",
+        "changes": [
+          "Wes now has his detailed battle model while walking around, with a sharper face and real fingers.",
+          "Fixed the Pokémon faces missing from the Battle Now team screen.",
+          "Fixed opposing trainers misjudging a side's conditions and level-based moves.",
+          "Fixed the second trainer on a side being mistaken for the first.",
+          "Fixed Pokémon faces staying in memory after being replaced.",
+          "Fixed the Pokédex seen and caught flags on Linux and macOS.",
+          "Fixed Poké Ball catch rates on Linux and macOS.",
+          "Fixed the blue background on the main menus and save screen stopping short of the sides in widescreen.",
+          "Fixed the PC menus leaving black bars at the sides in widescreen.",
+          "Fixed the game crashing when entering a new area after playing for a long time."
+        ]
+      }
+    },
     {
       "version": "0.1.3",
       "date": "2026-11-06",
