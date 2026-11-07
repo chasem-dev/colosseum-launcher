@@ -12,6 +12,7 @@
     <header class="topbar">
       <div class="brand"><img class="brand-mark" src="assets/brand-mark.png" alt=""><div class="brand-copy"><span>Colosseum <strong>Launcher</strong></span><span id="version-summary" class="version-summary" aria-label="Versions">Checking versions…</span></div></div>
       <button id="open-changelog" class="topbar-chip" title="Launcher and game updates"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8h7.2L15.5 6v11.2H5z"/><path d="M12 2.8V6h3.5M7.6 9.2h5.3M7.6 11.9h5.3M7.6 14.6h3.4"/></svg><span>What's new</span><i id="changelog-new" class="topbar-dot" role="img" aria-label="New" hidden></i></button>
+      <span id="online-count" class="online-count" title="Players with the launcher open" hidden><i aria-hidden="true"></i><span id="online-count-text"></span></span>
       <span class="platform-pill" id="platform">Loading…</span>
       <button id="discord" class="topbar-discord" aria-label="Join our Discord server (opens in your browser)" title="Join our Discord server"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.11 13.11 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.007.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.029 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg></button>
       <div class="window-controls" aria-label="Window controls">
@@ -26,6 +27,7 @@
       <button id="nav-play" class="nav-tab active" aria-current="page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.5v11l9-5.5z"/></svg><span>Play</span></button>
       <button id="nav-saves" class="nav-tab" title="Saved games"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3h10l3 3v11H4z"/><path d="M7 3v4h6V3M7 17v-5h7v5"/></svg><span>Saves</span></button>
       <button id="nav-pokedex" class="nav-tab" title="Browse every Pokémon on your disc"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h5M12.5 10h5"/><circle cx="10" cy="10" r="2.5"/></svg><span>Pokédex</span></button>
+      <button id="nav-online" class="nav-tab" title="Battle other players online"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2.2 2 3.2 4.6 3.2 7.5s-1 5.5-3.2 7.5c-2.2-2-3.2-4.6-3.2-7.5s1-5.5 3.2-7.5z"/></svg><span>Online</span></button>
       <span class="nav-spacer" aria-hidden="true"></span>
       <button id="settings-cog" class="nav-tab" aria-label="Settings" title="Settings"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.7 2.8h2.6l.4 1.8 1.6.7 1.6-1 1.8 1.8-1 1.6.7 1.6 1.8.4v2.6l-1.8.4-.7 1.6 1 1.6-1.8 1.8-1.6-1-1.6.7-.4 1.8H8.7l-.4-1.8-1.6-.7-1.6 1-1.8-1.8 1-1.6-.7-1.6-1.8-.4V8.7l1.8-.4.7-1.6-1-1.6 1.8-1.8 1.6 1 1.6-.7z"/><circle cx="10" cy="10" r="2.3"/></svg><span>Settings</span></button>
     </nav>
@@ -63,6 +65,36 @@
           <button id="play-source" class="play-source" title="Change it under Settings → Manage game → Game source" hidden><span class="play-source-dot" aria-hidden="true"></span><strong>Custom Game Source</strong><span id="play-source-detail"></span></button><p id="play-more-hint" class="play-more-hint" hidden></p><div id="play-menu" class="play-menu" popover role="menu" aria-label="Ways to play"><button id="menu-default" class="play-menu-item" role="menuitem" data-kind="update"><svg viewBox="0 0 20 20" aria-hidden="true" class="for-update"><path d="M15.5 8.5A6 6 0 0 0 4.6 6.2M4.5 3v3.4h3.4M4.5 11.5a6 6 0 0 0 10.9 2.3M15.5 17v-3.4h-3.4"/></svg><svg viewBox="0 0 20 20" aria-hidden="true" class="for-play"><path d="M6.5 4.5v11l9-5.5z"/></svg><svg viewBox="0 0 20 20" aria-hidden="true" class="for-hd"><rect x="2.8" y="4.5" width="14.4" height="11" rx="2"/><path d="M6 8v4M9 8v4M6 10h3M11.5 8v4h1.3a2 2 0 0 0 0-4z"/></svg><span><strong id="menu-default-label">Update &amp; play</strong><small id="menu-default-detail"></small></span><em>Default</em></button><button id="menu-update-play" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8.5A6 6 0 0 0 4.6 6.2M4.5 3v3.4h3.4M4.5 11.5a6 6 0 0 0 10.9 2.3M15.5 17v-3.4h-3.4"/></svg><span><strong>Update &amp; play</strong><small id="menu-update-play-detail"></small></span></button><button id="menu-update-only" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9.5M6 8.8l4 4 4-4M4 16.5h12"/></svg><span><strong id="menu-update-only-label">Update only</strong><small id="menu-update-only-detail"></small></span></button><button id="menu-play-now" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.5v11l9-5.5z"/></svg><span><strong>Play now</strong><small id="menu-play-now-detail"></small></span></button><p id="play-menu-note">The default follows <b>Update automatically</b> in Settings.</p></div><div class="task-progress" id="task-progress" role="status" hidden><div class="progress-summary"><span class="spinner" aria-hidden="true"></span><strong id="progress-title">Working…</strong><span id="progress-time"></span><span id="progress-percent"></span></div><p id="progress-detail">Starting…</p><div class="progress-track" id="progress-track" role="progressbar" aria-label="Task progress"><span id="progress-fill"></span></div><button id="view-build-log" class="progress-log-button">View build log</button></div>
         </section>
 
+      </section>
+      <section id="page-online" class="page sheet online-page" aria-labelledby="online-title" hidden>
+        <div class="modal-head"><div><h1 id="online-title">Online</h1><p>Build a party, then open a room or join one and battle another player.</p></div></div>
+        <div class="online-body">
+          <div class="online-column">
+            <div class="online-heading"><h2 class="group-title">Your parties</h2><button id="party-new" class="subtle">New party</button></div>
+            <div id="party-list" class="party-list" role="radiogroup" aria-label="Choose the party to battle with"></div>
+            <p id="party-empty" class="helper" hidden>Build a party of six to battle with.</p>
+            <label class="online-field"><span>Trainer name</span><input id="online-trainer" class="online-input" type="text" maxlength="10" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <div class="online-column online-rooms">
+            <div id="online-banner" class="online-banner" role="status" hidden>
+              <div><strong id="online-banner-title"></strong><small id="online-banner-detail"></small></div>
+              <button id="online-leave" class="subtle">Leave</button>
+            </div>
+            <p id="online-result" class="online-result" role="status" hidden></p>
+            <div class="online-create">
+              <label class="online-field"><span>Level</span><select id="online-level"><option value="50">Level 50</option><option value="100">Level 100</option></select></label>
+              <label class="online-field"><span>Battle</span><select id="online-size"><option value="6">6 Pokémon each</option><option value="3">3 Pokémon each</option></select></label>
+              <label class="online-check"><input id="online-listed" type="checkbox"><span>Show on the room list</span></label>
+              <button id="online-create" class="solid">Create room</button>
+            </div>
+            <p id="online-blocked" class="helper" hidden></p>
+            <div class="online-heading"><h2 class="group-title">Rooms</h2>
+              <form id="online-code-form" class="online-code"><input id="online-code" class="online-input" type="text" maxlength="7" placeholder="Room code" spellcheck="false" autocomplete="off" aria-label="Room code"><button id="online-code-join" class="subtle">Join</button></form>
+            </div>
+            <div id="online-rooms" class="online-room-list" aria-live="polite"></div>
+            <p id="online-rooms-empty" class="helper">No rooms are open. Create one and wait for a challenger.</p>
+          </div>
+        </div>
       </section>
       <section id="page-pokedex" class="page sheet pokedex-page" aria-labelledby="pokedex-title" hidden>
         <div class="modal-head"><div><h1 id="pokedex-title">Pokédex</h1><p id="pokedex-summary">Every Pokémon on your disc, in 3D.</p></div></div>
@@ -249,6 +281,7 @@
           <section id="pane-launcher" class="settings-pane" role="tabpanel" aria-labelledby="tab-launcher" hidden>
             <h2 class="group-title">Appearance</h2>
             <div class="settings-group">
+              <label class="switch"><span><strong>Share anonymous usage</strong><small>Sends your launcher and game versions, OS and a random ID, so the top bar can show how many players are online. Nothing personal. You still see the count with this off.</small></span><input id="shareUsage" type="checkbox"><i></i></label>
               <label class="switch"><span><strong>Dark mode</strong><small>Dark Settings, changelog and other windows in the launcher.</small></span><input id="darkMode" type="checkbox"><i></i></label>
             </div>
             <h2 class="group-title">Updates</h2>
@@ -305,6 +338,17 @@
       </div>
     </dialog>
 
+    <dialog id="party-editor" class="launcher-modal party-editor" aria-labelledby="party-editor-title">
+      <div class="modal-head"><div><h1 id="party-editor-title">Party</h1><p>Choose six from the Pokédex. They'll battle at the room's level with their level-up moves, in this order.</p></div><button id="party-editor-close" class="modal-close" aria-label="Close">×</button></div>
+      <div class="party-editor-body">
+        <label class="online-field"><span>Party name</span><input id="party-name" class="online-input" type="text" maxlength="24" spellcheck="false" autocomplete="off"></label>
+        <div id="party-slots" class="party-slots" aria-label="Your party"></div>
+        <input id="party-search" class="pokedex-search" type="search" placeholder="Search by name or number" aria-label="Search Pokémon by name or number">
+        <div id="party-dex" class="party-dex" aria-label="Pokédex"></div>
+        <p id="party-dex-note" class="helper" hidden></p>
+        <div class="actions party-editor-actions"><button id="party-delete" class="subtle">Delete party</button><span class="nav-spacer" aria-hidden="true"></span><button id="party-save" class="solid">Save party</button></div>
+      </div>
+    </dialog>
     <dialog id="steam-add" class="launcher-modal steam-modal" aria-labelledby="steam-add-kicker steam-add-title">
       <div class="steam-bar"><span class="steam-brand" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg>STEAM</span><button class="modal-close" data-close-modal aria-label="Close Add to Steam">×</button></div>
       <div class="steam-hero"><p id="steam-add-kicker" class="steam-kicker">Add to Steam</p><h1 id="steam-add-title">Pokémon Colosseum</h1></div>
@@ -326,5 +370,6 @@
   <script src="gamepad-nav.js"></script>
   <script src="renderer.js"></script>
   <script type="module" src="pokedex-page.js"></script>
+  <script src="online-page.js"></script>
 </body>
 </html>

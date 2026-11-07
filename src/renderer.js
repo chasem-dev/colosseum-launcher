@@ -20,7 +20,7 @@ function closeModal() {
 
 // --- Pages: the tabs along the top pick one; Play is the home page. Each page can run code as it shows and hides.
 const pages = {
-  play: { section: 'page-home', nav: 'nav-play' }, saves: { section: 'page-saves', nav: 'nav-saves' }, pokedex: { section: 'page-pokedex', nav: 'nav-pokedex' },
+  play: { section: 'page-home', nav: 'nav-play' }, saves: { section: 'page-saves', nav: 'nav-saves' }, online: { section: 'page-online', nav: 'nav-online' }, pokedex: { section: 'page-pokedex', nav: 'nav-pokedex' },
   changelog: { section: 'changelog', nav: 'open-changelog' }, settings: { section: 'page-settings', nav: 'settings-cog' }
 };
 const pageOrder = Object.keys(pages);
@@ -50,6 +50,8 @@ function showPage(name) {
 for (const [name, item] of Object.entries(pages)) if (!item.sub) $(item.nav).addEventListener('click', () => showPage(name));
 // The Pokédex (pokedex-page.js) keeps nothing on the GPU while it isn't showing.
 onPage('pokedex', { show: () => window.coloPokedex?.show(), hide: () => window.coloPokedex?.hide() });
+// Online (online-page.js) asks for the room list only while it's showing.
+onPage('online', { show: () => window.coloOnline?.show(), hide: () => window.coloOnline?.hide() });
 
 // Settings is one page with a tab per section; it reopens on the last one shown.
 const settingsTabs = ['gameplay', 'display', 'graphics', 'controls', 'manage', 'launcher'];
@@ -655,7 +657,7 @@ function refresh(data) {
 const SELECTS = ['widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic',
   'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
 const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3',
-  'randomizerSimilar', 'randomizerNoLegendaries', 'fullscreen', 'hudEdges', 'skipMovies', 'overlay', 'backgroundInput', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'darkMode'];
+  'randomizerSimilar', 'randomizerNoLegendaries', 'fullscreen', 'hudEdges', 'skipMovies', 'overlay', 'backgroundInput', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'darkMode'];
 
 let updateChannels = [{ id: 'stable', label: 'Stable' }];
 function renderUpdateChannels(chosen) {

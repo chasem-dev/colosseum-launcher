@@ -1,6 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, net, screen } = require('electron');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
@@ -25,6 +26,9 @@ const { createSessionLog } = require('./session-log');
 const displayScale = require('./display-scale');
 const steam = require('./steam');
 const crashReports = require('./crash-reports');
+const telemetry = require('./telemetry');
+const online = require('./online');
+const parties = require('./parties');
 const pokedexData = require('./pokedex').create();
 const randomizer = require('./randomizer');
 const { retrying, httpError } = require('./retry');
@@ -197,8 +201,15 @@ function loadConfig() {
     // The newest launcher version whose changelog the player has been shown.
     changelogSeen: changelog.baseVersion(saved.changelogSeen),
     // Which wording of Beta's notes a Beta build last showed.
-    changelogBetaSeen: /^[a-f0-9]{16}$/.test(saved.changelogBetaSeen) ? saved.changelogBetaSeen : null
+    changelogBetaSeen: /^[a-f0-9]{16}$/.test(saved.changelogBetaSeen) ? saved.changelogBetaSeen : null,
+    // Random, made on first run, and only ever sent with usage heartbeats.
+    installId: telemetry.validInstallId(saved.installId) ? saved.installId : crypto.randomUUID(),
+    // The trainer name, parties and room options of the Online page.
+    online: parties.normalize(saved.online)
   };
+  if (config.installId !== saved.installId) {
+    try { saveConfig(); } catch (error) { log(`Could not save preferences: ${error.message}`); }
+  }
   for (const root of [config.repo, config.previousInstall?.repo].filter(Boolean)) {
     try { if (game.recoverBuild(root)) log('Recovered your previous game after interrupted setup.'); }
     catch (error) { log(`Game recovery: ${error.message}`); }
@@ -897,7 +908,7 @@ function noteCrashReport(error, since) {
   error.message += ' Settings → Launcher can copy its crash report for a bug report.';
 }
 
-async function play(installation = null) {
+async function play(installation = null, battle = null) {
   const root = installation?.repo || requireRepo();
   // The player's choices, not the build's: an earlier install plays with them too.
   const settings = installation ? { ...config.settings, textures: installation.settings?.textures ?? config.settings.textures } : config.settings;
@@ -905,14 +916,16 @@ async function play(installation = null) {
   if (!binaryReady(root)) throw new Error('Set up this version of the game before playing.');
   if (!port.hdVisualsInstalled(root, settings))
     throw new Error('HD visuals need to be set up. Return to the main screen to finish setup, or turn them off in Settings.');
-  makeSaveBackup('before-play');
+  // An online battle plays on no save: the memory card stays as it was.
+  if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
   fs.mkdirSync(cacheFolder, { recursive: true });
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
     COLO_RANDOMIZER_LOG: spoilerFile(),
-    SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips') };
+    SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
+    ...(battle ? { COLO_ONLINE: String(battle.port), COLO_SKIP_MOVIES: '1', COLO_NOCARD: '1' } : {}) };
   const recordedTools = game.toolRoot(root);
   const env = recordedTools ? buildTools.environmentAtRoot(recordedTools, playEnv) : toolEnv(playEnv);
   const cmd = port.gameRunCommand(root, rom, process.platform, env);
@@ -928,8 +941,10 @@ async function play(installation = null) {
     log('Stopped the game.');
     return { ok: true };
   } finally {
-    try { makeSaveBackup('after-play'); }
-    catch (error) { log(`Save backup failed: ${error.message}`); }
+    if (!battle) {
+      try { makeSaveBackup('after-play'); }
+      catch (error) { log(`Save backup failed: ${error.message}`); }
+    }
   }
 }
 
@@ -1013,6 +1028,179 @@ async function clean(dryRun) {
   return { ok: true };
 }
 
+// --- Usage heartbeats and the online count in the top bar (src/telemetry.js).
+let reporter = null;
+let usageCount = null;
+
+function heartbeatPayload() {
+  const installedBuild = binaryReady() ? game.installed(config.repo) : null;
+  return telemetry.payload({ installId: config.installId, launcherVersion: app.getVersion(),
+    gameVersion: installedBuild?.gameVersion, availableVersion: currentSource().version,
+    channel: config.settings.updateChannel, playing: active?.label === PLAY_LABEL });
+}
+
+// Packaged builds report; a development launcher only with COLO_TELEMETRY_URL.
+function setupTelemetry() {
+  if (!app.isPackaged && !process.env.COLO_TELEMETRY_URL) return;
+  reporter = telemetry.createReporter({ url: telemetry.endpoint(), fetch: (...args) => net.fetch(...args),
+    sharing: () => config.settings.shareUsage, getPayload: heartbeatPayload,
+    onCount: count => { usageCount = count; broadcast('usage', count); } });
+  reporter.start();
+}
+
+// --- Online battles (src/online.js): the room, the game between it and the player.
+let battle = null;     // { session, status, code, role, opponent, rules }
+let battleResult = null;
+
+function onlineState() {
+  return { setup: config.online, ready: onlineReadiness(), build: binaryReady() ? gameBuild().build : null, result: battleResult,
+    battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
+      opponent: battle.opponent, peerLost: Boolean(battle.peerLost) } };
+}
+
+function broadcastOnline() { broadcast('online', onlineState()); }
+
+// The game's executable has to know about online battles: builds from before them don't.
+let onlineBinary = null;
+function gameHasOnline(root) {
+  try {
+    const file = port.binaryPath(root);
+    const { mtimeMs } = fs.statSync(file);
+    if (onlineBinary?.file !== file || onlineBinary.mtimeMs !== mtimeMs)
+      onlineBinary = { file, mtimeMs, online: fs.readFileSync(file).includes('COLO_ONLINE') };
+    return onlineBinary.online;
+  } catch (_) { return false; }
+}
+
+// Why a room can't be made or joined now, or null.
+function onlineReadiness() {
+  if (!port.isPort(config.repo) || !binaryReady()) return 'Set up the game on the Play page first.';
+  if (!gameHasOnline(config.repo)) return 'This version of the game has no online battles yet. Update it from the Play page.';
+  if (!parties.selectedParty(config.online)) return 'Choose a party of six to battle with.';
+  return null;
+}
+
+// What identifies this game to another player's: both must play the very same build.
+function gameBuild() {
+  const installedBuild = game.installed(config.repo);
+  return { build: `${installedBuild?.commit || ''}:${installedBuild?.decomp || ''}`, version: installedBuild?.gameVersion || '', launcher: app.getVersion() };
+}
+
+function requireOnlineReady() {
+  const blocked = onlineReadiness();
+  if (blocked) throw new Error(blocked);
+  if (active || battle) throw new Error('Finish what the launcher is doing first.');
+}
+
+const BATTLE_OVER = {
+  left: 'The other player left the battle.', dropped: 'The connection to the room was lost.',
+  desync: 'The battle stopped: the two games no longer agreed. This is a bug, please report it.'
+};
+
+function battleOutcome(result, side) {
+  if (result.reason === 'over') return { won: result.winner === side, draw: result.winner === null,
+    message: result.winner === null ? 'The battle ended in a draw.' : result.winner === side ? 'You won the battle!' : 'You lost the battle.' };
+  return BATTLE_OVER[result.reason] ? { message: BATTLE_OVER[result.reason] } : null;
+}
+
+// The game starts and plays with a port for its turns; it ends the session as it closes.
+async function playBattle(session) {
+  const gamePort = await session.attachGame();
+  try {
+    do await exclusive(PLAY_LABEL, () => play(null, { port: gamePort }), true);
+    while (session.takeRestart());
+  } finally {
+    session.close();
+    if (battle?.session === session) battle = null;
+    broadcastOnline();
+    broadcast('activity', activityState());
+  }
+}
+
+function watchSession(session) {
+  session.on('start', message => {
+    if (!battle) return;
+    battle.status = 'battling';
+    battle.opponent = message.players[1 - message.side].name;
+    broadcastOnline();
+  });
+  session.on('peer', peer => { if (battle) { battle.peerLost = peer === 'lost'; broadcastOnline(); } });
+  session.on('end', result => {
+    const outcome = battleOutcome(result, session.side);
+    if (outcome) battleResult = { ...outcome, opponent: battle?.opponent || null };
+    if (battle) battle.status = 'ended';
+    broadcastOnline();
+  });
+}
+
+async function createRoom() {
+  requireOnlineReady();
+  const setup = config.online;
+  const party = parties.selectedParty(setup).members;
+  const session = new online.Session();
+  battleResult = null;
+  battle = { session, status: 'connecting', role: 'host', rules: { level: setup.level, size: setup.size }, code: null, opponent: null };
+  broadcastOnline();
+  watchSession(session);
+  try {
+    battle.code = await session.host({ name: setup.trainer, ...gameBuild(), party,
+      rules: { level: setup.level, size: setup.size }, listed: setup.listed });
+  } catch (error) {
+    session.close();
+    battle = null;
+    broadcastOnline();
+    throw error;
+  }
+  battle.status = 'waiting';
+  broadcastOnline();
+  log(`Room ${online.formatRoomCode(battle.code)} is open. Waiting for a challenger.`);
+  playBattle(session).catch(error => log(`✕ ${error.message}`));
+  return { code: online.formatRoomCode(battle.code) };
+}
+
+async function joinRoom(input) {
+  requireOnlineReady();
+  const code = online.parseRoomCode(input);
+  if (!code) throw new Error('A room code looks like KQ7-M2D.');
+  const setup = config.online;
+  const session = new online.Session();
+  battleResult = null;
+  const info = await online.lookup(code);
+  if (info.status !== 'waiting') throw new Error('That battle has already started.');
+  battle = { session, status: 'connecting', role: 'joiner', rules: info.rules, code, opponent: info.name };
+  broadcastOnline();
+  watchSession(session);
+  try { await session.join({ code, name: setup.trainer, ...gameBuild(), party: parties.selectedParty(setup).members }); }
+  catch (error) {
+    session.close();
+    battle = null;
+    broadcastOnline();
+    throw error;
+  }
+  playBattle(session).catch(error => log(`✕ ${error.message}`));
+  return { code: online.formatRoomCode(code) };
+}
+
+// Stops what the launcher is running, as Stop does.
+function stopActive() {
+  if (!active?.child) return false;
+  stoppedAt = Date.now();
+  if (process.platform === 'win32') spawn('taskkill', ['/PID', String(active.child.pid), '/T', '/F'], { windowsHide: true });
+  else { try { process.kill(-active.child.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
+  return true;
+}
+
+// Leaving a room closes its game, and the room with it.
+function leaveRoom() {
+  if (!battle) return;
+  if (active?.label === PLAY_LABEL) stopActive();
+  else {
+    battle.session.close();
+    battle = null;
+    broadcastOnline();
+  }
+}
+
 function state() {
   const info = port.platformInfo();
   let romError = '';
@@ -1041,7 +1229,8 @@ function state() {
     backups: saves.listBackups().filter(item => item.source === currentSaveDirectory()),
     crashReports: crashReports.summary(crashReports.directory()), directPlayFailure,
     // The run on the memory card, and whether the game on disk can play one.
-    randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c'))
+    randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c')),
+    usage: usageCount, online: onlineState()
   };
 }
 
@@ -1234,6 +1423,15 @@ function registerHandlers() {
     fs.writeFileSync(readable, randomizer.spoilerText(raw, pokedexData.list(port.validateRom(config.rom))));
     await shell.openPath(readable);
   });
+  ipcMain.handle('online-save', (_event, value) => {
+    config.online = parties.normalize(value);
+    saveConfig();
+    return onlineState();
+  });
+  ipcMain.handle('online-rooms', () => online.listRooms({ fetch: (...args) => net.fetch(...args) }));
+  ipcMain.handle('online-create', () => createRoom());
+  ipcMain.handle('online-join', (_event, code) => joinRoom(code));
+  ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('pokedex', () => pokedexData.list(port.validateRom(config.rom)));
   ipcMain.handle('pokedex-model', (_event, national, form) => pokedexData.model(port.validateRom(config.rom), Number(national), String(form)));
   ipcMain.handle('pokedex-clip', (_event, national, form, index) => pokedexData.clip(port.validateRom(config.rom), Number(national), String(form), Number(index)));
@@ -1379,14 +1577,7 @@ function registerHandlers() {
     });
     return answer.response === 1 ? removeBuildTools() : { cancelled: true };
   }));
-  ipcMain.handle('stop', () => {
-    if (!active) return false;
-    if (!active.child) return false;
-    stoppedAt = Date.now();
-    if (process.platform === 'win32') spawn('taskkill', ['/PID', String(active.child.pid), '/T', '/F'], { windowsHide: true });
-    else { try { process.kill(-active.child.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
-    return true;
-  });
+  ipcMain.handle('stop', () => stopActive());
   ipcMain.handle('changelog', () => changelogState());
   ipcMain.handle('changelog-seen', () => markChangelogSeen());
   ipcMain.handle('open-changelog-page', () => shell.openExternal(changelog.PAGE_URL));
@@ -1441,6 +1632,7 @@ if (ownsInstance) app.whenReady().then(async () => {
   createWindow();
   // Only with the window: a launcher update installs on quit, which `--play` does as the game closes.
   setupAppUpdater();
+  setupTelemetry();
   removeOldVersionsInBackground();
   // The bundled manifest is the update check. Source downloads and builds
   // start with Update & play, so opening the launcher never changes a game.

@@ -1,11 +1,14 @@
 {
   "beta": {
     "launcher": [
+      "Online battles: build named parties of six from your Pokédex, then open a room or join one on the new Online tab and battle another player, at level 50 or 100 with 3 or 6 Pokémon each. Your game waits in the stadium until someone joins.",
+      "The top bar shows how many players are online. It comes from an anonymous check-in you can turn off under Settings → Launcher.",
       "Randomizer: start a New Game with different starters, Shadow Pokémon, trainers' Pokémon and gifts, chosen by a seed you can share. Limit it to the generations you like, keep Pokémon about as strong as those they replace, or leave legendaries out. Your save keeps its seed, so fights stay the same when you try again. Find it under Gameplay.",
       "Pokédex: browse all 386 Pokémon from your own disc, turn their 3D models around, play their motions and see their shiny looks. It also shows how you can get each one, and locks those the game keeps out of reach. Find it in the new Pokédex tab.",
       "Macs with Apple Silicon: the game now builds as a native program and draws with Metal, so it runs faster and Rosetta is no longer needed. Metal is the new default renderer on these Macs; Vulkan and OpenGL are still under Graphics. Intel Macs stay on Vulkan."
     ],
     "game": [
+      "Online battles: two players' games play one battle, with both choosing their moves at the same time, from the launcher's Online tab.",
       "Randomizer: a new save can be a randomized run, and the save keeps its seed.",
       "Macs with Apple Silicon: the game runs natively, and the wipe into a trainer battle plays in full instead of going black."
     ]

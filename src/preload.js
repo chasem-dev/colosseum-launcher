@@ -42,6 +42,11 @@ contextBridge.exposeInMainWorld('colo', {
   stop: () => ipcRenderer.invoke('stop'),
   randomizerNewSeed: () => ipcRenderer.invoke('randomizer-new-seed'),
   randomizerSpoilers: () => ipcRenderer.invoke('randomizer-spoilers'),
+  onlineSave: value => ipcRenderer.invoke('online-save', value),
+  onlineRooms: () => ipcRenderer.invoke('online-rooms'),
+  onlineCreate: () => ipcRenderer.invoke('online-create'),
+  onlineJoin: code => ipcRenderer.invoke('online-join', code),
+  onlineLeave: () => ipcRenderer.invoke('online-leave'),
   pokedex: () => ipcRenderer.invoke('pokedex'),
   pokedexModel: (national, form) => ipcRenderer.invoke('pokedex-model', national, form),
   pokedexClip: (national, form, index) => ipcRenderer.invoke('pokedex-clip', national, form, index),
@@ -67,4 +72,6 @@ contextBridge.exposeInMainWorld('colo', {
   onLogReset: callback => ipcRenderer.on('log-reset', (_event, sequence) => callback(sequence)),
   onActivity: callback => ipcRenderer.on('activity', (_event, value) => callback(value)),
   onAppUpdate: callback => ipcRenderer.on('app-update', (_event, value) => callback(value)),
+  onUsage: callback => ipcRenderer.on('usage', (_event, value) => callback(value)),
+  onOnline: callback => ipcRenderer.on('online', (_event, value) => callback(value)),
 });

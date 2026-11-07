@@ -128,9 +128,17 @@ Under **Settings → Gameplay**, the randomizer swaps the game's Pokémon for ot
 
 It starts with your next **New Game**, and the seed is kept inside that save. Fights stay the same when you lose and try again, and the run goes with the save through backups and imports. An existing save is never changed, and a run keeps its seed whatever the settings say later. Share a seed and the same choices to play the same run as a friend.
 
+### Online battles
+
+The **Online** tab is where you battle other players. Build a party first: choose six from the Pokédex, give it a name, and pick the party you want to battle with. You can keep as many as you like. Pokémon come with their level-up moves, at the room's level, with the best individual values and a neutral nature, so a party is just its six species.
+
+**Create room** opens a room at level 50 or 100, with 3 or 6 Pokémon each (the first three of your party in a 3-Pokémon battle). Your game starts and waits in the stadium, and your room appears for everyone on the list. Untick **Show on the room list** to keep it private and give a friend the code instead. When someone joins, your game starts again and you're both in the battle. Players choose their moves at the same time. **Give in** from the battle menu ends the battle, and closing the game counts as leaving.
+
+Both players need the same build of the game. A room on another version says which one it needs.
+
 ### Privacy
 
-The launcher sends nothing about you. It talks to GitHub and the port's GitLab for updates, the setup files and the HD textures. Your disc image never leaves your computer.
+The launcher sends nothing personal. Every few minutes it checks in with the online count server: your launcher and game versions, OS, update channel, whether the game is running, and a random ID made on first run. That's what the online count in the top bar is made from. Turn off **Share anonymous usage** under Settings → Launcher and you'll still see the count, without being part of it. An online room passes your trainer name and party to the other player through that server, and no address is stored. Otherwise the launcher talks to GitHub and the port's GitLab for updates, the setup files and the HD textures. Your disc image never leaves your computer.
 
 ## Need help?
 
@@ -161,6 +169,10 @@ npm start
 ```
 
 Node 22.12 or newer.
+
+### Online battles
+
+The rooms and the online count are [colosseum-server-api](https://github.com/chasem-dev/colosseum-server-api), a Cloudflare Worker. `COLO_TELEMETRY_URL=http://localhost:8787 npm start` points a development launcher at one running with `npm run dev` (a development launcher reports nothing without it). `src/online.js` is the launcher's side, and the game's `host/online.c` lists the lines the two exchange.
 
 ### Test and package
 

@@ -141,6 +141,8 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     updateChannel: normalizeChannel(input.updateChannel),
     // Save backups the launcher makes by itself (before and after play, before updates and cleanup).
     autoBackups: input.autoBackups !== false,
+    // Anonymous usage heartbeats (src/telemetry.js). The online count shows either way.
+    shareUsage: input.shareUsage !== false,
     darkMode: Boolean(input.darkMode),
     // Keys and controller buttons the player changed in Settings → Controls; the rest stay the game's defaults.
     keyBindings: bindings.normalize(input.keyBindings),
