@@ -788,6 +788,11 @@ async function build(forceFresh = false) {
   // A fresh build's folder is longer than the one ensureBuildTools checked.
   requireShortPaths(root);
   if (!port.hdVisualsInstalled(root, settings)) await installTextures(root);
+  // Only the icon needs it, so a build without it goes on without one.
+  if (process.platform === 'win32') {
+    try { port.placeMainDol(root, rom); }
+    catch (error) { log(`Could not copy main.dol from your disc for the game's icon: ${error.message}`); }
+  }
   const env = await withBuildCaches(toolEnv({ ...process.env, NINJA_STATUS: '[%f/%t] ' }), root);
   const compile = buildEnv => {
     const cmd = port.buildCommand(root, process.platform, buildEnv);

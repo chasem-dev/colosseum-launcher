@@ -22,6 +22,19 @@ test('the North American disc is accepted, and it is named by its contents, not 
   assert.equal(port.validateRom(file), file);
 });
 
+test("main.dol is copied from the disc to where the decomp keeps the disc's files, for the Windows icon", t => {
+  const root = temporary(t);
+  const bytes = colosseum();
+  bytes.fill(7, 0x2900, 0x2b00);   // the fixture DOL's one section
+  const target = port.placeMainDol(path.join(root, 'Colosseum Game'), disc(root, bytes));
+  assert.equal(target, path.join(root, 'Colosseum Game', 'deps', 'pkmn-colosseum', 'orig', 'GC6E01', 'sys', 'main.dol'));
+  assert.deepEqual(fs.readFileSync(target), bytes.subarray(0x2800, 0x2b00));
+  fs.writeFileSync(target, 'stale');
+  port.placeMainDol(path.join(root, 'Colosseum Game'), disc(root, bytes));
+  assert.deepEqual(fs.readFileSync(target), bytes.subarray(0x2800, 0x2b00));
+  assert.ok(!fs.existsSync(`${target}.part`));
+});
+
 test('other discs say what they are and what to do', t => {
   const root = temporary(t);
   assert.throws(() => port.validateRom(disc(root, colosseum('GC6P01'))), /European release of Pokémon Colosseum \(GC6P01\)/);
