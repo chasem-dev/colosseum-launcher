@@ -452,7 +452,8 @@ function loadPacks(dir, tables, registry) {
       const images = { body: files.body || null, bodyShiny: files.bodyShiny || null, face: files.face || null };
       pokemon.push({ ...each, id: assigned.ids.get(each.key), ...built, assets, images,
         packName: typeof each.about.name === 'string' ? each.about.name.slice(0, 80) : each.pack,
-        author: typeof each.about.author === 'string' ? each.about.author.slice(0, 80) : '' });
+        author: typeof each.about.author === 'string' ? each.about.author.slice(0, 80) : '',
+        credits: typeof each.about.credits === 'string' ? each.about.credits.slice(0, 300) : '' });
     } catch (error) {
       problems.push({ pack: each.pack, entry: each.folder, message: error.message });
     }
@@ -505,7 +506,7 @@ function pokedexEntries(pokemon, tables) {
       const into = row.readUInt16BE(ROW.evolutions + i * 6 + 4);
       if (row[ROW.evolutions + i * 6] && into) evolutions.push(into);
     }
-    return { pack: { id: each.pack, name: each.packName, author: each.author, folder: each.folder, key: each.key },
+    return { pack: { id: each.pack, name: each.packName, author: each.author, credits: each.credits, folder: each.folder, key: each.key },
       packId: each.id, national: each.base.national, base: each.base.name, form: each.form,
       name: each.form ? `${pokedex.displayName(each.name)} (${each.form})` : pokedex.displayName(each.name), description: each.description,
       types: types[0] === types[1] ? types.slice(0, 1) : types, abilities: [...new Set(abilities)],
@@ -514,7 +515,8 @@ function pokedexEntries(pokemon, tables) {
       evolutions: evolutions.map(id => pokemon.find(other => other.id === id)?.key || tables.species.find(s => s.id === id)?.national).filter(Boolean),
       hasModel: Boolean(each.assets.model), hasShinyModel: Boolean(each.assets.modelShiny),
       status: { kind: 'pack', label: each.form ? `${each.form} form, from a pack` : 'From a pack', locked: false,
-        note: `${each.packName}${each.author ? `, by ${each.author}` : ''}. Based on ${each.base.name}.${each.description ? ` ${each.description}` : ''}` } };
+        note: `${each.packName}${each.author ? `, by ${each.author}` : ''}. Based on ${each.base.name}.${each.description ? ` ${each.description}` : ''}` +
+          `${each.credits ? ` Credits: ${each.credits}` : ''}` } };
   });
 }
 

@@ -220,11 +220,11 @@ test('the Pokédex shows a pack Pokémon as it shows the game\'s, with where it 
   const game = tables();
   const built = packs.buildRow({ base: 'Pikachu', form: 'Storm', abilities: ['Static'], evolutions: [{ into: 'Raichu', level: 30 }], description: 'Crackles.' }, game,
     value => game.species.find(each => each.name === value).id);
-  const [entry] = packs.pokedexEntries([{ id: 252, key: 'p/storm', pack: 'p', folder: 'storm', packName: 'Weather', author: 'Me', ...built, assets: {} }], game);
+  const [entry] = packs.pokedexEntries([{ id: 252, key: 'p/storm', pack: 'p', folder: 'storm', packName: 'Weather', author: 'Me', credits: 'Them, for the model.', ...built, assets: {} }], game);
   assert.equal(entry.name, 'Pikachu (Storm)');
   assert.equal(entry.national, 25);
   assert.deepEqual(entry.abilities, ['Static']);
   assert.deepEqual(entry.evolutions, [26]);
   assert.equal(entry.status.kind, 'pack');
-  assert.match(entry.status.note, /^Weather, by Me\. Based on Pikachu\. Crackles\.$/);
+  assert.match(entry.status.note, /^Weather, by Me\. Based on Pikachu\. Crackles\. Credits: Them, for the model\.$/);
 });

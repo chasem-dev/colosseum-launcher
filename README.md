@@ -158,6 +158,7 @@ Open the activity log with **Activity log** in the status bar, choose **Copy log
 | <img src="https://github.com/snatcherLeo.png?size=96" width="48" height="48" alt=""> | **[snatcherLeo](https://github.com/snatcherLeo)** | Engine expertise |
 | <img src="https://github.com/dougchansan.png?size=96" width="48" height="48" alt=""> | **[dougchansan](https://github.com/dougchansan)** | The [pkmn-colosseum](https://github.com/dougchansan/pkmn-colosseum) decompilation the game is built from |
 | <img src="https://github.com/SteamGridDB.png?size=96" width="48" height="48" alt=""> | **[SteamGridDB](https://www.steamgriddb.com)** | The artwork used by **Add to Steam** |
+| <img src="https://github.com/StarsMmd.png?size=96" width="48" height="48" alt=""> | **[StarsMmd](https://github.com/StarsMmd)** | Years of work on Colosseum, XD and Battle Revolution's files: the [GoD Tool](https://github.com/StarsMmd/GoD-Tool) and the [Blender add-on for GameCube models](https://github.com/StarsMmd/Blender-Addon-Gamecube-Models), which Battle Revolution Pokémon packs are made with |
 
 ## For developers
 

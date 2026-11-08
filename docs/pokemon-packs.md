@@ -33,8 +33,10 @@ it could load, and says what's wrong with any it couldn't. The launcher reads th
 `pack.json`:
 
 ```json
-{ "name": "Moon Pack", "author": "You" }
+{ "name": "Moon Pack", "author": "You", "credits": "Model base by a friend; cry from another pack." }
 ```
+
+`credits` names whoever else the pack owes thanks to, and the Pokédex shows it with each of the pack's Pokémon.
 
 ## pokemon.json
 
