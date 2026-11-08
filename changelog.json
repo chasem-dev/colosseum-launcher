@@ -1,42 +1,48 @@
 {
   "beta": {
-    "launcher": [
-      "Story party: battle online with the Pokémon you travel with. The Online tab shows the party in your save, set apart at the top, and brings each one along with its moves, nature, stats, ability, held item and nickname, at the room's level. A party of 3 to 5 can take rooms of 3 each, and Shadow Pokémon stay home until they're purified. Online battles now need the newest launcher on both sides.",
-      "Show on Discord: while you play, your Discord profile shows where you are in Orre with a picture of the place, who you're battling and your lead Pokémon, and online battles show your opponent. The Discord app needs to be open. Turn it off under Settings → Launcher.",
-      "Fixed the portable launcher on Windows never finding the game's crash reports, so Settings → Launcher can now copy them for a bug report.",
-      "Fixed game updates started from Steam filling the activity log with Steam overlay errors, which could also hide why a build failed.",
-      "Fixed a crash report on Linux and the Steam Deck when you closed the game with Stop in Steam.",
-      "Fixed Create room staying greyed out online: a full party is now always chosen for you, a party short of six can't be chosen, and the button wakes up once the game has finished installing or updating.",
-      "Battle animations: a speed slider from 1× to 5× in steps of 0.1, with 1.5× as the new default, and a Skip battle animations switch that greys it out. Find them under Gameplay.",
-      "Online battles: build named parties of six from your Pokédex, then open a room or join one on the new Online tab and battle another player, at level 50 or 100 with 3 or 6 Pokémon each. Your game waits in the stadium until someone joins. The room list updates by itself, and Refresh checks right away.",
-      "The top bar shows how many players are online. It comes from an anonymous check-in you can turn off under Settings → Launcher.",
-      "Export a save: carry on in Dolphin with a .gci file of your game. Find it in the Saves tab.",
-      "Randomizer: start a New Game with different starters, Shadow Pokémon, trainers' Pokémon and gifts, chosen by a seed you can share. Limit it to the generations you like, keep Pokémon about as strong as those they replace, or leave legendaries out. Your save keeps its seed, so fights stay the same when you try again. Find it under Gameplay.",
-      "Pokédex: browse all 386 Pokémon from your own disc, turn their 3D models around, play their motions and see their shiny looks. It also shows how you can get each one, and locks those the game keeps out of reach. Find it in the new Pokédex tab.",
-      "Macs with Apple Silicon: the game now builds as a native program and draws with Metal, so it runs faster and Rosetta is no longer needed. Metal is the new default renderer on these Macs; Vulkan and OpenGL are still under Graphics. Intel Macs stay on Vulkan."
-    ],
-    "game": [
-      "When Vulkan can't start on Linux, the game now tries the desktop's other window system before falling back to OpenGL, and the message says why Vulkan couldn't start.",
-      "Battle animations can run at any speed from 1× to 5× in steps of 0.1.",
-      "Online battles: two players' games play one battle, with both choosing their moves at the same time, from the launcher's Online tab.",
-      "Fixed online battles stopping as out of sync after a move that lasts more than one turn, such as Rollout or Outrage.",
-      "Fixed online battles on Windows staying on a black screen once the other player joined, with only the sound playing.",
-      "Fixed Pokémon getting a different nature and gender than a GameCube would give them at the same moment, which also threw off the random rolls after it, such as trainers' teams and damage.",
-      "Randomizer: a new save can be a randomized run, and the save keeps its seed.",
-      "Macs with Apple Silicon: the game runs natively, and the wipe into a trainer battle plays in full instead of going black.",
-      "Rui and most trainers now have their detailed models in the field too, with sharper faces and real fingers.",
-      "Fixed online battles not starting if you pressed A during the title screen: online games now skip the title and go straight to the battle, a few seconds sooner.",
-      "Fixed the game not opening its window on Linux with newer graphics drivers, and that error calling the game Super Mario Sunshine.",
-      "Fixed people and objects disappearing near the sides of the screen in widescreen.",
-      "Fixed the arrow for picking a target sitting away from the status panels in widescreen.",
-      "Fixed Pokémon blinking twice as often at 60 fps, which also used up the game's random numbers faster than on a GameCube.",
-      "Save anywhere: the menu you open with Start has a new SAVE option above EXIT. It saves where you stand, and Continue puts you back on that spot.",
-      "In widescreen, the menu you open with Start now sits at the right edge of the screen, as it does in 4:3.",
-      "The game tells the launcher where you are, who you're battling and your lead Pokémon, for Show on Discord.",
-      "Online battles can use your Story party: each Pokémon keeps its moves, nature, stats, ability, held item, nickname and Poké Ball, at the battle's level."
-    ]
+    "launcher": [],
+    "game": []
   },
   "releases": [
+    {
+      "version": "0.3.0",
+      "date": "2026-11-08",
+      "launcher": [
+        "Online battles: open a room or join one on the new Online tab and battle another player, at level 50 or 100 with 3 or 6 Pokémon each. Build named parties of six from your Pokédex, and your game waits in the stadium until someone joins. The room list updates by itself, and Refresh checks right away.",
+        "Story party: battle online with the Pokémon you travel with. The Online tab shows the party in your save, set apart at the top, and brings each one along with its moves, nature, stats, ability, held item and nickname, at the room's level. A party of 3 to 5 can take rooms of 3 each, and Shadow Pokémon stay home until they're purified.",
+        "The top bar shows how many players are online. It comes from an anonymous check-in you can turn off under Settings → Launcher.",
+        "Show on Discord: while you play, your Discord profile shows where you are in Orre with a picture of the place, who you're battling and your lead Pokémon, and online battles show your opponent. The Discord app needs to be open. Turn it off under Settings → Launcher.",
+        "Pokédex: browse all 386 Pokémon from your own disc, turn their 3D models around, play their motions and see their shiny looks. It also shows how you can get each one, and locks those the game keeps out of reach. Find it in the new Pokédex tab.",
+        "Randomizer: start a New Game with different starters, Shadow Pokémon, trainers' Pokémon and gifts, chosen by a seed you can share. Limit it to the generations you like, keep Pokémon about as strong as those they replace, or leave legendaries out. Your save keeps its seed, so fights stay the same when you try again. Find it under Gameplay.",
+        "Export a save: carry on in Dolphin with a .gci file of your game. Find it in the Saves tab.",
+        "Battle animations: a speed slider from 1× to 5× in steps of 0.1, with 1.5× as the new default, and a Skip battle animations switch that greys it out. Find them under Gameplay.",
+        "Macs with Apple Silicon: the game now builds as a native program and draws with Metal, so it runs faster and Rosetta is no longer needed. Metal is the new default renderer on these Macs; Vulkan and OpenGL are still under Graphics. Intel Macs stay on Vulkan.",
+        "Fixed the portable launcher on Windows never finding the game's crash reports, so Settings → Launcher can now copy them for a bug report.",
+        "Fixed game updates started from Steam filling the activity log with Steam overlay errors, which could also hide why a build failed.",
+        "Fixed a crash report on Linux and the Steam Deck when you closed the game with Stop in Steam."
+      ],
+      "game": {
+        "version": "2026.11.08.1",
+        "commit": "1988204c8eae342f3171cf818f4abd067f2a134b",
+        "changes": [
+          "Online battles: two players' games play one battle, with both choosing their moves at the same time, from the launcher's Online tab. A Story party's Pokémon keep their moves, nature, stats, ability, held item, nickname and Poké Ball, at the battle's level.",
+          "Save anywhere: the menu you open with Start has a new SAVE option above EXIT. It saves where you stand, and Continue puts you back on that spot.",
+          "Randomizer: a new save can be a randomized run, and the save keeps its seed.",
+          "Rui and most trainers now have their detailed models in the field too, with sharper faces and real fingers.",
+          "Battle animations can run at any speed from 1× to 5× in steps of 0.1.",
+          "Macs with Apple Silicon: the game runs natively, and the wipe into a trainer battle plays in full instead of going black.",
+          "The game tells the launcher where you are, who you're battling and your lead Pokémon, for Show on Discord.",
+          "When Vulkan can't start on Linux, the game now tries the desktop's other window system before falling back to OpenGL, and the message says why Vulkan couldn't start.",
+          "In widescreen, the menu you open with Start now sits at the right edge of the screen, as it does in 4:3.",
+          "Fixed Pokémon getting a different nature and gender than a GameCube would give them at the same moment, which also threw off the random rolls after it, such as trainers' teams and damage.",
+          "Fixed the game not opening its window on Linux with newer graphics drivers, and that error calling the game Super Mario Sunshine.",
+          "Fixed people and objects disappearing near the sides of the screen in widescreen.",
+          "Fixed the arrow for picking a target sitting away from the status panels in widescreen.",
+          "Fixed the stripes of Yes/No boxes stopping short, and the Poké Ball in a text box's corner drawing outside the box, in widescreen.",
+          "Fixed Pokémon blinking twice as often at 60 fps, which also used up the game's random numbers faster than on a GameCube."
+        ]
+      }
+    },
     {
       "version": "0.2.0",
       "date": "2026-11-06",
