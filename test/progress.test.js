@@ -40,6 +40,19 @@ test('reports the texture installer\'s phases', () => {
   assert.deepEqual(activityFromLine('Installed 7498 textures'), { detail: 'HD textures installed', percent: 100 });
 });
 
+test('reports the Battle Revolution models\' phases', () => {
+  assert.deepEqual(activityFromLine('Downloading the model tools: https://github.com/encounter/nod/releases/download/v2/nodtool'),
+    { detail: 'Downloading the model tools', percent: null });
+  assert.deepEqual(activityFromLine("Preparing the model tools: StarsMmd's Blender-Addon-Gamecube-Models"),
+    { detail: 'Preparing the model tools', percent: null });
+  assert.deepEqual(activityFromLine('Reading your Battle Revolution disc'), { detail: 'Reading your Battle Revolution disc', percent: null });
+  assert.deepEqual(activityFromLine('Making models for 107 Pokémon'), { detail: 'Making Battle Revolution models', percent: 0 });
+  assert.deepEqual(activityFromLine('Made 40 of 107 Pokémon'), { detail: 'Making Battle Revolution models · 40 of 107 Pokémon', percent: 37 });
+  assert.deepEqual(activityFromLine('Made 107 of 107 Pokémon'), { detail: 'Making Battle Revolution models · 107 of 107 Pokémon', percent: 100 });
+  assert.equal(activityFromLine('Made 9 of 3 Pokémon'), null);
+  assert.equal(activityFromLine('#387 TURTWIG: base Treecko, 11 level-up moves (1 newer than Colosseum left out), 33 TM moves'), null);
+});
+
 test('the end of the port\'s build is its own phase', () => {
   assert.deepEqual(activityFromLine('game objs 1632 data syms 3335 stubs 28 fntab 7980'), { detail: 'Finishing setup', percent: null });
   assert.deepEqual(activityFromLine('linked /games/colosseum/build/colosseum'), { detail: 'Finishing setup', percent: null });

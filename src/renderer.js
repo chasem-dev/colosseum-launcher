@@ -509,6 +509,8 @@ function renderActivity(active) {
   $('stop').textContent = active?.label === GAME_LABEL ? 'Stop game'
     : active?.label.startsWith('Build ') ? 'Stop build' : 'Stop task';
   $('view-build-log').textContent = active?.label.startsWith('Build ') ? 'View build log' : 'View activity';
+  const pbrNote = pbrProgress(active);
+  if (pbrNote) $('pbr-note').textContent = pbrNote;
   $('task-status').textContent = active ? taskName(active.label)
     : current?.binaryReady && needsTextureDownload(current) ? 'HD setup needed'
     : current?.game.needsUpdate && current.config.completedSetup ? 'Update ready'
@@ -911,18 +913,27 @@ function settingsValue() {
   return value;
 }
 
-// What the randomizer will do, and what the save on the card already is: the save wins.
-// Battle Revolution models: the disc chosen, and how many of the wanted Pokémon have theirs.
+// Battle Revolution models: the disc chosen, and how many of the wanted Pokémon have theirs; while they're being made,
+// how far that has got (the progress bar's detail, as the Home page shows it).
+const PBR_LABEL = 'Make Battle Revolution models';
+function pbrProgress(active) {
+  if (active?.label !== PBR_LABEL) return null;
+  const detail = active.detail && active.detail !== 'Starting…' ? active.detail : 'Starting';
+  return `${detail}${Number.isFinite(active.percent) ? ` (${active.percent}%)` : '…'}`;
+}
+
 function renderPbr(data) {
   const pbr = data.pbr || {};
-  $('pbr-note').textContent = !pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
-    : !pbr.wanted ? 'Turn on Generation 4 Pokémon above, then make their models from your own Pokémon Battle Revolution disc. No Blender needed.'
-      : !pbr.disc ? `Their models and icons, made from your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS). ${pbr.made} of ${pbr.wanted} made.`
-        : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`;
+  $('pbr-note').textContent = pbrProgress(data.active)
+    || (!pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
+      : !pbr.wanted ? 'Turn on Generation 4 Pokémon above, then make their models from your own Pokémon Battle Revolution disc. No Blender needed.'
+        : !pbr.disc ? `Their models and icons, made from your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS). ${pbr.made} of ${pbr.wanted} made.`
+          : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
   $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
   $('choose-pbr-disc').disabled = Boolean(data.active);
 }
 
+// What the randomizer will do, and what the save on the card already is: the save wins.
 function renderRandomizer(data) {
   const { run, exists } = data.randomizerSave || {}, ready = data.randomizerReady !== false;
   $('randomizer-options').hidden = !data.config.settings.randomizer;
