@@ -2,38 +2,21 @@
 // game itself are the main process's (src/online.js); this page shows them and asks.
 (() => {
   const $ = id => document.getElementById(id);
-  const PARTY_SIZE = 6, STORY = 'story', NO_ROOMS = 'No rooms are open. Create one and wait for a challenger.';
+  const PARTY_SIZE = 6, MAX_PARTIES = 32, STORY = 'story', NO_ROOMS = 'No rooms are open. Create one and wait for a challenger.';
   const REFRESH_REST = 3000; // ms before Refresh works again: the server's list is this old at best
   const message = error => String(error?.message || error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-  const number = national => `#${String(national).padStart(3, '0')}`;
 
-  let state = null, setup = null, species = null, loadingSpecies = null, rooms = null, editing = null;
-  const byId = new Map();
+  let state = null, setup = null, rooms = null, loaded = false;
+  const builder = () => window.coloTeamBuilder;
 
-  async function loadSpecies() {
-    try {
-      const list = await window.colo.pokedex();
-      species = list;
-      for (const entry of list) byId.set(entry.id, entry);
-      $('party-dex-note').hidden = true;
-    } catch (error) {
-      $('party-dex-note').textContent = message(error);
-      $('party-dex-note').hidden = false;
-    }
-    loadingSpecies = null;
-    renderParties();
-    if ($('party-editor').open) { renderDex(); renderSlots(); }
+  // The sprites and names come with the team builder's Pokédex, read from the disc once.
+  function loadSpecies() {
+    builder().load().then(() => { loaded = Boolean(builder().data()); if (setup) renderParties(); });
   }
 
   function sprite(id, size) {
-    const entry = byId.get(id);
-    if (!entry?.sprite) return Object.assign(document.createElement('span'), { textContent: entry ? '' : '?' });
-    const image = document.createElement('img');
-    image.src = entry.sprite;
-    image.alt = entry.name;
-    image.title = entry.name;
-    image.width = image.height = size;
-    image.loading = 'lazy';
+    const image = builder().sprite(id, size);
+    image.title = builder().speciesName(id);
     return image;
   }
 
@@ -62,7 +45,7 @@
     const team = Object.assign(document.createElement('div'), { className: 'party-card-team story-team' });
     team.append(...story.members.map(member => {
       const slot = Object.assign(document.createElement('span'), { className: `story-member${member.shiny ? ' shiny' : ''}` });
-      const species = byId.get(member.species)?.name;
+      const species = builder().speciesName(member.species);
       slot.title = `${member.nickname || species || 'Pokémon'}${species && member.nickname !== species.toUpperCase() ? ` (${species})` : ''}, Lv ${member.level} in your save${member.shiny ? ', shiny' : ''}`;
       slot.append(sprite(member.species, 36), Object.assign(document.createElement('small'), { textContent: `Lv${member.level}` }));
       return slot;
@@ -78,15 +61,37 @@
     card.append(detail);
     if (story.leftOut)
       card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `${story.leftOut === 1 ? 'A Shadow Pokémon stays' : `${story.leftOut} Shadow Pokémon stay`} home until purified.` }));
+    if (count && setup.parties.length < MAX_PARTIES) {
+      const copy = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button story-copy', textContent: 'Copy to a new party' });
+      copy.title = 'Start a party of your own from these Pokémon, to change their moves, items and spreads';
+      copy.addEventListener('click', event => { event.stopPropagation(); copyStory(); });
+      card.append(copy);
+    }
     if (!usable) return card;
     const choose = () => { setup.selected = STORY; save(); };
     card.addEventListener('click', choose);
-    card.addEventListener('keydown', event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); choose(); } });
+    card.addEventListener('keydown', event => { if (event.target === card && (event.key === ' ' || event.key === 'Enter')) { event.preventDefault(); choose(); } });
     return card;
+  }
+
+  // A party's line under its Pokémon: what they hold, or how far from ready it is.
+  function partySummary(party) {
+    const missing = PARTY_SIZE - party.members.length;
+    if (missing) return { text: `${missing} more to battle with this party`, warn: true };
+    const custom = party.sets.filter(set => set.moves.length || set.item || set.evs.some(Boolean)).length;
+    return { text: custom ? `${custom === PARTY_SIZE ? 'All six' : `${custom} of 6`} with sets of their own` : 'Level-up moves, no items', warn: false };
+  }
+
+  function setTitle(set) {
+    const data = builder().data(), name = set.nickname || builder().speciesName(set.species);
+    if (!data) return name;
+    const item = data.items.find(each => each.id === set.item)?.name, moves = set.moves.map(id => data.moves.find(move => move.id === id)?.name).filter(Boolean);
+    return `${name}${item ? ` @ ${item}` : ''}\n${moves.length ? moves.join(' · ') : 'Level-up moves'}`;
   }
 
   function renderParties() {
     $('party-empty').hidden = setup.parties.length > 0;
+    $('party-new').disabled = setup.parties.length >= MAX_PARTIES;
     $('party-list').replaceChildren(storyCard(), ...setup.parties.map(party => {
       const missing = PARTY_SIZE - party.members.length;
       const card = document.createElement('div');
@@ -99,85 +104,48 @@
       const edit = Object.assign(document.createElement('button'), { className: 'party-card-edit', type: 'button', textContent: 'Edit' });
       edit.addEventListener('click', event => { event.stopPropagation(); openEditor(party); });
       const team = Object.assign(document.createElement('div'), { className: 'party-card-team' });
-      team.append(...party.members.map(id => sprite(id, 36)));
+      team.append(...party.sets.map(set => {
+        const image = sprite(set.species, 36);
+        image.title = setTitle(set);
+        return image;
+      }));
       for (let i = party.members.length; i < PARTY_SIZE; i++) team.append(Object.assign(document.createElement('span'), { textContent: '–' }));
-      card.append(name, edit, team);
-      if (missing) {
-        card.append(Object.assign(document.createElement('small'), { textContent: `${missing} more to battle with this party` }));
-        return card;
-      }
+      const summary = partySummary(party);
+      card.append(name, edit, team, Object.assign(document.createElement('small'), { className: summary.warn ? '' : 'party-summary', textContent: summary.text }));
+      if (missing) return card;
       const choose = () => { setup.selected = party.id; save(); };
       card.addEventListener('click', choose);
-      card.addEventListener('keydown', event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); choose(); } });
+      card.addEventListener('keydown', event => { if (event.target === card && (event.key === ' ' || event.key === 'Enter')) { event.preventDefault(); choose(); } });
       return card;
     }));
   }
 
-  function openEditor(party) {
-    editing = party ? { ...party, members: party.members.slice() } : { id: null, name: `Party ${setup.parties.length + 1}`, members: [] };
-    $('party-name').value = editing.name;
-    $('party-search').value = '';
-    $('party-delete').hidden = !party;
-    if (!species) loadingSpecies ||= loadSpecies();
-    renderDex();
-    renderSlots();
-    $('party-editor').showModal();
-  }
-
-  function renderSlots() {
-    const slots = [];
-    for (let i = 0; i < PARTY_SIZE; i++) {
-      const id = editing.members[i];
-      const slot = document.createElement('button');
-      slot.type = 'button';
-      slot.className = `party-slot${id ? ' filled' : ''}`;
-      if (id) {
-        slot.title = 'Remove from the party';
-        slot.append(sprite(id, 44), Object.assign(document.createElement('span'), { textContent: byId.get(id)?.name || `#${id}` }));
-        slot.addEventListener('click', () => { editing.members.splice(i, 1); renderSlots(); });
-      } else {
-        slot.disabled = true;
-        slot.append(Object.assign(document.createElement('span'), { textContent: `Slot ${i + 1}` }));
-      }
-      slots.push(slot);
-    }
-    $('party-slots').replaceChildren(...slots);
-    $('party-save').disabled = !editing.members.length;
-  }
-
-  function renderDex() {
-    if (!species) { $('party-dex').replaceChildren(); return; }
-    const query = $('party-search').value.trim().toLowerCase();
-    const matches = species.filter(entry => !query || entry.name.toLowerCase().includes(query) || String(entry.national) === query.replace(/^#?0*/, ''));
-    $('party-dex').replaceChildren(...matches.map(entry => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.title = entry.types.join(' / ');
-      const label = document.createElement('span');
-      label.append(entry.name, Object.assign(document.createElement('small'), { textContent: `${number(entry.national)} ${entry.types.join('/')}` }));
-      button.append(sprite(entry.id, 36), label);
-      button.addEventListener('click', () => {
-        if (editing.members.length >= PARTY_SIZE) return;
-        editing.members.push(entry.id);
-        renderSlots();
-      });
-      return button;
-    }));
-  }
-
-  function saveEditor() {
-    const party = { id: editing.id || `party-${Date.now().toString(36)}`, name: $('party-name').value, members: editing.members };
-    const at = setup.parties.findIndex(item => item.id === party.id);
-    if (at >= 0) setup.parties[at] = party;
-    else setup.parties.push(party);
-    $('party-editor').close();
+  function keepParty(party) {
+    const saved = { id: party.id || `party-${Date.now().toString(36)}`, name: party.name, members: party.members, sets: party.sets };
+    const at = setup.parties.findIndex(item => item.id === saved.id);
+    if (at >= 0) setup.parties[at] = saved;
+    else setup.parties.push(saved);
+    // a first party ready to battle with is the one chosen
+    if (!setup.selected && saved.members.length === PARTY_SIZE) setup.selected = saved.id;
     save();
   }
 
-  function deleteParty() {
-    setup.parties = setup.parties.filter(item => item.id !== editing.id);
-    $('party-editor').close();
-    save();
+  function openEditor(party, from = null, name = null) {
+    builder().open(party, { name: name || `Party ${setup.parties.length + 1}`, level: setup.level, from, done: keepParty,
+      remove: () => { setup.parties = setup.parties.filter(item => item.id !== party.id); save(); } });
+  }
+
+  // The Story party's Pokémon as sets of the player's own, to change as they like.
+  async function copyStory() {
+    await builder().load();
+    const data = builder().data(), T = window.coloTeamSets;
+    const sets = state.story.members.slice(0, PARTY_SIZE).map(({ set }) => {
+      const ratio = data?.species[set.species]?.gender ?? T.GENDER.none, name = builder().speciesName(set.species);
+      const nickname = set.nickname && set.nickname.toLowerCase() !== name.toLowerCase() ? set.nickname : '';
+      const gender = T.genders(ratio).length === 2 ? (set.genderByte < ratio ? 'F' : 'M') : '';
+      return T.normalizeSet({ ...set, nickname, gender }, set.species);
+    });
+    openEditor(null, sets, state.story.trainer ? `${state.story.trainer}'s team` : 'Story team');
   }
 
   // --- Rooms
@@ -281,10 +249,6 @@
   }
 
   $('party-new').addEventListener('click', () => openEditor(null));
-  $('party-editor-close').addEventListener('click', () => $('party-editor').close());
-  $('party-save').addEventListener('click', saveEditor);
-  $('party-delete').addEventListener('click', deleteParty);
-  $('party-search').addEventListener('input', renderDex);
   for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
@@ -319,7 +283,7 @@
 
   window.coloOnline = {
     show() {
-      if (!species) loadingSpecies ||= loadSpecies();
+      if (!loaded) loadSpecies();
       // the save may have changed since: the Story party is read again
       window.colo.state().then(data => { state = data.online; render(); if (rooms) renderRooms(); }).catch(() => {});
       poll.start();

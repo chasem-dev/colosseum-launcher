@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('colo', {
   onlineJoin: code => ipcRenderer.invoke('online-join', code),
   onlineLeave: () => ipcRenderer.invoke('online-leave'),
   pokedex: () => ipcRenderer.invoke('pokedex'),
+  battleData: () => ipcRenderer.invoke('battle-data'),
   pokedexModel: (national, form) => ipcRenderer.invoke('pokedex-model', national, form),
   pokedexClip: (national, form, index) => ipcRenderer.invoke('pokedex-clip', national, form, index),
   changelog: () => ipcRenderer.invoke('changelog'),
