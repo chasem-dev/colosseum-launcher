@@ -29,7 +29,7 @@ function genderOf(species) {
 
 // What a species evolves into, as pokemon.json's evolutions say it.
 function evolutionsOf(dex, species) {
-  return (species.evos || []).map(name => dex.species.get(name)).filter(evo => evo.exists && evo.num <= GENERATIONS[dex.gen].species[1]).map(evo => {
+  return (species.evos || []).map(name => dex.species.get(name)).filter(evo => evo.exists && !evo.forme && evo.num <= GENERATIONS[dex.gen].species[1]).map(evo => {
     const into = evo.num;
     if (evo.evoType === 'useItem') return { into, item: evo.evoItem };
     if (evo.evoType === 'trade') return evo.evoItem ? { into, trade: evo.evoItem } : { into, trade: true };
