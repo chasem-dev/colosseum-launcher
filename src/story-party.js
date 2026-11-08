@@ -8,6 +8,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { newestPlain } = require('./gci-save');
+const { isPackSpecies } = require('./pokemon-packs');
 
 const SAVE = 'pokemon_colosseum.dat';
 const PARTY = 0xa8;          // where an unscrambled slot keeps the party (src/gci-save.js)
@@ -57,7 +58,7 @@ function readMember(plain, at) {
 const isShiny = member => ((member.trainer >>> 16) ^ (member.trainer & 0xffff) ^ (member.rnd >>> 16) ^ (member.rnd & 0xffff)) < 8;
 
 // The party in the save the game would load, or null when there's no save yet. members are those that can battle;
-// leftOut counts the Shadow Pokémon that stay behind.
+// leftOut counts the Shadow Pokémon that stay behind, packsLeftOut the Pokémon of Pokémon packs.
 function readStoryParty(saveDir) {
   const file = path.join(saveDir, SAVE);
   let data;
@@ -78,16 +79,18 @@ function readStoryParty(saveDir) {
     trainer.push(unit);
   }
   const members = [];
-  let leftOut = 0;
+  let leftOut = 0, packsLeftOut = 0;
   for (let i = 0; i < PARTY_SIZE; i++) {
     const at = PARTY + i * POKEMON;
     if (!plain.readUInt16BE(at)) continue;
     const member = readMember(plain, at);
     if (member.egg) continue;
     if (member.shadow) { leftOut++; continue; }
+    // A Pokémon of a Pokémon pack (src/pokemon-packs.js): the other player's game wouldn't have it.
+    if (isPackSpecies(member.species)) { packsLeftOut++; continue; }
     members.push({ ...member, shiny: isShiny(member) });
   }
-  return { trainer: String.fromCharCode(...trainer), members, leftOut, modified: fs.statSync(file).mtimeMs };
+  return { trainer: String.fromCharCode(...trainer), members, leftOut, packsLeftOut, modified: fs.statSync(file).mtimeMs };
 }
 
 // What goes to the room and on to the other player's game, as numbers in the game's order, and the nickname in hex.

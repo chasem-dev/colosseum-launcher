@@ -124,6 +124,10 @@ To carry on in Dolphin, choose **Export .gci file** in the **Saves** tab, then i
 
 The **Pokédex** tab shows every Pokémon on your disc, read from the disc itself: its 3D model, which you can turn and zoom, its motions, and any other looks it has, such as a shiny one. Each Pokémon says how you can get it. Those the game keeps out of reach carry a lock: **Battle only** for those trainers use but you can't catch, and **Hidden on disc** for those that are on the disc but never appear in the game.
 
+### Pokémon packs
+
+A Pokémon pack adds Pokémon of your own making to the game: new species, fakemon, or forms of the game's own, each with its own name, stats, types, abilities, moves and evolutions, and its own 3D model and sprites if you like. Press **Open Pokémon packs folder** in the Pokédex: each pack is a folder there, and each Pokémon a folder in it with a `pokemon.json`. Pack Pokémon show in the Pokédex after the ones they're based on, and the game has room for 25 of them. [docs/pokemon-packs.md](docs/pokemon-packs.md) is the guide to making one.
+
 ### Randomizer
 
 Under **Settings → Gameplay**, the randomizer swaps the game's Pokémon for others, chosen by a seed: your starters, Shadow Pokémon, trainers' Pokémon and gifts, each on its own switch. You can limit it to the generations you like, keep Pokémon about as strong as the ones they replace, and leave legendaries out.

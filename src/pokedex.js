@@ -258,4 +258,5 @@ function create() {
   };
 }
 
-module.exports = { create, readPokedex, classify, displayName, messageText, png, GIFTS, BONUS_DISC_GIFTS };
+module.exports = { create, readPokedex, classify, displayName, messageText, png, relData, readMessages, readDol, dolOffset, spritesOf,
+  SPECIES, TYPES, ABILITY_MESSAGES, GIFTS, BONUS_DISC_GIFTS };

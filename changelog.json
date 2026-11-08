@@ -1,9 +1,11 @@
 {
   "beta": {
     "launcher": [
+      "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on.",
       "Windows: the game's program now has its icon, Espeon and Umbreon from the game's memory card, taken from your disc when the game builds. The build log no longer shows an error about a missing main.dol."
     ],
     "game": [
+      "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",
       "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log."
     ]
   },

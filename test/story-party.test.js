@@ -100,6 +100,14 @@ test('Shadow Pokemon stay home until purified, and eggs never come', t => {
   assert.deepEqual(party.members.map(member => member.species), [156, 197]);
 });
 
+test('Pokemon of Pokemon packs stay home: the other player\'s game wouldn\'t have them', t => {
+  const dir = saveFolder([{ species: 253, nickname: 'MOONFANG' }, UMBREON]);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const party = story.readStoryParty(dir);
+  assert.deepEqual([party.leftOut, party.packsLeftOut], [0, 1]);
+  assert.deepEqual(party.members.map(member => member.species), [197]);
+});
+
 test('no save, or one with no progress, is no Story party yet', t => {
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'colo-story-'));
   t.after(() => fs.rmSync(empty, { recursive: true, force: true }));

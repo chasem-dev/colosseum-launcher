@@ -97,7 +97,9 @@
         </div>
       </section>
       <section id="page-pokedex" class="page sheet pokedex-page" aria-labelledby="pokedex-title" hidden>
-        <div class="modal-head"><div><h1 id="pokedex-title">Pokédex</h1><p id="pokedex-summary">Every Pokémon on your disc, in 3D.</p></div></div>
+        <div class="modal-head"><div><h1 id="pokedex-title">Pokédex</h1><p id="pokedex-summary">Every Pokémon on your disc, in 3D.</p>
+          <div id="pokedex-pack-problems" class="pokedex-pack-problems" role="status" hidden><strong>Some of your Pokémon packs couldn't be loaded:</strong><ul id="pokedex-pack-problem-list"></ul></div></div>
+          <div class="pokedex-pack-actions"><button class="subtle" id="pokedex-open-packs" title="Add your own Pokémon: each pack is a folder here">Open Pokémon packs folder</button><button class="subtle" id="pokedex-reload" title="Read the packs folder again">Reload</button></div></div>
         <div class="pokedex-body">
           <div class="pokedex-browse">
             <input id="pokedex-search" class="pokedex-search" type="search" placeholder="Search by name or number" aria-label="Search Pokémon by name or number">

@@ -32,7 +32,10 @@ const discord = require('./discord');
 const presence = require('./presence');
 const parties = require('./parties');
 const storyParty = require('./story-party');
-const pokedexData = require('./pokedex').create();
+const pokedexNames = require('./pokedex');
+const pokedexData = pokedexNames.create();
+const pokemonPacks = require('./pokemon-packs');
+const hsdModel = require('./hsd-model');
 const randomizer = require('./randomizer');
 const { retrying, httpError } = require('./retry');
 
@@ -921,6 +924,68 @@ function bindingsEnvironment(settings) {
 
 function customTextureDirectory() { return port.customTextureDirectory(app.getPath('userData')); }
 
+// --- Pokémon packs (src/pokemon-packs.js): read from their folder for each play and for the Pokédex.
+function pokemonPacksDirectory() { return pokemonPacks.packsDirectory(app.getPath('userData')); }
+
+let packTables = null;   // { rom, tables }: what the disc has, read once for each disc
+function readPokemonPacks(rom) {
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const { tables } = packTables;
+  return { tables, ...pokemonPacks.loadPacks(pokemonPacksDirectory(), tables, pokemonPacks.readRegistry(currentSaveDirectory())) };
+}
+
+const packLabel = problem => `${problem.pack}${problem.entry ? `/${problem.entry}` : ''}`;
+
+// The file of packs for the game to load, or null when there are none. Each Pokémon keeps its
+// row of the species table from then on (pokemon-packs.json, beside the saves).
+function preparePokemonPacks(rom, folder) {
+  if (!fs.existsSync(pokemonPacksDirectory())) return null;
+  const loaded = readPokemonPacks(rom);
+  for (const problem of loaded.problems) log(`Pokémon pack ${packLabel(problem)}: ${problem.message}`);
+  for (const name of loaded.missing) log(`Pokémon pack ${name} isn't in the packs folder: Pokémon of it in your saves stay hidden until it's back.`);
+  if (!loaded.pokemon.length) return null;
+  if (loaded.registryChanged) pokemonPacks.writeRegistry(currentSaveDirectory(), loaded.registry);
+  const file = path.join(folder, 'pokemon-packs.bin');
+  fs.writeFileSync(file, pokemonPacks.compile(loaded.pokemon));
+  log(`Pokémon packs: ${loaded.pokemon.map(each => `${pokedexNames.displayName(each.name)}${each.form ? ` (${each.form})` : ''} from ${each.key}`).join(', ')}.`);
+  return file;
+}
+
+// The Pokédex's list: the disc's Pokémon, and the packs' after the ones they're based on.
+let pokedexPacks = new Map();   // key -> the pack Pokémon, for its model
+function pokedexList(rom) {
+  const species = pokedexData.list(rom);
+  let packs = [], problems = [];
+  try {
+    if (fs.existsSync(pokemonPacksDirectory())) {
+      const loaded = readPokemonPacks(rom);
+      problems = loaded.problems.map(problem => `${packLabel(problem)}: ${problem.message}`);
+      const entries = pokemonPacks.pokedexEntries(loaded.pokemon, loaded.tables);
+      pokedexPacks = new Map();
+      packs = entries.map((entry, i) => {
+        const each = loaded.pokemon[i], base = species.find(item => item.national === entry.national);
+        pokedexPacks.set(entry.pack.key, { base: entry.national, files: { model: each.assets.model, modelShiny: each.assets.modelShiny } });
+        return { ...entry, key: `pack:${entry.pack.key}`,
+          sprite: each.images.body ? `data:image/png;base64,${each.images.body.toString('base64')}` : base?.sprite || null,
+          forms: each.assets.model ? [{ id: 'model', label: 'Normal' }, ...(each.assets.modelShiny ? [{ id: 'modelShiny', label: 'Shiny' }] : [])] : base?.forms || [] };
+      });
+    }
+  } catch (error) { problems = [error.message]; }
+  return { species, packs, problems };
+}
+
+// Where a Pokédex entry's look is: a model file of its pack's, or a model on the disc (its base's, for a pack Pokémon
+// without one). key is a pack Pokémon's "pack:<pack>/<folder>", or a disc Pokémon's National Pokédex number.
+function pokedexLook(key, form) {
+  const name = String(key);
+  if (!name.startsWith('pack:')) return { national: Number(name) };
+  const entry = pokedexPacks.get(name.slice('pack:'.length));
+  if (!entry) throw new Error('That Pokémon isn\'t in your packs any more.');
+  if (form !== 'model' && form !== 'modelShiny') return { national: entry.base };
+  if (!entry.files[form]) throw new Error('That Pokémon has no such model.');
+  return { pkx: entry.files[form] };
+}
+
 // A game that closed with an error says where its crash report is, when it left one.
 function noteCrashReport(error, since) {
   const report = crashReports.newestSince(crashReports.directory(), since);
@@ -941,13 +1006,20 @@ async function play(installation = null, battle = null) {
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
   fs.mkdirSync(cacheFolder, { recursive: true });
+  // An online battle has no packs: both players' games must have the same Pokémon.
+  let packsFile = null;
+  if (!battle) {
+    try { packsFile = preparePokemonPacks(rom, cacheFolder); }
+    catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); }
+  }
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
     COLO_RANDOMIZER_LOG: spoilerFile(),
     SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
     ...(battle ? { COLO_ONLINE: String(battle.port), COLO_SKIP_MOVIES: '1', COLO_NOCARD: '1' } : {}),
-    ...(config.settings.discordPresence ? { COLO_PRESENCE: '1' } : {}) };
+    ...(config.settings.discordPresence ? { COLO_PRESENCE: '1' } : {}),
+    ...(packsFile ? { COLO_POKEMON_PACKS: packsFile } : {}) };
   const recordedTools = game.toolRoot(root);
   const env = recordedTools ? buildTools.environmentAtRoot(recordedTools, playEnv) : toolEnv(playEnv);
   const cmd = port.gameRunCommand(root, rom, process.platform, env);
@@ -1146,7 +1218,7 @@ function readStory() {
 function storyState() {
   const { party, error } = readStory();
   return { error, supported: binaryReady() && onlineFeatures(config.repo).story,
-    trainer: party?.trainer || null, leftOut: party?.leftOut || 0,
+    trainer: party?.trainer || null, leftOut: party?.leftOut || 0, packsLeftOut: party?.packsLeftOut || 0,
     members: (party?.members || []).map(member => ({ species: member.species, nickname: member.nickname, level: member.level, shiny: member.shiny })) };
 }
 
@@ -1157,7 +1229,8 @@ function storyBlocked(size) {
   if (error) return `Your save can't be read: ${error}`;
   if (!party) return 'Your Story party is the one in your save. Play and save the game first.';
   const count = party.members.length;
-  const shadow = party.leftOut ? ` Shadow Pokémon stay home until they're purified.` : '';
+  const shadow = (party.leftOut ? ` Shadow Pokémon stay home until they're purified.` : '') +
+    (party.packsLeftOut ? ' Pokémon from Pokémon packs stay home: the other player\'s game doesn\'t have them.' : '');
   if (count < size) return count < Math.min(...parties.SIZES)
     ? `Your Story party needs at least ${Math.min(...parties.SIZES)} Pokémon that can battle.${shadow}`
     : `Your Story party has ${count} Pokémon that can battle, so it can only take ${parties.SIZES.filter(each => each <= count).join(' or ')} each.${shadow}`;
@@ -1539,9 +1612,19 @@ function registerHandlers() {
   ipcMain.handle('online-create', () => createRoom());
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
-  ipcMain.handle('pokedex', () => pokedexData.list(port.validateRom(config.rom)));
-  ipcMain.handle('pokedex-model', (_event, national, form) => pokedexData.model(port.validateRom(config.rom), Number(national), String(form)));
-  ipcMain.handle('pokedex-clip', (_event, national, form, index) => pokedexData.clip(port.validateRom(config.rom), Number(national), String(form), Number(index)));
+  ipcMain.handle('pokedex', () => pokedexList(port.validateRom(config.rom)));
+  ipcMain.handle('pokedex-model', (_event, key, form) => {
+    const look = pokedexLook(key, String(form));
+    return look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form));
+  });
+  ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
+    const look = pokedexLook(key, String(form));
+    return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom), look.national, String(form), Number(index));
+  });
+  ipcMain.handle('open-pokemon-packs', () => {
+    fs.mkdirSync(pokemonPacksDirectory(), { recursive: true });
+    return shell.openPath(pokemonPacksDirectory());
+  });
   ipcMain.handle('check-tools', async () => { await checkTools(true); return state(); });
   ipcMain.handle('copy-mac-command', (_event, index) => {
     if (process.platform !== 'darwin') throw new Error('This help is for macOS.');

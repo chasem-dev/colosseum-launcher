@@ -35,7 +35,8 @@ function isSyncMetadata(name) {
     /^\.syncthing\..*\.tmp$/.test(name) || /^~syncthing~.*\.tmp$/.test(name) || name.startsWith('._');
 }
 
-function isCardFile(name) { return name === 'index.txt' || /\.(dat|stat)$/.test(name); }
+// The memory card's files, and the rows the Pokémon of Pokémon packs have (src/pokemon-packs.js), which its saves rely on.
+function isCardFile(name) { return name === 'index.txt' || name === 'pokemon-packs.json' || /\.(dat|stat)$/.test(name); }
 
 function cleanupWouldRemoveSaves(root, saveDir) {
   return ['build', 'build-64', 'build-mac', 'build32'].some(name => {

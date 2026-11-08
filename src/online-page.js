@@ -12,7 +12,8 @@
 
   async function loadSpecies() {
     try {
-      const list = await window.colo.pokedex();
+      // The disc's Pokémon only: online battles have no Pokémon packs.
+      const list = (await window.colo.pokedex()).species;
       species = list;
       for (const entry of list) byId.set(entry.id, entry);
       $('party-dex-note').hidden = true;
@@ -71,13 +72,15 @@
     card.append(name, badge, team);
     const note = !story.supported ? 'Update the game from the Play page to battle with your Story party.'
       : story.error ? `Your save can't be read: ${story.error}`
-      : !count && !story.leftOut ? 'Play and save the game, and the party you travel with shows here.'
+      : !count && !story.leftOut && !story.packsLeftOut ? 'Play and save the game, and the party you travel with shows here.'
       : count < 3 ? `${count} Pokémon can battle: you need at least 3.`
       : `${story.trainer ? `${story.trainer}'s team, ` : ''}with their moves, natures and held items, at the room's level.`;
     const detail = Object.assign(document.createElement('small'), { className: usable ? 'story-note' : '', textContent: note });
     card.append(detail);
     if (story.leftOut)
       card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `${story.leftOut === 1 ? 'A Shadow Pokémon stays' : `${story.leftOut} Shadow Pokémon stay`} home until purified.` }));
+    if (story.packsLeftOut)
+      card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `${story.packsLeftOut === 1 ? 'A Pokémon from a Pokémon pack stays' : `${story.packsLeftOut} Pokémon from Pokémon packs stay`} home: the other player's game doesn't have them.` }));
     if (!usable) return card;
     const choose = () => { setup.selected = STORY; save(); };
     card.addEventListener('click', choose);

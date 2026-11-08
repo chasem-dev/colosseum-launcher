@@ -609,6 +609,10 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .pokedex-search { width: 100%; padding: 8px 11px; border: 1px solid var(--dex-line); border-radius: 8px; background: var(--dex-panel); color: inherit; font: inherit; font-size: 13px; }
 .pokedex-search:focus-visible { outline: 2px solid var(--dex-accent); outline-offset: 1px; }
 .pokedex-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.pokedex-pack-actions { flex: none; display: flex; gap: 6px; }
+.pokedex-pack-problems { margin-top: 8px; padding: 8px 11px; border-radius: 9px; background: var(--dex-locked); color: var(--dex-locked-text); font-size: 12px; line-height: 1.4; }
+.pokedex-pack-problems ul { margin: 3px 0 0 16px; padding: 0; }
+.pokedex-entry[data-kind="pack"] .pokedex-entry-label small { color: var(--dex-accent); }
 .pokedex-filter { padding: 4px 8px; border: 1px solid var(--dex-line); border-radius: 999px; background: transparent; color: var(--dex-muted); font-size: 11px; font-weight: 650; }
 .pokedex-filter span { opacity: .7; font-variant-numeric: tabular-nums; }
 .pokedex-filter:hover { background: var(--dex-hover); }
