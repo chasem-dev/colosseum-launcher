@@ -1,7 +1,9 @@
 {
   "beta": {
     "launcher": [],
-    "game": []
+    "game": [
+      "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log."
+    ]
   },
   "releases": [
     {
