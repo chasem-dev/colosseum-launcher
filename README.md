@@ -47,6 +47,8 @@ Open the `.exe` installer and follow the steps, then open Colosseum Launcher.
 
 Download the `.AppImage`, allow it to run as a program in your file manager's permissions settings, then open it.
 
+The first time it opens after each update, it copies itself (about 300 MB) to `~/.cache/colosseum-launcher/app` and runs from there, so closing the game with Stop in Steam doesn't leave a crash report. Delete that folder along with the AppImage to remove the launcher.
+
 ## Set up your game
 
 The launcher walks you through three steps:
