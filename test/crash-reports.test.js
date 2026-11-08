@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crashReports = require('../src/crash-reports');
+const saves = require('../src/saves');
 
 function folder(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'colosseum crash reports-'));
@@ -26,6 +27,15 @@ test('reports are looked for where the game writes them', () => {
   assert.equal(crashReports.directory({ platform: 'linux', env: { XDG_STATE_HOME: '/state' }, home: '/home/ash' }), '/state/colo-port/crashes');
   assert.equal(crashReports.directory({ platform: 'linux', env: {}, home: '/home/ash' }), '/home/ash/.local/state/colo-port/crashes');
   assert.equal(crashReports.directory({ platform: 'darwin', env: {}, home: '/Users/ash' }), '/Users/ash/.local/state/colo-port/crashes');
+});
+
+test('the portable launcher looks in its own folder, where its game writes them', () => {
+  const env = { LOCALAPPDATA: 'C:\\Users\\Ash\\AppData\\Local', PORTABLE_EXECUTABLE_DIR: 'D:\\Games' };
+  assert.equal(crashReports.directory({ platform: 'win32', env }),
+    'D:\\Games\\Colosseum-Launcher-Portable\\cache\\colo-port\\crashes');
+  // The same folder the game is told about, whatever it is.
+  const game = { ...env, ...saves.gameDataEnvironment(env, 'win32') };
+  assert.equal(crashReports.directory({ platform: 'win32', env }), path.win32.join(game.LOCALAPPDATA, 'colo-port', 'crashes'));
 });
 
 test('a folder that is not there yet has no reports', t => {

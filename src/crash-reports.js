@@ -3,10 +3,12 @@
 // The game's crash reports. A crash writes one report to stderr, which the activity log shows, and to a file
 // (host/crash.c in the game): %LOCALAPPDATA%\colo-port\crashes on Windows, else $XDG_STATE_HOME/colo-port/crashes,
 // by default ~/.local/state/colo-port/crashes. Settings → Launcher copies the newest, so a player can add it to a
-// bug report. Nothing here sends a report anywhere.
+// bug report. Nothing here sends a report anywhere. The portable launcher gives the game its own %LOCALAPPDATA%
+// (saves.gameDataEnvironment), so its game's reports are in the portable folder.
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { gameDataEnvironment } = require('./saves');
 
 // A report is a few KB: more than this isn't one.
 const MAX_BYTES = 1024 * 1024;
@@ -14,6 +16,7 @@ const MAX_BYTES = 1024 * 1024;
 const CLOCK_SLACK = 2000;
 
 function directory({ platform = process.platform, env = process.env, home = os.homedir() } = {}) {
+  env = { ...env, ...gameDataEnvironment(env, platform) }; // what the game is started with
   if (platform === 'win32') return path.win32.join(env.LOCALAPPDATA || '.', 'colo-port', 'crashes');
   return path.posix.join(env.XDG_STATE_HOME || path.posix.join(home, '.local', 'state'), 'colo-port', 'crashes');
 }

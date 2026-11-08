@@ -3,6 +3,7 @@
     "launcher": [
       "Story party: battle online with the Pokémon you travel with. The Online tab shows the party in your save, set apart at the top, and brings each one along with its moves, nature, stats, ability, held item and nickname, at the room's level. A party of 3 to 5 can take rooms of 3 each, and Shadow Pokémon stay home until they're purified. Online battles now need the newest launcher on both sides.",
       "Show on Discord: while you play, your Discord profile shows where you are in Orre with a picture of the place, who you're battling and your lead Pokémon, and online battles show your opponent. The Discord app needs to be open. Turn it off under Settings → Launcher.",
+      "Fixed the portable launcher on Windows never finding the game's crash reports, so Settings → Launcher can now copy them for a bug report.",
       "Fixed game updates started from Steam filling the activity log with Steam overlay errors, which could also hide why a build failed.",
       "Fixed a crash report on Linux and the Steam Deck when you closed the game with Stop in Steam.",
       "Fixed Create room staying greyed out online: a full party is now always chosen for you, a party short of six can't be chosen, and the button wakes up once the game has finished installing or updating.",
