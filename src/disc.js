@@ -58,11 +58,17 @@ class Disc {
   dataEnd() {
     const header = this.read(0, 0x440), apploader = this.read(0x2440, 0x20);
     let end = 0x2460 + apploader.readUInt32BE(0x14) + apploader.readUInt32BE(0x18);
-    const dolOffset = header.readUInt32BE(0x420), dol = this.read(dolOffset, 0x100);
-    for (let i = 0; i < 18; i++) end = Math.max(end, dolOffset + dol.readUInt32BE(i * 4) + dol.readUInt32BE(0x90 + i * 4));
+    const dolOffset = header.readUInt32BE(0x420);
+    end = Math.max(end, dolOffset + dolSize(this.read(dolOffset, 0x100)));
     end = Math.max(end, header.readUInt32BE(0x424) + header.readUInt32BE(0x428));
     for (const { offset, size } of this.files.values()) end = Math.max(end, offset + size);
     return end;
+  }
+
+  // main.dol, the game's program: the header and every section after it, as a disc extractor writes it.
+  dol() {
+    const offset = this.read(0, 0x440).readUInt32BE(0x420);
+    return this.read(offset, dolSize(this.read(offset, 0x100)));
   }
 
   // How long the image file must be to hold the disc up to `end`. A CISO
@@ -91,6 +97,17 @@ const OTHER_FORMATS = [
   ['7z', head => head.toString('latin1', 0, 6) === '7z\xbc\xaf\x27\x1c'],
   ['rar', head => head.toString('latin1', 0, 4) === 'Rar!']
 ];
+
+// How long a DOL is from its 0x100-byte header: up to the end of its last section.
+function dolSize(header) {
+  let end = 0x100;
+  for (let i = 0; i < 18; i++) {
+    const size = header.readUInt32BE(0x90 + i * 4);
+    if (size) end = Math.max(end, header.readUInt32BE(i * 4) + size);
+  }
+  if (end > 0x1000000) throw new Error('The game disc\'s main.dol appears to be damaged.');
+  return end;
+}
 
 // What a disc image file holds, without reading more than its headers and file
 // system table: { format } for a format the game can't read, or for a GameCube

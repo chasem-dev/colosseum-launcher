@@ -7,7 +7,7 @@ const presets = require('./presets');
 const randomizer = require('./randomizer');
 const { normalizeChannel } = require('./update-channel');
 const { prependWindowsPath } = require('./windows-path');
-const { describe } = require('./disc');
+const { Disc, describe } = require('./disc');
 
 const PORT_URL = 'https://git.softwareauralabs.com/chase/pokemon-colosseum.git';
 // The HD texture pack: the port's own release, unpacked into mods/textures/colo-upscale-4x.
@@ -32,6 +32,22 @@ function platformInfo(platform = process.platform, arch = gameArch()) {
 // What the game checkout holds beside the port: the decomp it compiles and, for an older port, the renderer's sources.
 function dependencyPaths(root) {
   return { decomp: path.join(root, 'deps', 'pkmn-colosseum'), renderer: path.join(root, 'deps', 'sms-pc-port') };
+}
+
+// The Windows build makes the game's .exe icon (Espeon and Umbreon, from the memory card icon) out of
+// main.dol where the decomp keeps the disc's files, which a launcher checkout doesn't have: copied
+// there from the player's disc. The folder is ignored by the decomp's git. Returns where it is.
+function placeMainDol(root, disc) {
+  const target = path.join(dependencyPaths(root).decomp, 'orig', 'GC6E01', 'sys', 'main.dol');
+  const image = new Disc(disc);
+  try {
+    const dol = image.dol();
+    if (fs.existsSync(target) && fs.readFileSync(target).equals(dol)) return target;
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(`${target}.part`, dol);
+    fs.renameSync(`${target}.part`, target);
+  } finally { image.close(); }
+  return target;
 }
 
 function isPort(root) {
@@ -368,7 +384,7 @@ function gameRuntimeFolders(environment = process.env) {
   return [path.join(environment.MSYS2_ROOT || 'C:\\msys64', 'mingw64', 'bin')];
 }
 
-module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, validateRom, normalizeSettings, moveToMetal,
+module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, playableInstall, useLauncherScripts, launcherScript,
   buildCommand, textureCommand, gameRunCommand, gameRuntimeFolders };
