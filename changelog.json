@@ -1,6 +1,8 @@
 {
   "beta": {
-    "launcher": [],
+    "launcher": [
+      "Fixed a crash report on Linux and the Steam Deck when you closed the game with Stop in Steam, which 0.3.0 still showed. The launcher now runs from its own copy of about 300 MB in your cache folder, made the first time it opens after each update."
+    ],
     "game": []
   },
   "releases": [
@@ -18,8 +20,7 @@
         "Battle animations: a speed slider from 1× to 5× in steps of 0.1, with 1.5× as the new default, and a Skip battle animations switch that greys it out. Find them under Gameplay.",
         "Macs with Apple Silicon: the game now builds as a native program and draws with Metal, so it runs faster and Rosetta is no longer needed. Metal is the new default renderer on these Macs; Vulkan and OpenGL are still under Graphics. Intel Macs stay on Vulkan.",
         "Fixed the portable launcher on Windows never finding the game's crash reports, so Settings → Launcher can now copy them for a bug report.",
-        "Fixed game updates started from Steam filling the activity log with Steam overlay errors, which could also hide why a build failed.",
-        "Fixed a crash report on Linux and the Steam Deck when you closed the game with Stop in Steam."
+        "Fixed game updates started from Steam filling the activity log with Steam overlay errors, which could also hide why a build failed."
       ],
       "game": {
         "version": "2026.11.08.1",
