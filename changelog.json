@@ -24,7 +24,8 @@
       "Fixed the game not opening its window on Linux with newer graphics drivers, and that error calling the game Super Mario Sunshine.",
       "Fixed people and objects disappearing near the sides of the screen in widescreen.",
       "Fixed the arrow for picking a target sitting away from the status panels in widescreen.",
-      "Fixed Pokémon blinking twice as often at 60 fps, which also used up the game's random numbers faster than on a GameCube."
+      "Fixed Pokémon blinking twice as often at 60 fps, which also used up the game's random numbers faster than on a GameCube.",
+      "Macs with Apple Silicon: with anti-aliasing on, Metal does less work each frame, which leaves the GPU more room in busy scenes."
     ]
   },
   "releases": [
