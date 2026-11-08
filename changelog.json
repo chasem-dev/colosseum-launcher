@@ -1,7 +1,7 @@
 {
   "beta": {
     "launcher": [
-      "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on.",
+      "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves and TMs, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on.",
       "Windows: the game's program now has its icon, Espeon and Umbreon from the game's memory card, taken from your disc when the game builds. The build log no longer shows an error about a missing main.dol."
     ],
     "game": [

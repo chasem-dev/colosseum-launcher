@@ -33,6 +33,7 @@ const ROW = {
   national: 0x12, types: 0x30, abilities: 0x32, tms: 0x34, stats: 0x84, evYield: 0x90, evolutions: 0x9c, moves: 0xba
 };
 const ABILITY_COUNT = 77;   // Stench to Cacophony; the messages after them are other text
+const TM_TABLE = 0x80368018;
 const TM_COUNT = 50, HM_COUNT = 8, EVOLUTIONS = 5, LEVEL_MOVES = 20;
 const MOVES = { offset: 0x11c7c4, count: 358, size: 0x38, name: 0x20 };
 const STATS = ['hp', 'attack', 'defense', 'spAttack', 'spDefense', 'speed'];
@@ -73,6 +74,10 @@ function readGameTables(rom) {
       const name = messages.get(pokedex.ABILITY_MESSAGES + id);
       if (name && !abilities.has(key(name))) abilities.set(key(name), id);
     }
+    // The move each TM and HM teaches (main.dol's table: 8 bytes a row, the move at +4).
+    const dol = pokedex.readDol(disc), tmTable = pokedex.dolOffset(dol, TM_TABLE);
+    const tmMoves = new Map();
+    for (let i = TM_COUNT + HM_COUNT - 1; i >= 0; i--) tmMoves.set(dol.readUInt32BE(tmTable + i * 8 + 4), i);
     // A sprite's 0x80-byte header, from one of the disc's own in the format a pack's is made in (RGBA8).
     const header = (file, width, height) => {
       const entry = fsys.entries(disc.file(file)).find(each => {
@@ -82,7 +87,7 @@ function readGameTables(rom) {
       if (!entry) throw new Error(`The game disc has no sprite to copy in ${file}.`);
       return Buffer.from(entry.data().subarray(0, 0x80));
     };
-    return { species, moves, abilities, types: pokedex.TYPES.map(key),
+    return { species, moves, abilities, tmMoves, types: pokedex.TYPES.map(key),
       headers: { body: header('poke_body.fsys', 64, 64), face: header('poke_face.fsys', 42, 84) } };
   } finally { disc.close(); }
 }
@@ -255,9 +260,10 @@ function findSpecies(tables, value, what) {
   return found;
 }
 
+// A move or ability by its name, or by its number (the same in every game from Ruby and Sapphire on).
 function named(map, value, what) {
-  const id = typeof value === 'string' ? map.get(key(value)) : undefined;
-  if (!id) throw new Error(`${what} "${value}" isn't one the game has`);
+  const id = typeof value === 'string' ? map.get(key(value)) : Number.isInteger(value) && [...map.values()].includes(value) ? value : undefined;
+  if (!id) throw new Error(`${what} ${JSON.stringify(value)} isn't one the game has`);
   return id;
 }
 
@@ -340,6 +346,15 @@ function buildRow(spec, tables, target) {
       const number = match && Number(match[2]), hm = match && match[1].toUpperCase() === 'HM';
       if (!match || number < 1 || number > (hm ? HM_COUNT : TM_COUNT)) throw new Error(`"${tm}" isn't a TM (TM01 to TM50) or HM (HM01 to HM08)`);
       row[ROW.tms + (hm ? TM_COUNT : 0) + number - 1] = 1;
+    }
+  }
+  // Moves it can learn from a TM or HM in any game: those this game's TMs and HMs teach.
+  if (spec.tmMoves !== undefined) {
+    if (!Array.isArray(spec.tmMoves)) throw new Error('"tmMoves" must list moves, by name or number');
+    if (spec.tms === undefined) row.fill(0, ROW.tms, ROW.tms + TM_COUNT + HM_COUNT);
+    for (const move of spec.tmMoves) {
+      const id = typeof move === 'string' ? tables.moves.get(key(move)) : move;
+      if (Number.isInteger(id) && tables.tmMoves.has(id)) row[ROW.tms + tables.tmMoves.get(id)] = 1;
     }
   }
   if (spec.evolutions !== undefined) {

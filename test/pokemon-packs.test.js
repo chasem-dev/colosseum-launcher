@@ -24,6 +24,7 @@ function tables() {
       { id: 197, national: 197, name: 'Umbreon', row: row(197, 0x200) }],
     moves: new Map([['tackle', 33], ['bite', 44], ['shadow ball', 247], ['thunderbolt', 85]]),
     abilities: new Map([['levitate', 26], ['static', 9], ['synchronize', 28]]),
+    tmMoves: new Map([[92, 5], [85, 23], [57, 50 + 2]]),   // Toxic is TM06, Thunderbolt TM24, Surf HM03
     types: pokedex.TYPES.map(type => type.toLowerCase()),
     headers: { body: Buffer.alloc(0x80, 1), face: Buffer.alloc(0x80, 2) }
   };
@@ -52,6 +53,18 @@ test('a Pokémon starts as its base and changes what its pokemon.json says', () 
   assert.deepEqual([row[0x01], row[0x00]], [30, 5]);
   assert.equal(row.readUInt16BE(0x0e), 0x100, 'Pikachu\'s cry');
   assert.equal(game.species[2].row.readUInt16BE(0x84), 95, 'the base\'s own row is left as it was');
+});
+
+test('moves and abilities can be given by number, and TM moves by the moves they teach', () => {
+  const game = tables();
+  const { row } = packs.buildRow({ base: 'Umbreon', name: 'X', abilities: [26], moves: [[1, 33], [7, 'Bite']],
+    tmMoves: [92, 'Thunderbolt', 57, 437, 'Hyper Beam'] }, game, noTarget);
+  assert.equal(row[0x32], 26);
+  assert.deepEqual([row.readUInt16BE(0xbc), row.readUInt16BE(0xc0)], [33, 44]);
+  assert.deepEqual([...row.subarray(0x34, 0x34 + 58)].flatMap((on, i) => on ? [i] : []), [5, 23, 52],
+    'Toxic, Thunderbolt and Surf: the moves no TM of this game teaches are let go');
+  assert.throws(() => packs.buildRow({ base: 'Umbreon', name: 'X', moves: [[1, 437]] }, game, noTarget), /move 437 isn't one the game has/);
+  assert.throws(() => packs.buildRow({ base: 'Umbreon', name: 'X', abilities: [123] }, game, noTarget), /ability 123 isn't one/);
 });
 
 test('a form keeps its base\'s name and can be named by its form', () => {

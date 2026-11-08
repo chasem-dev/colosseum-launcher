@@ -71,7 +71,7 @@ without a model, a cry or sprites of its own looks and sounds like its base.
 | `form` | Makes it a form of its base, such as `"Storm"`. Without a `name` it keeps its base's. The Pokédex lists it under its base. |
 | `description` | Shown in the launcher's Pokédex. |
 | `types` | One or two of the game's types. |
-| `abilities` | One or two abilities, by name. |
+| `abilities` | One or two abilities, by name or by number. |
 | `stats` | Base stats, 1 to 255: `hp`, `attack`, `defense`, `spAttack`, `spDefense`, `speed`. Leave one out to keep its base's. |
 | `evYield` | Effort values it gives when defeated, 0 to 3, with the same names. |
 | `catchRate`, `baseExp`, `baseFriendship` | Numbers, as in the main series. |
@@ -79,9 +79,13 @@ without a model, a cry or sprites of its own looks and sounds like its base.
 | `gender` | How many in 100 are female (0 to 100), or `"genderless"`. |
 | `height`, `weight` | In metres and kilograms. |
 | `cry` | Another Pokémon whose cry it uses. |
-| `moves` | The moves it learns by level, up to 20, as `[level, "Move"]`. Replaces its base's list. |
+| `moves` | The moves it learns by level, up to 20, as `[level, "Move"]`, the move by name or number. Replaces its base's list. |
 | `tms` | The TMs and HMs it can learn, such as `"TM06"` or `"HM01"`. Replaces its base's. |
+| `tmMoves` | Moves it can learn from a TM or HM in any game, by name or number: it can learn those this game's TMs and HMs teach, and the rest are let go. Replaces its base's, unless `tms` is there too. |
 | `evolutions` | Up to 5, replacing its base's. Each has `into`, and one of these: `"level": 30`; `"item": "Moon Stone"`; `"friendship": true`, `"day"` or `"night"`; `"trade": true`, or the item it holds while traded. |
+
+Moves and abilities are numbered alike in every game from Ruby and Sapphire on, so a number from another game's data
+works as long as this game has the move or ability.
 
 `into` names another Pokémon of the same pack by its folder (`"eclipse"`), one of another pack as `"pack/folder"`, or one of the
 game's by name or number.
