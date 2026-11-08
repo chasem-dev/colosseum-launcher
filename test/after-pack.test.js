@@ -23,6 +23,7 @@ function packed(t, extra = 'one') {
 const pack = app => afterPack({ electronPlatformName: 'linux', appOutDir: app, packager: { executableName: 'colosseum-launcher' } });
 const run = (app, cache, args = []) => execFileSync(path.join(app, 'colosseum-launcher'), args,
   { encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: cache } }).trim().split('\n');
+// The start script only runs in a Linux AppImage, so the copy tests need GNU cp, mv and sync.
 const copies = cache => fs.readdirSync(path.join(cache, 'colosseum-launcher', 'app'));
 
 test('the Linux launcher always starts with --no-sandbox, keeping its own arguments', { skip: process.platform === 'win32' }, async t => {
@@ -33,7 +34,7 @@ test('the Linux launcher always starts with --no-sandbox, keeping its own argume
   assert.deepEqual(run(app, cache, ['--play', 'two words']).slice(1), ['--no-sandbox', '--play', 'two words', 'env=1']);
 });
 
-test('the Linux launcher runs from its copy in the cache folder, made once per build', { skip: process.platform === 'win32' }, async t => {
+test('the Linux launcher runs from its copy in the cache folder, made once per build', { skip: process.platform !== 'linux' }, async t => {
   const { app, cache } = packed(t);
   await pack(app);
   assert.equal(fs.existsSync(cache), false, 'nothing is copied before the launcher starts');
@@ -47,7 +48,7 @@ test('the Linux launcher runs from its copy in the cache folder, made once per b
   assert.equal(fs.existsSync(path.join(copy, 'kept')), true, 'a second start reuses the copy');
 });
 
-test("a new build's copy replaces the old one", { skip: process.platform === 'win32' }, async t => {
+test("a new build's copy replaces the old one", { skip: process.platform !== 'linux' }, async t => {
   const old = packed(t, 'old'), current = packed(t, 'new'), again = packed(t, 'new');
   assert.notEqual(afterPack.buildId(old.app), afterPack.buildId(current.app));
   assert.equal(afterPack.buildId(again.app), afterPack.buildId(current.app));
