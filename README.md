@@ -128,6 +128,15 @@ The **Pokédex** tab shows every Pokémon on your disc, read from the disc itsel
 
 A Pokémon pack adds Pokémon of your own making to the game: new species, fakemon, or forms of the game's own, each with its own name, stats, types, abilities, moves and evolutions, and its own 3D model and sprites if you like. Press **Open Pokémon packs folder** in the Pokédex: each pack is a folder there, and each Pokémon a folder in it with a `pokemon.json`. Pack Pokémon show in the Pokédex after the ones they're based on, and the game has room for 25 of them. [docs/pokemon-packs.md](docs/pokemon-packs.md) is the guide to making one.
 
+### Later generations
+
+Under **Settings → Gameplay**, two choices that go together or apart:
+
+- **Battle rules**: Colosseum's (Generation 3), or Diamond and Pearl's (Generation 4), where each move is physical or special by itself rather than by its type, a sandstorm raises Rock types' Sp. Def, and the moves Diamond and Pearl changed play as they did there. Online battles keep Colosseum's rules.
+- **Generation 4 Pokémon**: the 107 Pokémon from Turtwig to Arceus, with their stats, abilities, learnsets and evolutions, and the new moves Colosseum can play, in your game and the Pokédex. A new move plays as a move Colosseum has with the new move's own power, accuracy, PP, type and priority; moves with nothing close, such as Trick Room, are left out. Nothing in the game hands them out yet.
+
+Their data is [Pokémon Showdown's](https://github.com/smogon/pokemon-showdown) (MIT), checked against Pokémon Battle Revolution's (`scripts/generation-data`). Until their models are made, a Pokémon Colosseum has stands in for each one's looks and cry. **Battle Revolution models** makes their models and icons from your own Pokémon Battle Revolution disc, with no Blender: the game's `tools/pbr2pkx`, built on StarsMmd's Blender add-on for GameCube models.
+
 ### Randomizer
 
 Under **Settings → Gameplay**, the randomizer swaps the game's Pokémon for others, chosen by a seed: your starters, Shadow Pokémon, trainers' Pokémon and gifts, each on its own switch. You can limit it to the generations you like, keep Pokémon about as strong as the ones they replace, and leave legendaries out.

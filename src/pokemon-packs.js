@@ -18,6 +18,8 @@ const fsys = require('./fsys');
 const pokedex = require('./pokedex');
 
 const FIRST_ID = 252, LAST_ID = 276;
+// Past the gap, pack Pokémon go after the rows kept for later generations' Pokémon (src/generations.js: 413 up).
+const FIRST_PAST_GAP = 1100, LAST_ID_PAST_GAP = 4000;
 const REGISTRY_FILE = 'pokemon-packs.json';
 const ENTRY_FILE = 'pokemon.json', PACK_FILE = 'pack.json';
 const FILES = { model: 'model.pkx', modelShiny: 'model-shiny.pkx', body: 'body.png', bodyShiny: 'body-shiny.png', face: 'face.png', faceShiny: 'face-shiny.png' };
@@ -25,7 +27,7 @@ const ASSETS = ['model', 'modelShiny', 'body', 'bodyShiny', 'face', 'faceShiny']
 const SPRITE_SIZE = { body: [64, 64], face: [42, 42] };
 const MAX_MODEL = 8 << 20, MAX_PNG = 4 << 20, MAX_JSON = 256 << 10;
 const NAME_LENGTH = 10;
-const MAGIC = 0x43504b4d, VERSION = 1;
+const MAGIC = 0x43504b4d, VERSION = 2;
 
 // The species row (PokemonData in the decompilation).
 const ROW = {
@@ -48,6 +50,8 @@ const NAME_CHARACTERS = /^[A-Za-z0-9 .'\-♂♀éÉ]+$/u;
 
 const key = text => String(text).toLowerCase().replace(/[\s_]+/g, ' ').replace(/é/g, 'e').trim();
 
+const isPackRow = id => Number.isInteger(id) && ((id >= FIRST_ID && id <= LAST_ID) || (id >= FIRST_PAST_GAP && id <= LAST_ID_PAST_GAP));
+
 function packsDirectory(userData) { return path.join(userData, 'mods', 'pokemon'); }
 
 // --- What the disc has: species, moves and abilities by name, and the sprites' headers ----
@@ -64,7 +68,8 @@ function readGameTables(rom) {
       const name = national && messages.get(data.readUInt32BE(at + 0x18));
       if (name) species.push({ id, national, name: pokedex.displayName(name), row: Buffer.from(data.subarray(at, at + pokedex.SPECIES.size)) });
     }
-    const moves = new Map();
+    const moves = new Map(), moveRows = [];
+    for (let id = 0; id < MOVES.count; id++) moveRows.push(Buffer.from(data.subarray(MOVES.offset + id * MOVES.size, MOVES.offset + (id + 1) * MOVES.size)));
     for (let id = 1; id < MOVES.count; id++) {
       const name = messages.get(data.readUInt32BE(MOVES.offset + id * MOVES.size + MOVES.name));
       if (name && !moves.has(key(name))) moves.set(key(name), id);
@@ -87,7 +92,7 @@ function readGameTables(rom) {
       if (!entry) throw new Error(`The game disc has no sprite to copy in ${file}.`);
       return Buffer.from(entry.data().subarray(0, 0x80));
     };
-    return { species, moves, abilities, tmMoves, types: pokedex.TYPES.map(key),
+    return { species, moves, moveRows, abilities, tmMoves, types: pokedex.TYPES.map(key),
       headers: { body: header('poke_body.fsys', 64, 64), face: header('poke_face.fsys', 42, 84) } };
   } finally { disc.close(); }
 }
@@ -99,7 +104,7 @@ function readRegistry(saveDir) {
     const parsed = JSON.parse(fs.readFileSync(path.join(saveDir, REGISTRY_FILE), 'utf8'));
     const ids = {};
     for (const [name, id] of Object.entries(parsed?.ids || {}))
-      if (Number.isInteger(id) && id >= FIRST_ID && id <= LAST_ID && !Object.values(ids).includes(id)) ids[name] = id;
+      if (isPackRow(id) && !Object.values(ids).includes(id)) ids[name] = id;
     return { ids };
   } catch (error) {
     if (error.code === 'ENOENT') return { ids: {} };
@@ -115,14 +120,15 @@ function writeRegistry(saveDir, registry) {
 }
 
 // The row each Pokémon has, or gets: the one it had before, else the first that no Pokémon,
-// here now or before, has had.
+// here now or before, has had: the 25 the game leaves empty, then rows past its own.
 function assignIds(names, registry) {
   const ids = { ...registry.ids }, taken = new Set(Object.values(ids)), out = new Map(), full = [];
+  const next = id => id === LAST_ID ? FIRST_PAST_GAP : id + 1;
   for (const name of names) {
     if (ids[name]) { out.set(name, ids[name]); continue; }
     let id = FIRST_ID;
-    while (taken.has(id) && id <= LAST_ID) id++;
-    if (id > LAST_ID) { full.push(name); continue; }
+    while (taken.has(id) && id <= LAST_ID_PAST_GAP) id = next(id);
+    if (id > LAST_ID_PAST_GAP) { full.push(name); continue; }
     ids[name] = id;
     taken.add(id);
     out.set(name, id);
@@ -326,6 +332,8 @@ function buildRow(spec, tables, target) {
     if (typeof spec.weight !== 'number' || spec.weight <= 0 || spec.weight > 2000) throw new Error('"weight" must be in kilograms, more than 0 and up to 2000');
     row.writeUInt16BE(Math.max(1, Math.round(spec.weight * 22.0462)), ROW.weight);
   }
+  // Its own National Pokédex number (a later generation's Pokémon have theirs), else its base's
+  if (spec.national !== undefined) row.writeUInt16BE(integer(spec.national, 1, 2000, '"national"'), ROW.national);
   if (spec.cry !== undefined) row.writeUInt16BE(findSpecies(tables, spec.cry, 'cry').row.readUInt16BE(ROW.cry), ROW.cry);
   if (spec.moves !== undefined) {
     if (!Array.isArray(spec.moves) || !spec.moves.length || spec.moves.length > LEVEL_MOVES) throw new Error(`"moves" must list 1 to ${LEVEL_MOVES} [level, "Move"] pairs`);
@@ -472,25 +480,91 @@ function loadPacks(dir, tables, registry) {
 
 // --- The game's file ------------------------------------------------------------------------
 
-function compile(pokemon) {
-  const parts = [];
-  const header = Buffer.alloc(16);
-  header.writeUInt32BE(MAGIC, 0); header.writeUInt32BE(VERSION, 4); header.writeUInt32BE(pokemon.length, 8);
-  parts.push(header);
+// The game's file (host/pokemonpacks.c): chunks of Pokémon (SPEC), new moves (MOVE) and battle rules (MECH, host/
+// mechanics.c). `contents` is { pokemon, moves, rules } (src/generations.js build makes the last two), or just the
+// Pokémon.
+function compile(contents) {
+  const { pokemon = [], moves = [], rules = null } = Array.isArray(contents) ? { pokemon: contents } : contents;
   const padded = buffer => Buffer.concat([buffer, Buffer.alloc((4 - buffer.length % 4) % 4)]);
-  for (const each of pokemon) {
-    const head = Buffer.alloc(8);
-    head.writeUInt16BE(each.id, 0); head.writeUInt16BE(each.base.id, 2); head.writeUInt16BE(each.name.length, 4);
-    const name = Buffer.alloc(each.name.length * 2);
-    [...each.name].forEach((letter, i) => name.writeUInt16BE(letter.charCodeAt(0), i * 2));
-    parts.push(head, each.row, padded(name));
-    for (const asset of ASSETS) {
-      const data = each.assets[asset] || Buffer.alloc(0), size = Buffer.alloc(4);
-      size.writeUInt32BE(data.length, 0);
-      parts.push(size, padded(data));
+  const utf16 = text => { const out = Buffer.alloc(text.length * 2); [...text].forEach((c, i) => out.writeUInt16BE(c.charCodeAt(0), i * 2)); return out; };
+  const u32 = value => { const out = Buffer.alloc(4); out.writeUInt32BE(value >>> 0, 0); return out; };
+  const chunks = [];
+  const chunk = (tag, parts) => { const body = Buffer.concat(parts); chunks.push(Buffer.from(tag, 'latin1'), u32(body.length), padded(body)); };
+  if (pokemon.length) {
+    const parts = [u32(pokemon.length)];
+    for (const each of pokemon) {
+      const head = Buffer.alloc(8);
+      head.writeUInt16BE(each.id, 0); head.writeUInt16BE(each.base.id, 2); head.writeUInt16BE(each.name.length, 4);
+      parts.push(head, each.row, padded(utf16(each.name)));
+      for (const asset of ASSETS) {
+        const data = each.assets[asset] || Buffer.alloc(0);
+        parts.push(u32(data.length), padded(data));
+      }
+    }
+    chunk('SPEC', parts);
+  }
+  if (moves.length) {
+    const parts = [u32(moves.length)];
+    for (const move of moves) {
+      const head = Buffer.alloc(8), description = move.description.slice(0, 120);
+      head.writeUInt16BE(move.id, 0); head.writeUInt16BE(move.name.length, 2); head.writeUInt16BE(description.length, 4);
+      parts.push(head, move.row, padded(Buffer.concat([utf16(move.name), utf16(description)])));
+    }
+    chunk('MOVE', parts);
+  }
+  if (rules) {
+    const head = Buffer.alloc(12);
+    head[0] = rules.generation; head.writeUInt32BE(rules.features, 4);
+    head.writeUInt16BE(rules.categories.length, 8); head.writeUInt16BE(rules.changed.length, 10);
+    const parts = [head, padded(rules.categories)];
+    for (const change of rules.changed) { const id = Buffer.alloc(4); id.writeUInt16BE(change.id, 0); parts.push(id, change.row); }
+    chunk('MECH', parts);
+  }
+  const header = Buffer.alloc(16);
+  header.writeUInt32BE(MAGIC, 0); header.writeUInt32BE(VERSION, 4); header.writeUInt32BE(chunks.length / 3, 8);
+  return Buffer.concat([header, ...chunks]);
+}
+
+// A converted Pokémon's own model and icons, as a pack's are, or none.
+function ownLooks(folder, tables) {
+  const file = name => { const at = path.join(folder, name); return fs.existsSync(at) ? fs.readFileSync(at) : null; };
+  const model = file(FILES.model);
+  if (!model) return { assets: {}, images: {} };
+  const body = file(FILES.body), bodyShiny = file(FILES.bodyShiny), face = file(FILES.face), faceShiny = file(FILES.faceShiny);
+  const sprite = make => { try { return make(); } catch (_) { return undefined; } };
+  return {
+    assets: { model, modelShiny: file(FILES.modelShiny) || undefined,
+      body: body ? sprite(() => spriteFile('body', tables.headers.body, body)) : undefined,
+      bodyShiny: bodyShiny ? sprite(() => spriteFile('body', tables.headers.body, bodyShiny)) : undefined,
+      face: face ? sprite(() => spriteFile('face', tables.headers.face, face, faceShiny)) : undefined },
+    images: { body, bodyShiny, face }, converted: true
+  };
+}
+
+// A later generation's Pokémon (src/generations.js build), as packs' Pokémon are: rows of their own, standing in
+// for their looks with a Pokémon Colosseum has, and with that generation's new moves among the moves they can learn.
+// modelsDirectory: where Battle Revolution models are made (src/pbr-models.js), a folder for each National Pokédex number
+// with model.pkx, model-shiny.pkx and its icons: a Pokémon with one has its own looks there instead of a stand-in's.
+function generationPokemon(tables, built, { modelsDirectory = null } = {}) {
+  const generationsLib = require('./generations');
+  const withMoves = { ...tables, moves: new Map([...tables.moves, ...built.moves.map(move => [key(move.name), move.id])]) };
+  const target = value => {
+    const match = /^generation:(\d+)$/.exec(String(value));
+    if (match) return generationsLib.speciesId(Number(match[1]));
+    return findSpecies(tables, value, 'evolution "into"').id;
+  };
+  const pokemon = [], problems = [];
+  for (const { id, number, generation, spec } of built.species) {
+    try {
+      const made = buildRow(spec, withMoves, target);
+      const own = modelsDirectory ? ownLooks(path.join(modelsDirectory, String(number)), tables) : { assets: {}, images: {} };
+      pokemon.push({ pack: `generation-${generation}`, folder: String(number), key: `generation:${number}`, id, ...made, national: number,
+        ...own, packName: `Generation ${generation}`, author: '', credits: 'Pokémon Showdown\'s data (MIT)', generation });
+    } catch (error) {
+      problems.push({ pack: `generation-${generation}`, entry: `#${number} ${spec.name}`, message: error.message });
     }
   }
-  return Buffer.concat(parts);
+  return { pokemon, problems };
 }
 
 // What the Pokédex shows of each: as its own entries do (pokedex.js), and where it's from.
@@ -507,18 +581,25 @@ function pokedexEntries(pokemon, tables) {
       if (row[ROW.evolutions + i * 6] && into) evolutions.push(into);
     }
     return { pack: { id: each.pack, name: each.packName, author: each.author, credits: each.credits, folder: each.folder, key: each.key },
-      packId: each.id, national: each.base.national, base: each.base.name, form: each.form,
+      packId: each.id, national: each.national || each.base.national, base: each.base.name, form: each.form,
       name: each.form ? `${pokedex.displayName(each.name)} (${each.form})` : pokedex.displayName(each.name), description: each.description,
       types: types[0] === types[1] ? types.slice(0, 1) : types, abilities: [...new Set(abilities)],
       height: `${Math.floor(height / 100)}'${String(height % 100).padStart(2, '0')}"`, weight: `${(row.readUInt16BE(ROW.weight) / 10).toFixed(1)} lbs`,
       catchRate: row[ROW.catchRate], stats: STATS.map((_, i) => row.readUInt16BE(ROW.stats + i * 2)),
       evolutions: evolutions.map(id => pokemon.find(other => other.id === id)?.key || tables.species.find(s => s.id === id)?.national).filter(Boolean),
       hasModel: Boolean(each.assets.model), hasShinyModel: Boolean(each.assets.modelShiny),
-      status: { kind: 'pack', label: each.form ? `${each.form} form, from a pack` : 'From a pack', locked: false,
-        note: `${each.packName}${each.author ? `, by ${each.author}` : ''}. Based on ${each.base.name}.${each.description ? ` ${each.description}` : ''}` +
-          `${each.credits ? ` Credits: ${each.credits}` : ''}` } };
+      status: each.generation
+        ? { kind: 'generation', label: `Generation ${each.generation}`, locked: false,
+          note: each.converted
+            ? `Added by the Generation ${each.generation} Pokémon setting, with its model and icons made from your Battle Revolution disc (StarsMmd's Blender-Addon-Gamecube-Models writes them). ${each.base.name}'s cry stands in for its own. From Pokémon Showdown's data.`
+            : `Added by the Generation ${each.generation} Pokémon setting. ${each.base.name} stands in for its looks and cry until Battle Revolution models are made. From Pokémon Showdown's data.` }
+        : { kind: 'pack', label: each.form ? `${each.form} form, from a pack` : 'From a pack', locked: false,
+          note: `${each.packName}${each.author ? `, by ${each.author}` : ''}. Based on ${each.base.name}.${each.description ? ` ${each.description}` : ''}` +
+            `${each.credits ? ` Credits: ${each.credits}` : ''}` } };
   });
 }
 
-module.exports = { FIRST_ID, LAST_ID, REGISTRY_FILE, FILES, packsDirectory, readGameTables, readRegistry, writeRegistry, assignIds,
-  decodePng, resize, encodeRgba8, spriteFile, buildRow, loadPacks, compile, pokedexEntries, isPackSpecies: id => id >= FIRST_ID && id <= LAST_ID };
+module.exports = { FIRST_ID, LAST_ID, FIRST_PAST_GAP, REGISTRY_FILE, FILES, packsDirectory, readGameTables, readRegistry, writeRegistry, assignIds,
+  decodePng, resize, encodeRgba8, spriteFile, buildRow, loadPacks, compile, generationPokemon, pokedexEntries,
+  // A species the original game hasn't: a pack's, or a later generation's
+  isPackSpecies: id => (id >= FIRST_ID && id <= LAST_ID) || id >= 413 };

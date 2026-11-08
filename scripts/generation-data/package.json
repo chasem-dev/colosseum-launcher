@@ -1,0 +1,9 @@
+{
+  "name": "generation-data",
+  "private": true,
+  "description": "Makes src/generations/: a later generation's Pokémon, moves and rules, from Pokémon Showdown's data (@pkmn/dex, MIT), checked against Pokémon Battle Revolution's",
+  "license": "MIT",
+  "dependencies": {
+    "@pkmn/dex": "0.10.15"
+  }
+}

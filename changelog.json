@@ -2,10 +2,13 @@
   "beta": {
     "launcher": [
       "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves and TMs, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on, with who made them.",
+      "Later generations, under Settings → Gameplay: play by Diamond and Pearl's battle rules, where each move is physical or special by itself, and add the 107 Generation 4 Pokémon and the new moves Colosseum can play to your game and the Pokédex.",
+      "Battle Revolution models: make the Generation 4 Pokémon's models and icons from your own Pokémon Battle Revolution disc, under Settings → Gameplay. No Blender needed.",
       "Windows: the game's program now has its icon, Espeon and Umbreon from the game's memory card, taken from your disc when the game builds. The build log no longer shows an error about a missing main.dol."
     ],
     "game": [
       "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",
+      "Generation 4 battle rules and Pokémon: moves physical or special by themselves, new moves after the game's own, and room for far more than 25 new Pokémon.",
       "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log."
     ]
   },

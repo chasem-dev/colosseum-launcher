@@ -14,6 +14,7 @@ const FILTERS = [
   { id: 'battle', label: 'Battle only', matches: entry => entry.status.kind === 'battle' },
   { id: 'hidden', label: 'Hidden on disc', matches: entry => entry.status.kind === 'hidden' },
   { id: 'packs', label: 'Packs', matches: entry => entry.status.kind === 'pack', onlyWhenAny: true },
+  { id: 'generations', label: 'Later generations', matches: entry => entry.status.kind === 'generation', onlyWhenAny: true },
 ];
 // Clips this short are held poses the game blends into, not motions to watch.
 const SHORTEST_MOTION = 20;
@@ -317,7 +318,7 @@ function renderEntry(entry) {
   const label = document.createElement('span');
   label.className = 'pokedex-entry-label';
   const small = document.createElement('small');
-  small.textContent = entry.pack ? `${number(entry.national)} · ${entry.pack.name}` : number(entry.national);
+  small.textContent = entry.pack && entry.status.kind === 'pack' ? `${number(entry.national)} · ${entry.pack.name}` : number(entry.national);
   const name = document.createElement('span');
   name.textContent = entry.name;
   label.append(small, name);
@@ -333,9 +334,11 @@ function renderEntry(entry) {
 }
 
 function renderList() {
-  const disc = species.filter(entry => !entry.pack), available = disc.filter(entry => !entry.status.locked).length, packs = species.length - disc.length;
+  const disc = species.filter(entry => !entry.pack), available = disc.filter(entry => !entry.status.locked).length;
+  const packs = species.filter(entry => entry.status.kind === 'pack').length, later = species.filter(entry => entry.status.kind === 'generation').length;
   $('pokedex-summary').textContent = `${disc.length} Pokémon on your disc. ${available} can be obtained in the game; the rest are locked away.` +
-    (packs ? ` ${packs} more ${packs === 1 ? 'comes' : 'come'} from your Pokémon packs.` : '');
+    (later ? ` ${later} more from later generations.` : '') +
+    (packs ? ` ${packs} from your Pokémon packs.` : '');
   $('pokedex-pack-problems').hidden = !packProblems.length;
   $('pokedex-pack-problem-list').replaceChildren(...packProblems.map(text => Object.assign(document.createElement('li'), { textContent: text })));
   renderFilters();
@@ -431,13 +434,16 @@ function select(entry) {
   else setStatus(`${entry.name} has no model on this disc.`);
 }
 
-// One list: the disc's Pokémon by number, each pack Pokémon after the one it's based on. Evolutions name entries by key.
+// One list: the disc's Pokémon by number, each pack Pokémon after the one it's based on, and those numbered past the
+// disc's (a later generation's) after them in their order. Evolutions name entries by key.
 function combine(disc, packs) {
-  const list = [];
+  const list = [], numbers = new Set(disc.map(entry => entry.national));
+  const pack = entry => ({ ...entry, evolutions: entry.evolutions.map(into => typeof into === 'number' ? String(into) : `pack:${into}`) });
   for (const entry of disc) {
     list.push({ ...entry, key: String(entry.national), evolutions: entry.evolutions.map(String) });
-    for (const pack of packs) if (pack.national === entry.national) list.push({ ...pack, evolutions: pack.evolutions.map(into => typeof into === 'number' ? String(into) : `pack:${into}`) });
+    for (const each of packs) if (each.national === entry.national) list.push(pack(each));
   }
+  for (const each of packs.filter(entry => !numbers.has(entry.national)).sort((a, b) => a.national - b.national)) list.push(pack(each));
   return list;
 }
 

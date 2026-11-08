@@ -650,15 +650,16 @@ function refresh(data) {
   $('reset-bindings').disabled = Boolean(data.active);
   for (const key of [...SELECTS, ...SWITCHES, 'graphicsPreset']) $(key).disabled = Boolean(data.active);
   renderRandomizer(data);
+  renderPbr(data);
   renderDependents(Boolean(data.active));
   changing = false;
 }
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
-const SELECTS = ['widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic',
+const SELECTS = ['battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic',
   'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
 const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3',
-  'randomizerSimilar', 'randomizerNoLegendaries', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'overlay', 'backgroundInput', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+  'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'overlay', 'backgroundInput', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 let updateChannels = [{ id: 'stable', label: 'Stable' }];
 function renderUpdateChannels(chosen) {
@@ -822,7 +823,7 @@ function showError(error) { closeModal(); setMessage(errorText(error), true); }
 function needsBuild(method) {
   if (method === 'launchGame') return !current.binaryReady || !current.hdVisualsReady ||
     Boolean(current.config.settings.autoUpdate && current.game.needsUpdate);
-  return ['installPort', 'installTextures', 'build', 'setupGame', 'prepareGame', 'updateAndPlay', 'updatePort'].includes(method);
+  return ['installPort', 'installTextures', 'makePbrModels', 'build', 'setupGame', 'prepareGame', 'updateAndPlay', 'updatePort'].includes(method);
 }
 
 async function action(method) {
@@ -830,7 +831,7 @@ async function action(method) {
   // In a folder too deep for Windows, explain instead of starting a build that would fail.
   if (current?.pathProblem && needsBuild(method)) { showPathProblem(); return; }
   try {
-    if (['installPort', 'installTextures', 'build', 'setupGame', 'prepareGame', 'launchGame', 'updateAndPlay', 'updatePort', 'play', 'playPrevious'].includes(method))
+    if (['installPort', 'installTextures', 'makePbrModels', 'build', 'setupGame', 'prepareGame', 'launchGame', 'updateAndPlay', 'updatePort', 'play', 'playPrevious'].includes(method))
       setConsoleFollowing(true);
     const result = await window.colo[method]();
     if (result && result.config) refresh(result);
@@ -911,6 +912,17 @@ function settingsValue() {
 }
 
 // What the randomizer will do, and what the save on the card already is: the save wins.
+// Battle Revolution models: the disc chosen, and how many of the wanted Pokémon have theirs.
+function renderPbr(data) {
+  const pbr = data.pbr || {};
+  $('pbr-note').textContent = !pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
+    : !pbr.wanted ? 'Turn on Generation 4 Pokémon above, then make their models from your own Pokémon Battle Revolution disc. No Blender needed.'
+      : !pbr.disc ? `Their models and icons, made from your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS). ${pbr.made} of ${pbr.wanted} made.`
+        : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`;
+  $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
+  $('choose-pbr-disc').disabled = Boolean(data.active);
+}
+
 function renderRandomizer(data) {
   const { run, exists } = data.randomizerSave || {}, ready = data.randomizerReady !== false;
   $('randomizer-options').hidden = !data.config.settings.randomizer;
@@ -1392,6 +1404,8 @@ dolphinDrop.addEventListener('drop', event => {
 // Prevent dropped files from navigating away from the launcher.
 for (const type of ['dragover', 'drop']) window.addEventListener(type, event => event.preventDefault());
 $('open-custom-textures').addEventListener('click', () => window.colo.openCustomTextures().catch(showError));
+$('choose-pbr-disc').addEventListener('click', () => action('choosePbrDisc'));
+$('make-pbr-models').addEventListener('click', () => action('makePbrModels'));
 for (const key of [...SELECTS, ...SWITCHES]) $(key).addEventListener('change', saveSettings);
 $('randomizer-reroll').addEventListener('click', async () => {
   try {

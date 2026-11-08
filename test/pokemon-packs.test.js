@@ -116,8 +116,10 @@ test('a Pokémon keeps its row, and new ones take the first that none has had', 
   assert.equal(second.registry.ids['a/one'], 252);
   const again = packs.assignIds(['a/two', 'b/three'], second.registry);
   assert.equal(again.changed, false);
+  // Past the 25 rows the game leaves empty, rows past what later generations' Pokémon use
   const many = packs.assignIds(Array.from({ length: 27 }, (_, i) => `p/${i}`), { ids: {} });
-  assert.deepEqual(many.full, ['p/25', 'p/26']);
+  assert.deepEqual([many.ids.get('p/24'), many.ids.get('p/25'), many.ids.get('p/26')], [276, 1100, 1101]);
+  assert.deepEqual(many.full, []);
 });
 
 test('the rows are kept beside the saves, and a damaged file is reported', () => {
@@ -196,24 +198,37 @@ test('packs are read from their folders; what is wrong is left out and said', ()
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('the game\'s file holds each Pokémon\'s row, name and files in order', () => {
+test('the game\'s file holds chunks of Pokémon, new moves and rules', () => {
   const game = tables();
   const built = packs.buildRow({ base: 'Umbreon', name: 'Moonfang' }, game, noTarget);
-  const file = packs.compile([{ id: 253, ...built, assets: { model: Buffer.from([1, 2, 3]), face: Buffer.from([9, 9, 9, 9]) } }]);
+  const move = { id: 358, name: 'ROOST', description: 'Heals.', row: Buffer.alloc(0x38, 7) };
+  const rules = { generation: 4, features: 3, categories: Buffer.from([0, 1, 2]), changed: [{ id: 57, row: Buffer.alloc(0x38, 9) }] };
+  const file = packs.compile({ pokemon: [{ id: 253, ...built, assets: { model: Buffer.from([1, 2, 3]), face: Buffer.from([9, 9, 9, 9]) } }], moves: [move], rules });
   assert.equal(file.toString('latin1', 0, 4), 'CPKM');
-  assert.deepEqual([file.readUInt32BE(4), file.readUInt32BE(8)], [1, 1]);
-  let at = 16;
-  assert.deepEqual([file.readUInt16BE(at), file.readUInt16BE(at + 2), file.readUInt16BE(at + 4)], [253, 197, 8]);
-  at += 8;
-  assert.deepEqual(file.subarray(at, at + 0x11c), built.row);
-  at += 0x11c;
-  assert.equal(file.toString('utf16le', at, at + 16).length, 8);
-  assert.equal(file.readUInt16BE(at), 'M'.charCodeAt(0));
-  at += 16;
+  assert.deepEqual([file.readUInt32BE(4), file.readUInt32BE(8)], [2, 3]);
+  const chunks = {};
+  for (let at = 16; at < file.length;) {
+    const tag = file.toString('latin1', at, at + 4), size = file.readUInt32BE(at + 4);
+    chunks[tag] = file.subarray(at + 8, at + 8 + size);
+    at += 8 + Math.ceil(size / 4) * 4;
+  }
+  assert.deepEqual(Object.keys(chunks), ['SPEC', 'MOVE', 'MECH']);
+  const spec = chunks.SPEC;
+  assert.deepEqual([spec.readUInt32BE(0), spec.readUInt16BE(4), spec.readUInt16BE(6), spec.readUInt16BE(8)], [1, 253, 197, 8]);
+  assert.deepEqual(spec.subarray(12, 12 + 0x11c), built.row);
+  let at = 12 + 0x11c + 16;
   const sizes = [];
-  for (let i = 0; i < 6; i++) { const size = file.readUInt32BE(at); sizes.push(size); at += 4 + Math.ceil(size / 4) * 4; }
+  for (let i = 0; i < 6; i++) { const size = spec.readUInt32BE(at); sizes.push(size); at += 4 + Math.ceil(size / 4) * 4; }
   assert.deepEqual(sizes, [3, 0, 0, 0, 4, 0]);
-  assert.equal(at, file.length);
+  assert.equal(at, spec.length);
+  const moves = chunks.MOVE;
+  assert.deepEqual([moves.readUInt32BE(0), moves.readUInt16BE(4), moves.readUInt16BE(6), moves.readUInt16BE(8)], [1, 358, 5, 6]);
+  assert.equal(moves[12], 7, 'its row');
+  assert.equal(moves.readUInt16BE(12 + 0x38), 'R'.charCodeAt(0), 'then its name');
+  const mech = chunks.MECH;
+  assert.deepEqual([mech[0], mech.readUInt32BE(4), mech.readUInt16BE(8), mech.readUInt16BE(10)], [4, 3, 3, 1]);
+  assert.deepEqual([...mech.subarray(12, 15)], [0, 1, 2]);
+  assert.equal(mech.readUInt16BE(16), 57, 'a changed move, after the categories padded to 4');
 });
 
 test('the Pokédex shows a pack Pokémon as it shows the game\'s, with where it is from', () => {

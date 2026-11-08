@@ -114,8 +114,8 @@ aren't any.
 
 ## Saves
 
-The game has room for 25 pack Pokémon. Each Pokémon gets one of the 25 places the first time you play with it, and keeps it
-from then on, even after you remove its pack. The places are recorded in `pokemon-packs.json` beside your saves, and save
+Pack Pokémon go in the 25 rows the game leaves empty first, then in rows of their own past the game's (from 1100: the
+rows between are kept for later generations' Pokémon), so there's room for thousands. Each Pokémon gets a place the first time you play with it, and keeps it from then on, even after you remove its pack. The places are recorded in `pokemon-packs.json` beside your saves, and save
 backups include it. Keep it with your saves: a Pokémon in a save is stored by its place.
 
 Pokémon of a pack you've removed stay in your save but don't appear in the game until the pack is back, and while they're

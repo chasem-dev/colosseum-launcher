@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('colo', {
   installPort: () => ipcRenderer.invoke('install-port'),
   updatePort: () => ipcRenderer.invoke('update-port'),
   installTextures: () => ipcRenderer.invoke('install-textures'),
+  makePbrModels: () => ipcRenderer.invoke('make-pbr-models'),
+  choosePbrDisc: () => ipcRenderer.invoke('choose-pbr-disc'),
   build: () => ipcRenderer.invoke('build'),
   setupGame: () => ipcRenderer.invoke('setup-game'),
   prepareGame: () => ipcRenderer.invoke('prepare-game'),
