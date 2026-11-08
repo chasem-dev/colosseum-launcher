@@ -1,7 +1,9 @@
 {
   "beta": {
     "launcher": [],
-    "game": []
+    "game": [
+      "On Linux the game now uses your system's own Vulkan library, the one your other games use, instead of a copy from its build tools. This may let Vulkan start on a Steam Deck where the game fell back to OpenGL."
+    ]
   },
   "releases": [
     {
