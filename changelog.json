@@ -3,7 +3,9 @@
     "launcher": [
       "Windows: the game's program now has its icon, Espeon and Umbreon from the game's memory card, taken from your disc when the game builds. The build log no longer shows an error about a missing main.dol."
     ],
-    "game": []
+    "game": [
+      "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log."
+    ]
   },
   "releases": [
     {
