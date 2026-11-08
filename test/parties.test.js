@@ -53,3 +53,22 @@ test('rules come from what rooms offer', () => {
   assert.equal(parties.normalize({ level: 75, size: 4 }).size, 6);
   assert.equal(parties.normalize({ listed: false }).listed, false);
 });
+
+test('each member has a set, kept with it when others are dropped', () => {
+  const set = { species: 6, nature: 3, moves: [53], evs: [0, 252, 0, 0, 0, 252] };
+  const [party] = parties.normalize({ parties: [{ id: 'sets', name: 'S', members: [1, 999, 6, 9], sets: [{ species: 1, shiny: true }, { species: 999 }, set, { species: 25 }] }] }).parties;
+  assert.deepEqual(party.members, [1, 6, 9]);
+  assert.equal(party.sets.length, 3);
+  assert.equal(party.sets[0].shiny, true);
+  assert.deepEqual(party.sets[1].moves, [53]);
+  assert.equal(party.sets[1].nature, 3);
+  // a set that was another species' starts again from this one
+  assert.deepEqual(party.sets[2].moves, []);
+  assert.equal(party.sets[2].species, 9);
+});
+
+test('a party saved before sets gets one for each member', () => {
+  const [party] = parties.normalize({ parties: [{ id: 'old', name: 'Old', members: [1, 2, 3, 4, 5, 6] }] }).parties;
+  assert.deepEqual(party.sets.map(set => set.species), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(party.sets[0].ivs, [31, 31, 31, 31, 31, 31]);
+});

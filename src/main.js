@@ -33,6 +33,8 @@ const presence = require('./presence');
 const parties = require('./parties');
 const storyParty = require('./story-party');
 const pokedexData = require('./pokedex').create();
+const battleData = require('./battle-data').create();
+const teamSets = require('./team-sets');
 const randomizer = require('./randomizer');
 const { retrying, httpError } = require('./retry');
 
@@ -1147,7 +1149,11 @@ function storyState() {
   const { party, error } = readStory();
   return { error, supported: binaryReady() && onlineFeatures(config.repo).story,
     trainer: party?.trainer || null, leftOut: party?.leftOut || 0,
-    members: (party?.members || []).map(member => ({ species: member.species, nickname: member.nickname, level: member.level, shiny: member.shiny })) };
+    members: (party?.members || []).map(member => ({ species: member.species, nickname: member.nickname, level: member.level, shiny: member.shiny,
+      // all the team builder needs to copy it into a party of the player's own
+      set: { species: member.species, nickname: member.nickname, item: member.item, ability: member.ability, nature: member.rnd % 25,
+        genderByte: member.rnd & 0xff, shiny: member.shiny, moves: member.moves.map(([move]) => move).filter(Boolean), evs: member.evs,
+        ivs: member.ivs, friendship: member.friendship, ball: member.ball } })) };
 }
 
 // Why the Story party can't battle in a room of `size` each, or null.
@@ -1172,7 +1178,13 @@ function battleParty(size) {
     const members = readStory().party.members.slice(0, parties.PARTY_SIZE);
     return { party: members.map(member => member.species), members: members.map(storyParty.wireMember) };
   }
-  return { party: parties.selectedParty(config.online).members };
+  // A built party's sets go to the game as a Story party's Pokémon do. A game from before those takes the species only.
+  const party = parties.selectedParty(config.online);
+  if (!onlineFeatures(config.repo).story) return { party: party.members };
+  let species = {};
+  try { species = battleData(port.validateRom(config.rom)).species; }
+  catch (error) { log(`Team builder: couldn't read genders from the disc (${error.message}).`); }
+  return { party: party.members, members: party.sets.map((set, slot) => teamSets.toWire(set, species[set.species]?.gender ?? teamSets.GENDER.none, slot)) };
 }
 
 // Why a room can't be made or joined now, or null.
@@ -1540,6 +1552,8 @@ function registerHandlers() {
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('pokedex', () => pokedexData.list(port.validateRom(config.rom)));
+  // gameTakesSets: false when the installed game is from before sets, and battles with its species only
+  ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story }));
   ipcMain.handle('pokedex-model', (_event, national, form) => pokedexData.model(port.validateRom(config.rom), Number(national), String(form)));
   ipcMain.handle('pokedex-clip', (_event, national, form, index) => pokedexData.clip(port.validateRom(config.rom), Number(national), String(form), Number(index)));
   ipcMain.handle('check-tools', async () => { await checkTools(true); return state(); });

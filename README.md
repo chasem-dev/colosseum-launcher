@@ -132,7 +132,7 @@ It starts with your next **New Game**, and the seed is kept inside that save. Fi
 
 ### Online battles
 
-The **Online** tab is where you battle other players. Build a party first: choose six from the Pokédex, give it a name, and pick the party you want to battle with. You can keep as many as you like. Pokémon come with their level-up moves, at the room's level, with the best individual values and a neutral nature, so a party is just its six species.
+The **Online** tab is where you battle other players. Build a party first: **New party** opens the team builder, where you choose six from the Pokédex and give each its own set, as in Pokémon Showdown: four moves, a held item, its ability and nature, EVs and IVs, a nickname, gender and whether it's shiny. The moves list shows what each Pokémon learns in this game and how; others can still be chosen and are marked. Stats are worked out as you go, at level 50 or 100. **Import** and **Export** take a team in Showdown's text, and **Copy to a new party** on your Story party starts a party from the Pokémon in your save. A Pokémon with no moves chosen battles with the moves it learns by the room's level. You can keep as many parties as you like, and pick the one you want to battle with.
 
 **Create room** opens a room at level 50 or 100, with 3 or 6 Pokémon each (the first three of your party in a 3-Pokémon battle). Your game starts and waits in the stadium, and your room appears for everyone on the list. Untick **Show on the room list** to keep it private and give a friend the code instead. When someone joins, your game starts again and you're both in the battle. Players choose their moves at the same time. **Give in** from the battle menu ends the battle, and closing the game counts as leaving.
 

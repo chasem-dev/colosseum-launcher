@@ -344,14 +344,50 @@
     </dialog>
 
     <dialog id="party-editor" class="launcher-modal party-editor" aria-labelledby="party-editor-title">
-      <div class="modal-head"><div><h1 id="party-editor-title">Party</h1><p>Choose six from the Pokédex. They'll battle at the room's level with their level-up moves, in this order.</p></div><button id="party-editor-close" class="modal-close" aria-label="Close">×</button></div>
-      <div class="party-editor-body">
-        <label class="online-field"><span>Party name</span><input id="party-name" class="online-input" type="text" maxlength="24" spellcheck="false" autocomplete="off"></label>
-        <div id="party-slots" class="party-slots" aria-label="Your party"></div>
-        <input id="party-search" class="pokedex-search" type="search" placeholder="Search by name or number" aria-label="Search Pokémon by name or number">
-        <div id="party-dex" class="party-dex" aria-label="Pokédex"></div>
+      <div class="modal-head tb-head">
+        <div class="tb-title">
+          <p class="eyebrow">TEAM BUILDER</p>
+          <h1 id="party-editor-title" class="visually-hidden">Party</h1>
+          <input id="party-name" class="tb-name" type="text" maxlength="24" spellcheck="false" autocomplete="off" aria-label="Party name">
+        </div>
+        <div class="tb-head-actions">
+          <button id="party-import" class="subtle" title="Paste a team in Pokémon Showdown's text format">Import</button>
+          <button id="party-export" class="subtle" title="Copy this team as Pokémon Showdown text">Export</button>
+          <button id="party-editor-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="tb-body">
+        <nav class="tb-team-column" aria-label="Your party">
+          <ol id="party-slots" class="tb-team"></ol>
+          <p class="tb-team-hint helper">Drag to change the order. The first one leads.</p>
+        </nav>
+        <section id="tb-main" class="tb-main" aria-live="polite">
+          <div id="tb-picker" class="tb-picker" hidden>
+            <div class="tb-picker-head">
+              <input id="party-search" class="pokedex-search" type="search" placeholder="Search by name, number or type" aria-label="Search Pokémon by name, number or type" spellcheck="false" autocomplete="off">
+              <button id="tb-picker-cancel" class="subtle" hidden>Back to set</button>
+            </div>
+            <div class="tb-dex-head" aria-hidden="true"><span></span><span>Pokémon</span><span>Types</span><span>Abilities</span><span>HP</span><span>Atk</span><span>Def</span><span>SpA</span><span>SpD</span><span>Spe</span><span>BST</span></div>
+            <div id="party-dex" class="tb-dex" role="listbox" aria-label="Pokédex"></div>
+          </div>
+          <div id="tb-set" class="tb-set" hidden></div>
+          <div id="tb-list" class="tb-list" role="listbox" hidden></div>
+        </section>
+      </div>
+      <div class="tb-foot">
         <p id="party-dex-note" class="helper" hidden></p>
-        <div class="actions party-editor-actions"><button id="party-delete" class="subtle">Delete party</button><span class="nav-spacer" aria-hidden="true"></span><button id="party-save" class="solid">Save party</button></div>
+        <button id="party-delete" class="text-button tb-delete">Delete party</button>
+        <span class="nav-spacer" aria-hidden="true"></span>
+        <span id="party-editor-status" class="tb-status"></span>
+        <button id="party-save" class="solid">Done</button>
+      </div>
+    </dialog>
+    <dialog id="party-text" class="launcher-modal party-text" aria-labelledby="party-text-title">
+      <div class="modal-head"><div><p class="eyebrow">POKÉMON SHOWDOWN TEXT</p><h1 id="party-text-title">Import a team</h1><p id="party-text-intro">Paste a team exported from Pokémon Showdown or another team builder.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
+      <div class="party-text-body">
+        <textarea id="party-text-box" class="party-text-box" spellcheck="false" autocomplete="off" aria-labelledby="party-text-title"></textarea>
+        <ul id="party-text-problems" class="party-text-problems" hidden></ul>
+        <div class="actions"><span id="party-text-result" class="helper" role="status"></span><span class="nav-spacer" aria-hidden="true"></span><button class="subtle" data-close-modal>Close</button><button id="party-text-copy" class="solid" hidden>Copy</button><button id="party-text-import" class="solid">Import</button></div>
       </div>
     </dialog>
     <dialog id="steam-add" class="launcher-modal steam-modal" aria-labelledby="steam-add-kicker steam-add-title">
@@ -376,6 +412,8 @@
   <script src="renderer.js"></script>
   <script type="module" src="pokedex-page.js"></script>
   <script src="room-poll.js"></script>
+  <script src="team-sets.js"></script>
+  <script src="team-builder.js"></script>
   <script src="online-page.js"></script>
 </body>
 </html>

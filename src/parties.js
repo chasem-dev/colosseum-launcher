@@ -3,8 +3,12 @@
 // The player's online setup: their trainer name, the parties they built from
 // the Pokédex, which one they battle with, and the room options they last used.
 // Saved in the launcher's config. Parties are lists of the game's species
-// numbers, as the Pokédex (src/pokedex.js) reads them from the disc. The
-// Story party (src/story-party.js) is the save's own, chosen as STORY.
+// numbers, as the Pokédex (src/pokedex.js) reads them from the disc, with a
+// set for each (src/team-sets.js): its moves, nature, EVs, IVs and the rest.
+// The species stay a list of their own so a launcher from before sets still
+// reads the party. The Story party (src/story-party.js) is the save's own,
+// chosen as STORY.
+const teamSets = require('./team-sets');
 
 const PARTY_SIZE = 6;
 const MAX_PARTIES = 32;
@@ -14,7 +18,7 @@ const LEVELS = [50, 100];
 const SIZES = [3, 6];
 const STORY = 'story';
 // The game numbers its species up to 411, with a gap between the second generation and the third.
-const validSpecies = id => Number.isInteger(id) && ((id >= 1 && id <= 251) || (id >= 277 && id <= 411));
+const { validSpecies } = teamSets;
 
 const cleanName = (value, length) => (typeof value === 'string' ? value : '').replace(/\s+/g, ' ').trim().slice(0, length);
 
@@ -23,13 +27,13 @@ function trainerName(value) {
   return cleanName(value, 64).normalize('NFD').replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, TRAINER_LENGTH).trim() || 'Trainer';
 }
 
-function normalizeMembers(members) {
-  return (Array.isArray(members) ? members : []).filter(validSpecies).slice(0, PARTY_SIZE);
-}
-
 function normalizeParty(input, index = 0) {
+  const raw = Array.isArray(input?.members) ? input.members : [], sets = Array.isArray(input?.sets) ? input.sets : [];
+  // each member with its set, in order: a set for another species, or none, starts again from the species
+  const kept = raw.map((species, i) => [species, sets[i]]).filter(([species]) => validSpecies(species)).slice(0, PARTY_SIZE);
   return { id: typeof input?.id === 'string' && /^[a-z0-9-]{1,40}$/.test(input.id) ? input.id : `party-${index + 1}`,
-    name: cleanName(input?.name, NAME_LENGTH) || `Party ${index + 1}`, members: normalizeMembers(input?.members) };
+    name: cleanName(input?.name, NAME_LENGTH) || `Party ${index + 1}`, members: kept.map(([species]) => species),
+    sets: kept.map(([species, set]) => teamSets.normalizeSet(set, species)) };
 }
 
 function normalize(input) {
