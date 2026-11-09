@@ -353,9 +353,9 @@
     </dialog>
 
     <dialog id="path-too-long" class="launcher-modal path-modal" aria-labelledby="path-too-long-title">
-      <div class="modal-head"><div><p class="eyebrow">CAN'T BUILD HERE</p><h1 id="path-too-long-title">Move the launcher to a shorter folder</h1><p>Windows can't build the game this deep in your folders.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
+      <div class="modal-head"><div><p class="eyebrow">CAN'T BUILD HERE</p><h1 id="path-too-long-title">Move the launcher to a shorter folder</h1><p id="path-too-long-lead">Windows can't build the game this deep in your folders.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
       <div class="modal-body">
-        <p class="path-summary"><span id="path-folder-name"></span>'s path is <strong id="path-length"></strong> characters long, but the game can only be built in a folder of up to <strong id="path-limit"></strong>.</p>
+        <p id="path-summary" class="path-summary"><span id="path-folder-name"></span>'s path is <strong id="path-length"></strong> characters long, but the game can only be built in a folder of up to <strong id="path-limit"></strong>.</p>
         <p class="path-box"><code id="path-folder"></code></p>
         <p class="path-legend"><span class="path-legend-over" aria-hidden="true"></span><span id="path-over"></span></p>
         <ol id="path-steps" class="path-steps"></ol>

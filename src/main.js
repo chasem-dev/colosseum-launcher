@@ -588,21 +588,23 @@ async function checkTools(refresh = false) {
   return buildTools.check(app.getPath('userData'), { refresh });
 }
 
-// A Windows game folder or build tools too deep for the compiler fail deep
-// into the build with "No such file or directory" for a file that is there.
-// The launcher shows this when it opens, and stops before downloading the
-// tools or building. root defaults to where the next game update builds.
+// A Windows game folder or build tools too deep for the compiler, or a game
+// folder with an & in its path, fail deep into the build with "No such file
+// or directory". The launcher shows this when it opens, and stops before
+// downloading the tools or building. root defaults to where the next game
+// update builds.
 function pathProblem(root = config.repo && game.snapshotPath(config.installRoot || config.repo, currentSource())) {
   if (process.platform !== 'win32' || !root) return null;
-  return port.longPathProblem(root, { portable: Boolean(portableRoot),
-    folder: portableRoot || path.dirname(config.installRoot || config.repo),
-    msys: process.env.COLO_MSYS2_ROOT || path.join(buildTools.rootFor(app.getPath('userData')), 'msys64') });
+  const folder = portableRoot || path.dirname(config.installRoot || config.repo);
+  return port.longPathProblem(root, { portable: Boolean(portableRoot), folder,
+    msys: process.env.COLO_MSYS2_ROOT || path.join(buildTools.rootFor(app.getPath('userData')), 'msys64') }) ||
+    port.pathCharacterProblem(root, { portable: Boolean(portableRoot), folder });
 }
 
 // The last one that stopped a build, which the launcher shows in place of the
 // next update's: a fresh build's folder is longer.
 let blockedPath = null;
-function requireShortPaths(root) {
+function requireBuildablePath(root) {
   const problem = blockedPath = pathProblem(root);
   if (!problem) return;
   log(problem.message);
@@ -644,7 +646,7 @@ function systemDllList(files) {
 }
 
 async function prepareBuildTools() {
-  requireShortPaths();
+  requireBuildablePath();
   if (preparingTools) throw new Error('Wait for build tools to finish preparing.');
   if (active) throw new Error(`Wait for ${active.label} to finish, or stop it first.`);
   const userData = app.getPath('userData');
@@ -793,7 +795,7 @@ async function build(forceFresh = false) {
     game.carryUserFiles(original, root);
   }
   // A fresh build's folder is longer than the one ensureBuildTools checked.
-  requireShortPaths(root);
+  requireBuildablePath(root);
   if (!port.hdVisualsInstalled(root, settings)) await installTextures(root);
   // Only the icon needs it, so a build without it goes on without one.
   if (process.platform === 'win32') {

@@ -914,30 +914,55 @@ function renderMacTools(tools) {
     : tools.checked ? 'Some tools still need to be installed.' : 'Checking tools…';
 }
 
-// A Windows folder too deep to build the game in: the part of its path over
-// the limit is marked, so players see how much shorter it must be.
+// A Windows folder the game can't be built in: too deep, with the part of its
+// path over the limit marked so players see how much shorter it must be, or
+// with an & in its path, marked where it is.
 function showPathProblem() {
   const problem = current?.pathProblem;
   if (!problem) return false;
-  const over = problem.length - problem.limit;
-  $('path-folder-name').textContent = problem.portable ? 'The Colosseum-Launcher-Portable folder' : 'The folder holding the setup files';
-  $('path-length').textContent = problem.length;
-  $('path-limit').textContent = problem.limit;
-  const mark = document.createElement('mark');
-  mark.textContent = problem.folder.slice(problem.limit);
-  $('path-folder').replaceChildren(problem.folder.slice(0, problem.limit), mark);
-  $('path-over').textContent = `${over} character${over === 1 ? '' : 's'} too long`;
+  const folderName = problem.portable ? 'The Colosseum-Launcher-Portable folder' : 'The folder holding the setup files';
+  const characters = problem.kind === 'characters';
+  const listed = characters ? problem.characters.join(' or ') : '';
+  $('path-too-long-title').textContent = characters ? `Move the launcher to a folder without ${listed}` : 'Move the launcher to a shorter folder';
+  $('path-too-long-lead').textContent = characters ? `Windows can't build the game in a folder with ${listed} in its path.`
+    : "Windows can't build the game this deep in your folders.";
+  if (characters) {
+    const strong = document.createElement('strong');
+    strong.textContent = listed;
+    $('path-summary').replaceChildren(`${problem.name}'s path has `, strong, ' in it.');
+    $('path-folder').replaceChildren(...problem.folder.split(/([&^])/).filter(Boolean).map(part => {
+      if (!problem.characters.includes(part)) return part;
+      const mark = document.createElement('mark');
+      mark.textContent = part;
+      return mark;
+    }));
+    $('path-over').textContent = `Can't be in the path`;
+  } else {
+    const over = problem.length - problem.limit;
+    const length = document.createElement('strong'), limit = document.createElement('strong');
+    length.textContent = problem.length;
+    limit.textContent = problem.limit;
+    $('path-summary').replaceChildren(`${folderName}'s path is `, length,
+      ' characters long, but the game can only be built in a folder of up to ', limit, '.');
+    const mark = document.createElement('mark');
+    mark.textContent = problem.folder.slice(problem.limit);
+    $('path-folder').replaceChildren(problem.folder.slice(0, problem.limit), mark);
+    $('path-over').textContent = `${over} character${over === 1 ? '' : 's'} too long`;
+  }
+  const place = characters ? `a folder without ${listed} in its path` : 'a shorter folder';
   $('path-steps').replaceChildren(...(problem.portable ? [
     'Close the launcher.',
-    'Move the launcher and its Colosseum-Launcher-Portable folder together to a short folder, such as C:\\Games.',
+    `Move the launcher and its Colosseum-Launcher-Portable folder together to ${characters ? place : 'a short folder'}, such as C:\\Games.`,
     'Open the launcher from there. Your saves, settings and downloads come with it.'
-  ] : ['Open Settings and choose a shorter folder for Setup files, such as C:\\Games.']).map(text => {
+  ] : [`Open Settings and choose ${place} for Setup files, such as C:\\Games.`]).map(text => {
     const item = document.createElement('li');
     item.textContent = text;
     return item;
   }));
-  $('path-why').textContent = `Windows' compiler can't open files whose paths are 260 characters or more, and the build ` +
-    `reaches ${problem.deepest} characters deeper than this folder.`;
+  $('path-why').textContent = characters
+    ? `Windows' command prompt runs some of the build's steps and reads ${listed} as part of a command, so the build would stop partway.`
+    : `Windows' compiler can't open files whose paths are 260 characters or more, and the build ` +
+      `reaches ${problem.deepest} characters deeper than this folder.`;
   closeModal();
   $('path-too-long').showModal();
   return true;

@@ -317,6 +317,27 @@ test('a Windows folder too deep to build in is found before the build, with what
   assert.match(portable.message, /Colosseum-Launcher-Portable/);
 });
 
+test('a Windows folder with an & in its path is found before the build, with what to do', () => {
+  assert.equal(port.pathCharacterProblem('/Games & Stuff/game', { platform: 'linux' }), null);
+  assert.equal(port.pathCharacterProblem('C:\\Games\\Colosseum Game', { platform: 'win32' }), null);
+  const folder = 'E:\\Recomp & Decomp Games\\Colosseum Launcher\\Game';
+  const problem = port.pathCharacterProblem(`${folder}\\Colosseum Game.releases\\1988204-abcd`, { platform: 'win32', folder });
+  assert.equal(problem.kind, 'characters');
+  assert.equal(problem.folder, folder);
+  assert.deepEqual(problem.characters, ['&']);
+  assert.match(problem.message, /folder holding the setup files's path has & in it/);
+  assert.match(problem.message, /C:\\Games/);
+  const caret = port.pathCharacterProblem('C:\\a^b\\x & y\\game', { platform: 'win32', folder: 'C:\\a^b\\x & y' });
+  assert.deepEqual(caret.characters, ['^', '&']);
+  // Only the game folder below the chosen one has it: that folder is the one shown.
+  const below = port.pathCharacterProblem('C:\\Games\\Me & You\\game', { platform: 'win32', folder: 'C:\\Games' });
+  assert.equal(below.folder, 'C:\\Games\\Me & You\\game');
+  assert.match(below.message, /^The game folder's path/);
+  const portable = port.pathCharacterProblem('D:\\A&B\\Colosseum-Launcher-Portable\\game',
+    { platform: 'win32', folder: 'D:\\A&B\\Colosseum-Launcher-Portable', portable: true });
+  assert.match(portable.message, /^The Colosseum-Launcher-Portable folder's path/);
+});
+
 test('launcher updates stay on Stable unless a known channel is chosen', () => {
   assert.equal(port.normalizeSettings({}).updateChannel, 'stable');
   assert.equal(port.normalizeSettings({ updateChannel: 'beta' }).updateChannel, 'beta');
