@@ -5,6 +5,7 @@ const path = require('node:path');
 const bindings = require('./bindings');
 const presets = require('./presets');
 const randomizer = require('./randomizer');
+const languagePacks = require('./language-packs');
 const { normalizeChannel } = require('./update-channel');
 const { prependWindowsPath } = require('./windows-path');
 const { Disc, describe } = require('./disc');
@@ -140,6 +141,8 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
     hdText: choiceSetting(input.hdText, ['on', 'upscaled', 'off'], 'on'),
+    // The game's language: English, or a language pack's code (language-packs.js).
+    language: languagePacks.normalizeLanguage(input.language),
     // Controllers keep playing while another window has focus; off unless chosen.
     backgroundInput: Boolean(input.backgroundInput),
     // Each controller its own player (Battle Mode), or every controller player 1.

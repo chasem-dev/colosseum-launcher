@@ -758,6 +758,9 @@ function refresh(data) {
   $('update-channel-field').hidden = data.portable;
   $('update-channel-note').hidden = data.portable;
   renderGameSource(data);
+  renderLanguages(data.languages, config.settings.language);
+  $('language-note').hidden = data.languagesReady !== false || config.settings.language === 'en';
+  $('language-note').textContent = 'Update your game to play in this language. This version of the game plays in English.';
   for (const key of SELECTS) $(key).value = String(config.settings[key]);
   renderRanges();
   for (const key of SWITCHES) $(key).checked = config.settings[key];
@@ -789,9 +792,21 @@ function refresh(data) {
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
 const SELECTS = ['widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic',
-  'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
+  'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
 const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3',
   'randomizerSimilar', 'randomizerNoLegendaries', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+
+// The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
+// removed from the folder stays listed, as the game plays in English without it.
+function renderLanguages(list = [{ code: 'en', name: 'English' }], chosen = 'en') {
+  const items = list.some(item => item.code === chosen) ? list : list.concat({ code: chosen, name: chosen, missing: true });
+  $('language').replaceChildren(...items.map(item => {
+    const option = document.createElement('option');
+    option.value = item.code;
+    option.textContent = item.missing ? `${item.name} (not found: plays in English)` : item.local ? `${item.name} (your folder)` : item.name;
+    return option;
+  }));
+}
 
 let updateChannels = [{ id: 'stable', label: 'Stable' }];
 function renderUpdateChannels(chosen) {
@@ -1525,6 +1540,7 @@ dolphinDrop.addEventListener('drop', event => {
 // Prevent dropped files from navigating away from the launcher.
 for (const type of ['dragover', 'drop']) window.addEventListener(type, event => event.preventDefault());
 $('open-custom-textures').addEventListener('click', () => window.colo.openCustomTextures().catch(showError));
+$('open-languages').addEventListener('click', () => window.colo.openLanguages().catch(showError));
 for (const key of [...SELECTS, ...SWITCHES]) $(key).addEventListener('change', saveSettings);
 $('randomizer-reroll').addEventListener('click', async () => {
   try {
