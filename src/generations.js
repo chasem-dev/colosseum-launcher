@@ -1,17 +1,19 @@
 'use strict';
 
 // Later generations, which the player opts into under Settings → Gameplay: their battle rules, and their Pokémon and
-// moves. Each is a file of src/generations (gen<N>.json, made from Pokémon Showdown's data by
-// scripts/generation-data/make.js) and how Colosseum plays what it lacks (gen<N>-colosseum.json, written by hand).
+// moves. Each is a file of src/generations (gen<N>.json, made from Pokémon Showdown's data and, for moves, Pokémon
+// Platinum's by scripts/generation-data/make.js) and how Colosseum plays what it lacks (gen<N>-colosseum.json, written
+// by hand).
 // Rules and Pokémon are separate choices: Colosseum's own rules with generation 4's Pokémon, or generation 4's rules
 // with or without them. A generation added later is another pair of files.
 //
 // This turns them into what the game's expansion file holds (src/pokemon-packs.js writes it, host/pokemonpacks.c and
 // host/mechanics.c read it):
-//   - rules: each move's category, the feature bits, and the old moves whose numbers that generation changed;
+//   - rules: each move's category, the feature bits, and the old moves whose numbers or flags that generation changed;
 //   - moves: each new move as a row of Colosseum's move table, copied from the move it plays as (`as`: its effect,
-//     animation and messages) with the new move's own numbers. A new move is numbered 3 past its own number, after
-//     Colosseum's 355-357 (its own unnamed move, Shadow Rush and "????"), so a saved Pokémon's moves keep their meaning;
+//     animation and messages) with the new move's own numbers and flags. A new move is numbered 3 past its own number,
+//     after Colosseum's 355-357 (its own unnamed move, Shadow Rush and "????"), so a saved Pokémon's moves keep their
+//     meaning;
 //   - Pokémon: each new species as a pack Pokémon's row, numbered 26 past its National Pokédex number (387 is 413,
 //     right after Colosseum's 413), with a Pokémon Colosseum has of the same type and stage standing in for its looks
 //     and cry until one of its own is converted (src/pbr-models.js).
@@ -24,7 +26,13 @@ const MOVE_OFFSET = 3, FIRST_NEW_MOVE = 355, SPECIES_OFFSET = 26;
 const FEATURES = { physicalSpecialSplit: 1, sandstormRockSpecialDefense: 2 };
 const CATEGORY = { Physical: 1, Special: 2, Status: 0 };
 const MOVE_ROW = 0x38;
-const MV = { priority: 0, pp: 1, type: 2, target: 3, accuracy: 4, chance: 5, contact: 6, protect: 7, magicCoat: 8, snatch: 9, mirror: 0x0a, power: 0x16, effect: 0x1a };
+// A move's row (decomp include/game/bios_records.h WazaDataBiosFields). 0x06-0x12 are flags, 1 or 0: contact, Protect,
+// Magic Coat, Snatch, Mirror Move and King's Rock act on it; Metronome, Mimic, Assist and Sleep Talk can call it; it's
+// a sound move (Soundproof); Pressure (unread by the game, and left as Colosseum has it); an HM (can't be forgotten).
+// 0x13 marks a move with a drawback for the trainer AI, which no later game has, so it's left as Colosseum has it.
+const MV = { priority: 0, pp: 1, type: 2, target: 3, accuracy: 4, chance: 5, power: 0x16, effect: 0x1a };
+const FLAGS = { contact: 6, protect: 7, reflectable: 8, snatch: 9, mirror: 0x0a, kingsRock: 0x0b, metronome: 0x0c,
+  mimic: 0x0d, assist: 0x0e, sleepTalk: 0x0f, sound: 0x10, hm: 0x12 };
 // Who stands in for a new Pokémon's looks and cry: a Pokémon Colosseum has, by first type and stage.
 const STAND_INS = {
   Grass: ['Treecko', 'Grovyle', 'Sceptile'], Fire: ['Torchic', 'Combusken', 'Blaziken'], Water: ['Mudkip', 'Marshtomp', 'Swampert'],
@@ -69,37 +77,42 @@ const colosseumMove = number => number >= FIRST_NEW_MOVE ? number + MOVE_OFFSET 
 const speciesId = national => national + SPECIES_OFFSET;
 const isGenerationSpecies = id => id >= 387 + SPECIES_OFFSET && id < 1100;
 
-// What Colosseum's own moves tell about its move table: which byte each kind of target is, and "never misses".
+// What Colosseum's own moves tell about its move table: which byte each of the generation's ranges is, and "never
+// misses".
 function learnMoveTable(tables, data) {
   const votes = {}, misses = {};
   for (let id = 1; id < FIRST_NEW_MOVE; id++) {
     const move = data.moves[id], row = tables.moveRows[id];
     if (!move || !row) continue;
-    (votes[move.target] ||= {})[row[MV.target]] = (votes[move.target][row[MV.target]] || 0) + 1;
-    if (move.accuracy === null) misses[row[MV.accuracy]] = (misses[row[MV.accuracy]] || 0) + 1;
+    (votes[move.range] ||= {})[row[MV.target]] = (votes[move.range][row[MV.target]] || 0) + 1;
+    if (move.accuracy === 0) misses[row[MV.accuracy]] = (misses[row[MV.accuracy]] || 0) + 1;
   }
   const top = counts => Number(Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]);
-  const targets = Object.fromEntries(Object.entries(votes).map(([target, counts]) => [target, top(counts)]));
-  return { targets, neverMiss: top(misses) };
+  const targets = Object.fromEntries(Object.entries(votes).map(([range, counts]) => [range, top(counts)]));
+  return { targets, neverMiss: Object.keys(misses).length ? top(misses) : 0 };
 }
 
-// A move's numbers written into a row (a copy of another's, or its own).
-function writeMove(row, move, learned, tables, power = move.power) {
+// A move's numbers and flags written into a row (a copy of another's, or its own). A range Colosseum has no move of
+// keeps the row's.
+function writeMove(row, move, learned, tables, { power = move.power, chance = move.effectChance } = {}) {
   const type = tables.types.indexOf(key(move.type));
   row[MV.priority] = move.priority & 0xff;
   row[MV.pp] = move.pp;
   if (type >= 0) row[MV.type] = type;
-  if (move.target in learned.targets) row[MV.target] = learned.targets[move.target];
-  row[MV.accuracy] = move.accuracy === null ? learned.neverMiss : move.accuracy;
-  row[MV.chance] = move.effectChance;
-  row[MV.contact] = move.contact ? 1 : 0;
-  row[MV.protect] = move.protect ? 1 : 0;
-  row[MV.magicCoat] = move.reflectable ? 1 : 0;
-  row[MV.snatch] = move.snatch ? 1 : 0;
-  row[MV.mirror] = move.mirror ? 1 : 0;
+  if (move.range in learned.targets) row[MV.target] = learned.targets[move.range];
+  row[MV.accuracy] = move.accuracy === 0 ? learned.neverMiss : move.accuracy;
+  row[MV.chance] = chance;
+  for (const [flag, at] of Object.entries(FLAGS)) row[at] = move[flag] ? 1 : 0;
   row.writeUInt16BE(power, MV.power);
   return row;
 }
+
+// The added-effect chance a row gets. Platinum's 0 and 100 aren't a roll: its effect never or always happens, and its
+// own script makes it so (Bind, Thief, Pay Day have 0; Fake Out, Skull Bash, Overheat 100). Colosseum's scripts read
+// the chance as a roll, so where the row plays the move's own effect, it keeps the chance it has (100 for Bind). Any
+// other chance is Platinum's.
+const chanceFor = (move, row, sameEffect) =>
+  sameEffect && (move.effectChance === 0 || move.effectChance === 100) ? row[MV.chance] : move.effectChance;
 
 // The new moves a generation brings that Colosseum can play, by Colosseum's number: { id, name, description, row,
 // number (its own), exact, note }. Problems in the hand-written file are thrown.
@@ -113,9 +126,11 @@ function newMoves(tables, data) {
     if (!how) continue;
     const template = tables.moves.get(key(how.as));
     if (!template || template >= FIRST_NEW_MOVE) throw new Error(`generation ${data.generation}: ${move.name} plays as "${how.as}", which Colosseum hasn't`);
-    // A damaging move whose power is worked out as it's used has 1 in its row, as Pokémon Platinum has it.
-    const power = how.power ?? (move.power || (move.category === 'Status' ? 0 : 1));
-    const row = writeMove(Buffer.from(tables.moveRows[template]), move, learned, tables, power);
+    // A damaging move whose power is worked out as it's used has 1, as Pokémon Platinum has it.
+    const power = how.power ?? move.power, from = tables.moveRows[template];
+    // The template's chance, where it plays the same effect as Platinum has the move play (Magma Storm as Fire Spin)
+    const sameEffect = how.effect === undefined && data.moves[template]?.effect === move.effect;
+    const row = writeMove(Buffer.from(from), move, learned, tables, { power, chance: chanceFor(move, from, sameEffect) });
     // The effect the game plays: the template's, or one of the port's own (host/gen4.c's EFFECT_*), or another of the game's.
     if (how.effect !== undefined) row.writeUInt16BE(how.effect, MV.effect);
     out.push({ id: colosseumMove(number), number, name: move.name.toUpperCase().slice(0, 12), description: move.description,
@@ -124,8 +139,9 @@ function newMoves(tables, data) {
   return out;
 }
 
-// A generation's rules: its feature bits, each move's category, and Colosseum's own moves as that generation numbered
-// them (power, accuracy, PP, type, priority, targets).
+// A generation's rules: its feature bits, each move's category, and Colosseum's own moves as that generation has them
+// (power, accuracy, PP, type, priority, range, added-effect chance and flags), as whole rows; their effects, messages
+// and animations stay Colosseum's.
 function rules(tables, data, moves) {
   let features = 0;
   for (const [name, on] of Object.entries(data.mechanics)) if (on && FEATURES[name]) features |= FEATURES[name];
@@ -137,14 +153,10 @@ function rules(tables, data, moves) {
   for (let id = 1; id < FIRST_NEW_MOVE; id++) {
     const move = data.moves[id], row = tables.moveRows[id];
     if (!move || !row) continue;
-    const wanted = Buffer.from(row);
-    wanted[MV.priority] = move.priority & 0xff;
-    wanted[MV.pp] = move.pp;
-    const type = tables.types.indexOf(key(move.type));
-    if (type >= 0) wanted[MV.type] = type;
-    if (move.target in learned.targets) wanted[MV.target] = learned.targets[move.target];
-    wanted[MV.accuracy] = move.accuracy === null ? row[MV.accuracy] : move.accuracy;
-    if (move.power) wanted.writeUInt16BE(move.power, MV.power);
+    // A move whose power is worked out as it's used has 1 in Platinum's data. Colosseum's Spit Up has 100 there, the
+    // power Ruby and Sapphire multiply by the Stockpile count, as Platinum's script does: it keeps it.
+    const power = move.power === 1 ? row.readUInt16BE(MV.power) : move.power;
+    const wanted = writeMove(Buffer.from(row), move, learned, tables, { power, chance: chanceFor(move, row, true) });
     if (!wanted.equals(row)) changed.push({ id, row: wanted });
   }
   return { generation: data.generation, features, categories, changed };
@@ -218,5 +230,5 @@ function build(tables, settings) {
   return out;
 }
 
-module.exports = { COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, available, load, normalize, build,
+module.exports = { COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build,
   newMoves, rules, speciesSpec, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };

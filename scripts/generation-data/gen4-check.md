@@ -373,3 +373,36 @@
 - #490 Manaphy TMs and HMs: only the game [], only Showdown ["Whirlpool"]
 - #491 Darkrai level-up moves: only the game [], only Showdown ["1:Ominous Wind","29:Feint Attack","75:Nasty Plot"]
 - #492 Shaymin level-up moves: only the game [], only Showdown ["1:Growth","28:Quick Attack","64:Air Slash","82:Sweet Kiss","91:Healing Wish","91:Leaf Storm"]
+
+## Moves: Showdown's data against Pokémon Platinum's
+
+gen4.json has Platinum's numbers and flags, and Showdown's names and descriptions. Accuracy 0 is "never misses". Ranges are Platinum's, Showdown's targets put as the range they mean.
+
+- #11 Vise Grip: Platinum calls it "ViceGrip"
+- #68 Counter protect: Showdown true, Platinum false
+- #118 Metronome range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #119 Mirror Move range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #130 Skull Bash effectChance: Showdown 0, Platinum 100
+- #136 High Jump Kick: Platinum calls it "Hi Jump Kick"
+- #165 Struggle range: Showdown "RANGE_RANDOM_OPPONENT", Platinum "RANGE_SINGLE_TARGET"
+- #176 Conversion 2 range: Showdown "RANGE_SINGLE_TARGET", Platinum "RANGE_USER"
+- #185 Feint Attack: Platinum calls it "Faint Attack"
+- #195 Perish Song sound: Showdown true, Platinum false
+- #203 Endure priority: Showdown 4, Platinum 3
+- #214 Sleep Talk range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #215 Heal Bell sound: Showdown true, Platinum false
+- #243 Mirror Coat protect: Showdown true, Platinum false
+- #258 Hail protect: Showdown false, Platinum true
+- #265 Smelling Salts: Platinum calls it "SmellingSalt"
+- #267 Nature Power range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #274 Assist range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #277 Magic Coat range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #289 Snatch range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #315 Overheat effectChance: Showdown 0, Platinum 100
+- #354 Psycho Boost effectChance: Showdown 0, Platinum 100
+- #368 Metal Burst protect: Showdown true, Platinum false
+- #382 Me First range: Showdown "RANGE_SINGLE_TARGET", Platinum "RANGE_SINGLE_TARGET_ME_FIRST"
+- #383 Copycat range: Showdown "RANGE_USER", Platinum "RANGE_SINGLE_TARGET_SPECIAL"
+- #434 Draco Meteor effectChance: Showdown 0, Platinum 100
+- #437 Leaf Storm effectChance: Showdown 0, Platinum 100
+- #448 Chatter effectChance: Showdown 31, Platinum 0

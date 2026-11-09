@@ -51,6 +51,45 @@ test('new moves keep their numbers, three past their own, and play as the move n
   assert.equal(moves.some(move => move.number === 356), false, 'Gravity is left out');
 });
 
+test("moves have Pokémon Platinum's numbers and flags, and its engine's move lists", () => {
+  const data = generations.load(4);
+  const fang = data.moves[422];
+  assert.equal(fang.effectChance, 10, "Thunder Fang's 10%, though Showdown gives it two added effects");
+  assert.deepEqual([data.moves[237].name, data.moves[237].type, data.moves[237].power], ['Hidden Power', 'Normal', 1], 'Hidden Power itself, not a typed copy');
+  assert.equal(data.moves[57].range, 'RANGE_ALL_ADJACENT', 'Surf hits a partner too');
+  assert.equal(data.moves[203].priority, 3, 'Endure, +3 as Platinum has it');
+  const named = list => Object.values(data.moves).filter(move => move[list]).map(move => move.name);
+  const without = list => Object.values(data.moves).filter(move => !move[list]).map(move => move.name).sort();
+  assert.deepEqual(named('sound').sort(), ['Bug Buzz', 'Chatter', 'Grass Whistle', 'Growl', 'Hyper Voice', 'Metal Sound', 'Roar', 'Screech', 'Sing', 'Snore', 'Supersonic', 'Uproar']);
+  assert.deepEqual(named('hm').sort(), ['Cut', 'Defog', 'Fly', 'Rock Climb', 'Rock Smash', 'Strength', 'Surf', 'Waterfall']);
+  assert.deepEqual(without('mimic'), ['Chatter', 'Metronome', 'Mimic', 'Sketch', 'Struggle']);
+  assert.ok(without('metronome').includes('Feint') && !without('metronome').includes('Metal Burst'));
+  assert.ok(!data.moves[264].sleepTalk && !data.moves[19].sleepTalk && !data.moves[467].sleepTalk, 'Focus Punch, Fly and Shadow Force');
+  assert.ok(!data.moves[119].assist && data.moves[119].sleepTalk === false, 'Mirror Move calls moves itself');
+});
+
+test('a new move gets all its own flags, and keeps a chance its stand-in plays as certain', () => {
+  const game = tables(), data = generations.load(4);
+  const strength = game.moveRows[70];
+  strength[0x12] = 1; strength[0x13] = 1; strength[0x11] = 1;   // an HM, a risky move, Pressure
+  game.moves.set('fire spin', 83);
+  game.moveRows[83][5] = 100;   // Fire Spin's trap, always
+  game.moves.set('thunderpunch', 9);
+  game.moveRows[9][5] = 10;
+  const colosseum = { ...data.colosseum, moves: Object.fromEntries(Object.entries(data.colosseum.moves).map(([name, how]) =>
+    [name, how && { ...how, as: ['Fire Spin', 'ThunderPunch', 'Swift'].includes(how.as) ? how.as : 'Strength' }])) };
+  const moves = generations.newMoves(game, { ...data, colosseum });
+  const by = name => moves.find(move => move.name === name).row;
+  assert.equal(by('AQUA TAIL')[0x12], 0, 'not an HM, though Strength is');
+  assert.equal(by('ROCK CLIMB')[0x12], 1, 'an HM in Platinum');
+  assert.equal(by('BUG BUZZ')[0x10], 1, 'a sound move');
+  assert.equal(by('THUNDER FANG')[5], 10);
+  assert.equal(by('THUNDER FANG')[0x0b], 1, "King's Rock");
+  assert.equal(by('MAGMA STORM')[5], 100, "Fire Spin's certain trap, where Platinum's data has 0");
+  assert.equal(by('CHATTER')[5], 0, 'its own effect in Platinum, not the stand-in\'s');
+  assert.deepEqual([by('AQUA TAIL')[0x11], by('AQUA TAIL')[0x13]], [1, 1], 'Pressure and the AI\'s risk stay the stand-in\'s');
+});
+
 test("a generation's rules: categories by move, and the old moves it changed", () => {
   const game = tables(), data = generations.load(4);
   const rules = generations.rules(game, data, [{ id: 440, number: 437 }]);
@@ -60,6 +99,23 @@ test("a generation's rules: categories by move, and the old moves it changed", (
   assert.equal(rules.categories[14], 0, 'Swords Dance, status');
   assert.equal(rules.categories[440], 2, 'Leaf Storm');
   assert.ok(rules.changed.some(change => change.id === 19 && change.row.readUInt16BE(0x16) === 90), "Fly has generation 4's 90 power");
+});
+
+test("Colosseum's own moves become Platinum's in every number and flag, but effects stay theirs", () => {
+  const game = tables(), data = generations.load(4);
+  game.moveRows[20][5] = 100;   // Bind traps, always
+  game.moveRows[255].writeUInt16BE(100, 0x16);   // Spit Up, 100 a Stockpile
+  game.moveRows[148][0x12] = 1;   // Flash, an HM in Ruby and Sapphire
+  game.moveRows[127].writeUInt16BE(80, 0x16);
+  const changed = new Map(generations.rules(game, data, []).changed.map(change => [change.id, change.row]));
+  const row = id => changed.get(id) || game.moveRows[id];
+  assert.equal(row(20)[5], 100, "Platinum's 0 is a certain effect, so Bind keeps its 100");
+  assert.equal(row(255).readUInt16BE(0x16), 100, 'Spit Up keeps the power its script multiplies');
+  assert.equal(row(148)[0x12], 0, 'Flash can be forgotten');
+  assert.equal(row(127)[5], 20, "Waterfall's 20% flinch");
+  assert.equal(row(127)[0x18], 127, 'the row is otherwise its own');
+  assert.equal(row(252)[6], 1, 'Fake Out makes contact');
+  assert.equal(row(237)[2], 0, 'Hidden Power stays Normal in the table');
 });
 
 test('a new Pokémon: its own numbers, a stand-in of its type and stage, moves it can use', () => {
