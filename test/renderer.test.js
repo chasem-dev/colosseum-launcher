@@ -23,7 +23,7 @@ function host(platform) { return { linux: 'linux', macos: 'darwin', windows: 'wi
 async function renderer(data = state(), copyError = null, notes = { releases: [], unseen: [], current: '0.1.39' }) {
   const changelogSeen = [], calls = [], elements = new Map(), listeners = {}, gamepad = {};
   let logCallback, resetCallback, activityCallback;
-  const text = node => node.textContent + node.children.map(text).join(' ');
+  const text = node => typeof node === 'string' ? node : node.textContent + node.children.map(text).join(' ');
   function element(classes = '') {
     const names = new Set(classes.split(' ')), listeners = new Map();
     return { hidden: false, disabled: false, textContent: '', value: '', style: { setProperty() {} }, open: false,
@@ -115,6 +115,30 @@ test('a waiting update makes Update & play the default, with Update only and Pla
   assert.deepEqual(ui.calls, ['play']);
   await ui.click('menu-default');
   assert.deepEqual(ui.calls, ['play', 'launchGame']);
+});
+
+test('a Windows folder with an & in its path explains itself instead of building', async () => {
+  const data = { ...state(), pathProblem: port.pathCharacterProblem('E:\\A & B\\Game\\x', { platform: 'win32', folder: 'E:\\A & B\\Game' }) };
+  const ui = await renderer(data);
+  await ui.click('menu-update-only');
+  assert.equal(ui.elements.get('path-too-long').open, true);
+  assert.equal(ui.elements.get('path-too-long-title').textContent, 'Move the launcher to a folder without &');
+  assert.equal(ui.elements.get('path-summary').textContent, "The folder holding the setup files's path has & in it.");
+  assert.equal(ui.elements.get('path-folder').textContent, 'E:\\A & B\\Game');
+  assert.equal(ui.elements.get('path-folder').replaced.filter(part => typeof part !== 'string').length, 1);
+  assert.match(ui.elements.get('path-steps').textContent, /a folder without & in its path for Setup files/);
+  assert.equal(ui.calls.includes('updatePort'), false);
+});
+
+test('a Windows folder too deep to build in still shows how much too long it is', async () => {
+  const folder = `C:\\${'long\\'.repeat(40)}x`;
+  const data = { ...state(), pathProblem: port.longPathProblem(`${folder}\\game`, { platform: 'win32', folder }) };
+  const ui = await renderer(data);
+  await ui.click('menu-update-only');
+  assert.equal(ui.elements.get('path-too-long-title').textContent, 'Move the launcher to a shorter folder');
+  assert.equal(ui.elements.get('path-summary').textContent,
+    `The folder holding the setup files's path is ${folder.length} characters long, but the game can only be built in a folder of up to ${data.pathProblem.limit}.`);
+  assert.match(ui.elements.get('path-over').textContent, /characters? too long/);
 });
 
 test('Update only installs the update without starting the game', async () => {

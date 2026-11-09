@@ -335,6 +335,33 @@ function longPathProblem(root, { platform = process.platform, portable = false,
       `260 characters or more, and the build reaches ${WINDOWS_MAX_PATH - limit} characters deeper than this folder. ${fix}` };
 }
 
+// cmd.exe runs the commands that pack the build's objects into libraries, and
+// ninja quotes an object's path only when it has a space. The GD objects'
+// paths hold the whole game folder (CMake writes "Recomp & Decomp" as
+// "Recomp_&_Decomp"), so cmd ends the command at an & and drops a ^, and the
+// build fails with "ar.exe: CMakeFiles/sms_gx.dir/E_/Recomp_: No such file".
+const WINDOWS_BUILD_UNSAFE = /[&^]/g;
+
+// When a Windows build would fail because of a character in the game folder's
+// path: the folder to change, those characters and what to do; otherwise null.
+function pathCharacterProblem(root, { platform = process.platform, portable = false,
+  folder = path.win32.dirname(root) } = {}) {
+  if (platform !== 'win32' || !root) return null;
+  const characters = [...new Set(root.match(WINDOWS_BUILD_UNSAFE) || [])];
+  if (!characters.length) return null;
+  // The game folder below the chosen one can have the character in its own name.
+  if (!folder || !characters.some(character => folder.includes(character))) folder = root;
+  const listed = characters.join(' or ');
+  const name = folder === root ? 'The game folder'
+    : portable ? 'The Colosseum-Launcher-Portable folder' : 'The folder holding the setup files';
+  const fix = portable
+    ? `Move the launcher and its Colosseum-Launcher-Portable folder together to a folder without ${listed} in its path, such as C:\\Games, and open it from there.`
+    : `Choose a folder without ${listed} in its path for Setup files in Settings, such as C:\\Games.`;
+  return { kind: 'characters', folder, characters, portable, name,
+    message: `${name}'s path has ${listed} in it, so the build would fail: Windows' command prompt reads ` +
+      `${characters.length === 1 ? 'it' : 'them'} as part of a command. ${fix}` };
+}
+
 function playableInstall(saved, platform = process.platform) {
   if (!saved.repo || !saved.settings) return null;
   const settings = normalizeSettings(saved.settings, platform);
@@ -446,5 +473,5 @@ function gameRuntimeFolders(environment = process.env) {
 
 module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
-  buildEnvironment, binaryPath, longPathProblem, playableInstall, useLauncherScripts, launcherScript,
+  buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
   buildCommand, textureCommand, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
