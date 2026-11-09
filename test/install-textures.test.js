@@ -88,3 +88,26 @@ test('a pack that fails its checksum installs nothing', options, async t => {
   assert.match(output, /SHA-256/);
   assert.deepEqual(fs.readdirSync(textures), []);
 });
+
+test("a stopped download of an earlier pack is deleted, and this pack's own is kept", options, async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'colo textures-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const bytes = pack(directory);
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+  const ranges = [];
+  const url = await serve(t, (request, response) => {
+    const start = Number(request.headers.range?.match(/bytes=(\d+)-/)?.[1] || 0);
+    ranges.push(start);
+    response.writeHead(start ? 206 : 200, { 'Content-Length': bytes.length - start });
+    response.end(bytes.subarray(start));
+  });
+  const textures = path.join(directory, 'textures');
+  fs.mkdirSync(textures);
+  fs.writeFileSync(path.join(textures, 'pack-0ed26c9bd525.zip.part'), 'an earlier pack, stopped');
+  fs.writeFileSync(path.join(textures, `pack-${sha256.slice(0, 12)}.zip.part`), bytes.subarray(0, 1000));
+  fs.writeFileSync(path.join(textures, 'notes.txt'), 'the player\'s');
+  const { code, output } = await install(textures, url, bytes, sha256);
+  assert.equal(code, 0, output);
+  assert.deepEqual(ranges, [1000], 'this pack continued from its own part');
+  assert.deepEqual(fs.readdirSync(textures).sort(), ['colo-upscale-4x', 'notes.txt']);
+});
