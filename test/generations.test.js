@@ -48,7 +48,7 @@ test('new moves keep their numbers, three past their own, and play as the move n
   assert.equal(leafStorm.row[0x18], 315 & 0xff, "Overheat's effect");
   assert.equal(leafStorm.row.readUInt16BE(0x16), 140);
   assert.equal(leafStorm.row[2], 12, 'Grass');
-  assert.equal(moves.some(move => move.number === 356), false, 'Gravity is left out');
+  assert.equal(moves.some(move => move.number === 363), false, 'Natural Gift is left out');
 });
 
 test("moves have Pokémon Platinum's numbers and flags, and its engine's move lists", () => {

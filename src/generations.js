@@ -220,8 +220,9 @@ function build(tables, settings) {
   for (const generation of [...generations].sort()) {
     const data = load(generation), moves = newMoves(tables, data);
     movesOf.set(generation, moves);
+    // The moves come with the generation's rules too, Pokémon or not: its Metronome calls any of them.
+    if (chosen.generationPokemon.includes(generation) || chosen.battleRules >= generation) out.moves.push(...moves);
     if (chosen.generationPokemon.includes(generation)) {
-      out.moves.push(...moves);
       for (let number = data.newSpecies[0]; number <= data.newSpecies[1]; number++)
         if (data.species[number]) out.species.push({ id: speciesId(number), number, generation, spec: speciesSpec(tables, data, number, moves) });
     }
