@@ -23,6 +23,7 @@ const path = require('node:path');
 const DIRECTORY = path.join(__dirname, 'generations');
 const COLOSSEUM_RULES = 3;
 const MOVE_OFFSET = 3, FIRST_NEW_MOVE = 355, SPECIES_OFFSET = 26;
+const SAME_ABILITIES = 75;   // Stench to Shell Armor: the same numbers in Ruby and later (Ruby's 76 is Cacophony)
 const FEATURES = { physicalSpecialSplit: 1, sandstormRockSpecialDefense: 2 };
 const CATEGORY = { Physical: 1, Special: 2, Status: 0 };
 const MOVE_ROW = 0x38;
@@ -165,7 +166,9 @@ function rules(tables, data, moves) {
   // The game's own Pokémon with the abilities the generation gives them (Diamond and Pearl gave many a second one:
   // Scizor's Technician, Breloom's Poison Heal), the generation's own by their number in the game (colosseumAbility).
   const numberOf = name => Number(Object.keys(data.abilities).find(n => data.abilities[n].name === name));
-  const abilityId = name => tables.abilities.get(key(name)) ?? (numberOf(name) >= data.newAbilities[0] ? colosseumAbility(numberOf(name)) : undefined);
+  // Ruby's names run some together (LIGHTNINGROD, COMPOUNDEYES): 1 to 75 are the same abilities by number in both
+  const abilityId = name => tables.abilities.get(key(name)) ?? (numberOf(name) >= data.newAbilities[0] ? colosseumAbility(numberOf(name))
+    : numberOf(name) >= 1 && numberOf(name) <= SAME_ABILITIES ? numberOf(name) : undefined);
   const species = [];
   for (const each of tables.species || []) {
     const entry = each.national >= 1 && each.national <= 386 ? data.species[each.national] : null;
@@ -196,7 +199,7 @@ function speciesSpec(tables, data, number, moves, ownAbilities) {
   // under Colosseum's, each becomes one the game has.
   const numberOf = name => Number(Object.keys(data.abilities).find(n => data.abilities[n].name === name));
   for (const name of entry.abilities) {
-    if (tables.abilities.has(key(name))) abilities.push(name);
+    if (tables.abilities.has(key(name)) || (numberOf(name) >= 1 && numberOf(name) <= SAME_ABILITIES)) abilities.push(name);
     else if (ownAbilities && numberOf(name) >= data.newAbilities[0]) abilities.push(name);
   }
   if (!abilities.length) abilities.push(...entry.abilities.map(name => data.colosseum.abilities[name]).filter(Boolean));
@@ -260,5 +263,5 @@ function build(tables, settings) {
   return out;
 }
 
-module.exports = { colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build,
+module.exports = { SAME_ABILITIES, colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build,
   newMoves, rules, speciesSpec, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };

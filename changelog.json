@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Fixed Generation 4 rules taking away an ability whose name Colosseum runs together, such as Rhydon's and Manectric's Lightning Rod.",
       "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves and TMs, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on, with who made them.",
       "Later generations, under Settings → Gameplay: play by Pokémon Platinum's battle rules, where Metronome can call Generation 4's moves too, and add the 107 Generation 4 Pokémon and their moves to your game (with their own abilities under Platinum's rules) and the Pokédex.",
       "Battle Revolution models: make the Generation 4 Pokémon's models and icons from your own Pokémon Battle Revolution disc, under Settings → Gameplay, with how many are made shown as it goes. No Blender needed.",

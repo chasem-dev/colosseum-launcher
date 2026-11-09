@@ -79,6 +79,14 @@ function readGameTables(rom) {
       const name = messages.get(pokedex.ABILITY_MESSAGES + id);
       if (name && !abilities.has(key(name))) abilities.set(key(name), id);
     }
+    // the same abilities by their later names, where Ruby's run words together (Lightning Rod, Compound Eyes)
+    try {
+      const later = require('./generations').load(4).abilities;
+      for (let id = 1; id <= require('./generations').SAME_ABILITIES; id++) {
+        const name = later[id]?.name;
+        if (name && !abilities.has(key(name))) abilities.set(key(name), id);
+      }
+    } catch { /* no later generation's data */ }
     // The move each TM and HM teaches (main.dol's table: 8 bytes a row, the move at +4).
     const dol = pokedex.readDol(disc), tmTable = pokedex.dolOffset(dol, TM_TABLE);
     const tmMoves = new Map();

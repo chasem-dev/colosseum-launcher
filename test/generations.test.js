@@ -138,3 +138,11 @@ test('Battle Revolution models are made by the game\'s own pbr2pkx, with the bui
   assert.deepEqual(cmd.args, ['/game/tools/pbr2pkx/make_models.py', '/discs/pbr.rvz', '/data/battle-revolution', '387', '388']);
   assert.equal(cmd.cwd, '/game/tools/pbr2pkx');
 });
+
+test("an ability Ruby writes as one word stays a Pokémon's under Generation 4's rules", () => {
+  const data = generations.load(4);
+  const row = Buffer.alloc(0x40); row[0x32] = 31; row[0x33] = 69;   // Rhydon: Lightning Rod, Rock Head
+  const tables = { species: [{ id: 112, national: 112, row }], abilities: new Map([['lightningrod', 31], ['rock head', 69]]), moveRows: [] };
+  const out = generations.rules(tables, data, []);
+  assert.equal(out.species.some(each => each.id === 112), false, 'Rhydon keeps both, so it needs no change');
+});
