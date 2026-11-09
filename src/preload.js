@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('colo', {
   openBackups: () => ipcRenderer.invoke('open-backups'),
   showPathFolder: () => ipcRenderer.invoke('show-path-folder'),
   openCustomTextures: () => ipcRenderer.invoke('open-custom-textures'),
+  openLanguages: () => ipcRenderer.invoke('open-languages'),
   stop: () => ipcRenderer.invoke('stop'),
   randomizerNewSeed: () => ipcRenderer.invoke('randomizer-new-seed'),
   randomizerSpoilers: () => ipcRenderer.invoke('randomizer-spoilers'),

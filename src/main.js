@@ -38,6 +38,7 @@ const pokedexData = require('./pokedex').create();
 const battleData = require('./battle-data').create();
 const teamSets = require('./team-sets');
 const randomizer = require('./randomizer');
+const languagePacks = require('./language-packs');
 const { retrying, httpError } = require('./retry');
 
 const GAME_NAME = 'Pokémon Colosseum';
@@ -927,6 +928,28 @@ function bindingsEnvironment(settings) {
 
 function customTextureDirectory() { return port.customTextureDirectory(app.getPath('userData')); }
 
+// Language packs, in the launcher's own folder: every game version uses them (language-packs.js).
+function languageFolder() { return languagePacks.folder(app.getPath('userData')); }
+
+// The chosen language's pack, downloaded first when this launcher's catalog has it and it isn't there yet.
+async function ensureLanguage(settings) {
+  if (!languagePacks.needsInstall(settings, languageFolder())) return;
+  const pack = languagePacks.catalogPack(settings.language);
+  log(`Downloading the ${pack.name} language pack (${(pack.size / 1048576).toFixed(1)} MB).`);
+  try {
+    await languagePacks.install(languageFolder(), pack, {
+      onProgress: (have, size) => {
+        if (!operation) return;
+        Object.assign(operation, { detail: `Downloading ${pack.name}…`, percent: size ? Math.min(100, Math.round(have / size * 100)) : null });
+        broadcast('activity', activityState());
+      }
+    });
+  } catch (error) {
+    throw new Error(`Couldn't download the ${pack.name} language pack (${error.message}). Check your connection, or choose English under Settings → Gameplay.`);
+  }
+  log(`The ${pack.name} language pack is ready.`);
+}
+
 // A game that closed with an error says where its crash report is, when it left one.
 function noteCrashReport(error, since) {
   const report = crashReports.newestSince(crashReports.directory(), since);
@@ -943,12 +966,13 @@ async function play(installation = null, battle = null) {
   if (!binaryReady(root)) throw new Error('Set up this version of the game before playing.');
   if (!port.hdVisualsInstalled(root, settings))
     throw new Error('HD visuals need to be set up. Return to the main screen to finish setup, or turn them off in Settings.');
+  await ensureLanguage(settings);
   // An online battle plays on no save: the memory card stays as it was.
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
   fs.mkdirSync(cacheFolder, { recursive: true });
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
-    ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings),
+    ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
     ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
     COLO_RANDOMIZER_LOG: spoilerFile(),
@@ -1339,6 +1363,9 @@ function state() {
     hdVisualsReady: repoReady && port.hdVisualsInstalled(config.repo, config.settings),
     texturesInstalled: repoReady && port.texturePackInstalled(config.repo),
     texturePack: { size: port.TEXTURE_PACK.size, unpacked: port.TEXTURE_PACK.unpacked },
+    languages: languagePacks.choices(languageFolder()),
+    // Whether the game on disk reads language packs.
+    languagesReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'language.c')),
     binaryReady: ready,
     tools: toolsStatus(),
     gameSource: config.gameSource ? { override: config.gameSource.override, version: config.gameSource.resolved.version } : null,
@@ -1757,6 +1784,10 @@ function registerHandlers() {
   ipcMain.handle('open-backups', () => {
     fs.mkdirSync(saves.backupRoot(), { recursive: true, mode: 0o700 });
     return shell.openPath(saves.backupRoot());
+  });
+  ipcMain.handle('open-languages', () => {
+    fs.mkdirSync(languageFolder(), { recursive: true });
+    return shell.openPath(languageFolder());
   });
   ipcMain.handle('open-custom-textures', () => {
     fs.mkdirSync(customTextureDirectory(), { recursive: true });
