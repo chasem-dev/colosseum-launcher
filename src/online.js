@@ -20,7 +20,7 @@ const telemetry = require('./telemetry');
 const storyParty = require('./story-party');
 
 // 2: a party can be a Story party, its Pokémon sent whole as `members`, and shorter than six.
-const PROTOCOL = 2;
+const PROTOCOL = 3;   // 3: a room's rules may be another generation's (battleRules)
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list

@@ -16,6 +16,7 @@ const NAME_LENGTH = 24;
 const TRAINER_LENGTH = 10;
 const LEVELS = [50, 100];
 const SIZES = [3, 6];
+const BATTLE_RULES = [3, 4];
 const STORY = 'story';
 // The game numbers its species up to 411, with a gap between the second generation and the third.
 const { validSpecies } = teamSets;
@@ -51,6 +52,8 @@ function normalize(input) {
   return { trainer: trainerName(input?.trainer), parties, selected,
     level: LEVELS.includes(input?.level) ? input.level : LEVELS[0],
     size: SIZES.includes(input?.size) ? input.size : SIZES[1],
+    // Colosseum's battle rules (3) or Pokémon Platinum's (4, src/generations.js), for both players of a room
+    battleRules: BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : BATTLE_RULES[0],
     listed: input?.listed !== false };
 }
 
@@ -60,4 +63,4 @@ function selectedParty(online) {
   return party?.members.length === PARTY_SIZE ? party : null;
 }
 
-module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty };
+module.exports = { BATTLE_RULES, PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty };

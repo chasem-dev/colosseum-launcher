@@ -156,7 +156,7 @@
     $('online-result').hidden = !text;
   }
 
-  const rulesText = rules => `Level ${rules.level}, ${rules.size} Pokémon each`;
+  const rulesText = rules => `Level ${rules.level}, ${rules.size} Pokémon each${rules.battleRules === 4 ? ', Platinum\'s rules' : ''}`;
 
   function renderRooms() {
     const busy = Boolean(state.battle) || Boolean(state.ready);
@@ -235,6 +235,7 @@
     if (document.activeElement !== $('online-trainer')) $('online-trainer').value = setup.trainer;
     $('online-level').value = String(setup.level);
     $('online-size').value = String(setup.size);
+    $('online-rules').value = String(setup.battleRules || 3);
     $('online-listed').checked = setup.listed;
     renderParties();
     renderBanner();
@@ -251,7 +252,7 @@
   }
 
   $('party-new').addEventListener('click', () => openEditor(null));
-  for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number]])
+  for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number], ['online-rules', 'battleRules', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
   $('online-trainer').addEventListener('change', event => { setup.trainer = event.target.value; save(); });

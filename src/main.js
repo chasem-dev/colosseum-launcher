@@ -1002,6 +1002,16 @@ function preparePokemonPacks(rom, folder) {
   return file;
 }
 
+// An online room's battle rules for its game: the generation's rules and moves alone, no Pokémon of packs or generations.
+function prepareBattleRules(rom, folder, battleRules) {
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const { moves, rules } = generations.build(packTables.tables, { battleRules, generationPokemon: [] });
+  const file = path.join(folder, 'online-rules.bin');
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon: [], moves, rules }));
+  log(`Battle rules: generation ${battleRules}, the room's.`);
+  return file;
+}
+
 // The Pokédex's list: the disc's Pokémon, and the packs' after the ones they're based on.
 let pokedexPacks = new Map();   // key -> the pack Pokémon, for its model
 function pokedexList(rom) {
@@ -1081,11 +1091,14 @@ async function play(installation = null, battle = null) {
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
   fs.mkdirSync(cacheFolder, { recursive: true });
-  // An online battle has no packs: both players' games must have the same Pokémon.
+  // An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules are both
+  // games' (the room's own, not either player's settings).
   let packsFile = null;
   if (!battle) {
     try { packsFile = preparePokemonPacks(rom, cacheFolder); }
     catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); }
+  } else if (battle.rules?.battleRules > generations.COLOSSEUM_RULES) {
+    packsFile = prepareBattleRules(rom, cacheFolder, battle.rules.battleRules);
   }
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
@@ -1370,7 +1383,9 @@ function battleOutcome(result, side) {
 async function playBattle(session) {
   const gamePort = await session.attachGame();
   try {
-    do await exclusive(PLAY_LABEL, () => play(null, { port: gamePort }), true);
+    // the rules the room's start gave both players (a server that doesn't know battleRules gives Colosseum's to both)
+    const rules = () => session.start?.rules || (battle?.session === session ? battle.rules : null);
+    do await exclusive(PLAY_LABEL, () => play(null, { port: gamePort, rules: rules() }), true);
     while (session.takeRestart());
   } finally {
     session.close();
@@ -1403,12 +1418,13 @@ async function createRoom() {
   const chosen = battleParty(setup.size);
   const session = new online.Session();
   battleResult = null;
-  battle = { session, status: 'connecting', role: 'host', rules: { level: setup.level, size: setup.size }, code: null, opponent: null };
+  const rules = { level: setup.level, size: setup.size, battleRules: setup.battleRules || generations.COLOSSEUM_RULES };
+  battle = { session, status: 'connecting', role: 'host', rules, code: null, opponent: null };
   broadcastOnline();
   watchSession(session);
   try {
     battle.code = await session.host({ name: setup.trainer, ...gameBuild(), ...chosen,
-      rules: { level: setup.level, size: setup.size }, listed: setup.listed });
+      rules, listed: setup.listed });
   } catch (error) {
     session.close();
     battle = null;
