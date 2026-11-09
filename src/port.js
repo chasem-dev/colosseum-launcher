@@ -137,6 +137,9 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     // A battle's animations skipped, or else played at battleSpeed: 1 is as on the disc.
     skipBattleAnimations: input.battleSpeed === 'skip' || Boolean(input.skipBattleAnimations),
     battleSpeed: battleSpeedSetting(input.battleSpeed),
+    // A Shadow Pokémon looks in battle as it will once snagged; Espeon and Umbreon can be shiny. Both on unless turned off.
+    shinyShadow: input.shinyShadow !== false,
+    shinyStarters: input.shinyStarters !== false,
     // The frame-time overlay at start.
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
@@ -285,6 +288,9 @@ function buildEnvironment(settings, disc, root, { customTextures = null } = {}) 
   const run = randomizer.environmentValue(settings);
   if (run) env.COLO_RANDOMIZER = run;
   if (settings.hdModels === false) env.COLO_HD_MODELS = '0';
+  // Unset is on in the game, as it is in a game built before these settings.
+  if (settings.shinyShadow === false) env.COLO_SHINY_SHADOW = '0';
+  if (settings.shinyStarters === false) env.COLO_SHINY_STARTERS = '0';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   // Unset is the default; any other value would name a glyph file.

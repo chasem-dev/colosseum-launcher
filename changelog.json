@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Show shiny Shadow Pokémon and Shiny starters: switches for the game's new shiny options, both on to start with. Find them under Gameplay.",
       "Language: play in French, German, Spanish or Italian, with the European release's text, menus, battle screens and colosseum title cards. Choose it under Settings → Gameplay; it downloads the first time you play with it. A fan translation works too: put its folder in the languages folder (Open languages folder) and it shows in the list.",
       "Fixed the game drawing with OpenGL instead of Vulkan on a Steam Deck and other Linux PCs with a newer Mesa: Vulkan found no graphics card because the game got the build tools' older copy of a graphics library. It now starts with your system's own copy.",
       "Game Boy Advance: link your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save to the game, as with the GCN-GBA cable, to register your team for Colosseum Battle, trade Pokémon with it, and spend its Poké Coupons on prizes. Choose the save under Settings → Game Boy Advance, which also finds the ones your emulators keep and says if one isn't ready to link. No GBA BIOS or Game Pak is needed; if linking from the save doesn't work for your game, Advanced runs the GBA itself from a dump of the Game Pak instead. A copy of the save is kept before each session.",
@@ -8,6 +9,7 @@
       "Team builder: give each Pokémon in a party its own moves, held item, ability, nature, EVs, IVs, nickname, gender and shininess, with its stats worked out as you go and the moves it can learn in this game. Bring teams in or out as Pokémon Showdown text, or copy your Story party into a party of your own to change. Open it with New party or Edit on the Online tab."
     ],
     "game": [
+      "Shiny Shadow Pokémon: a Shadow Pokémon that will be shiny once you snag it now looks shiny in battle, with the shiny sparkle as it comes out. Before, how it looked in battle didn't match the Pokémon you got. Espeon and Umbreon can now be shiny too, at 1 in 8192 as in other Pokémon games, from a New Game.",
       "Language packs: the game can play in another language from a pack of its text, its menu pictures and the letters its fonts lack. The launcher sets this up; without it, start the game with COLO_LANGUAGE set to a pack's folder.",
       "Linking a Game Boy Advance from a save now connects in a few seconds, instead of keeping you waiting while the game sent the GBA its program.",
       "Fixed the game failing to build on Macs with Xcode 26, with \"ld: Missing -platform_version option\" in the activity log.",

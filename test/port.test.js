@@ -156,6 +156,25 @@ test('battle speed is 1.5x unless changed, in tenths from 1x to 5x, and 1x leave
   } finally { if (saved !== undefined) process.env.COLO_BATTLE_SPEED = saved; }
 });
 
+test('the shiny settings are on unless turned off, and on leaves them to the game', () => {
+  const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
+  const saved = [process.env.COLO_SHINY_SHADOW, process.env.COLO_SHINY_STARTERS];
+  delete process.env.COLO_SHINY_SHADOW;
+  delete process.env.COLO_SHINY_STARTERS;
+  try {
+    assert.equal(port.normalizeSettings({}).shinyShadow, true);
+    assert.equal(port.normalizeSettings({}).shinyStarters, true);
+    assert.equal(env({}).COLO_SHINY_SHADOW, undefined);
+    assert.equal(env({}).COLO_SHINY_STARTERS, undefined);
+    assert.equal(env({ shinyShadow: false }).COLO_SHINY_SHADOW, '0');
+    assert.equal(env({ shinyShadow: false }).COLO_SHINY_STARTERS, undefined);
+    assert.equal(env({ shinyStarters: false }).COLO_SHINY_STARTERS, '0');
+  } finally {
+    if (saved[0] !== undefined) process.env.COLO_SHINY_SHADOW = saved[0];
+    if (saved[1] !== undefined) process.env.COLO_SHINY_STARTERS = saved[1];
+  }
+});
+
 test('HD models are on unless turned off, and on leaves it to the game', () => {
   const env = hdModels => port.buildEnvironment(port.normalizeSettings({ hdModels }), 'disc', '/port').COLO_HD_MODELS;
   const saved = process.env.COLO_HD_MODELS;
