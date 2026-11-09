@@ -113,7 +113,7 @@
     "Dark Void": { "as": "Hypnosis", "exact": true },
     "Seed Flare": { "as": "Psychic", "effect": 224, "exact": true },
     "Ominous Wind": { "as": "AncientPower", "exact": true },
-    "Shadow Force": { "as": "Fly", "exact": false, "note": "Fly's two turns; doesn't break Protect." }
+    "Shadow Force": { "as": "Dig", "effect": 255, "exact": true }
   },
   "abilities": {
     "Tangled Feet": "Keen Eye", "Motor Drive": "Volt Absorb", "Rivalry": "Guts", "Steadfast": "Inner Focus",
