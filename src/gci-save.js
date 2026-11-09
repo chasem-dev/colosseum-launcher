@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const saves = require('./saves');
+const pcBoxes = require('./pc-boxes');
 
 const HEADER = 0x40;
 const BLOCK = 0x2000;
@@ -248,7 +249,10 @@ function readCardSave(saveDir) {
   if (!found) throw new Error(`There is no ${TITLE} save to export yet.`);
   const data = fs.readFileSync(file);
   if (data.length !== SIZE) throw new Error(`This save is damaged: it isn't the size the game writes. ${RESTORE}`);
-  return { gci: Buffer.concat([gciHeader(found.mtime), data]), title: TITLE, ...newestSave(data, RESTORE) };
+  const { plain, count, damaged } = newestPlain(data, RESTORE);
+  // Boxes 4 to 10 aren't in the card file (pc-boxes.js): the original game has 3 boxes.
+  return { gci: Buffer.concat([gciHeader(found.mtime), data]), title: TITLE, ...summary(plain, count), damaged,
+    extraBoxPokemon: pcBoxes.extraBoxPokemon(saveDir, plain) };
 }
 
 // A dialog only asks before replacing the name it was given, so never replace a file under a name it wasn't given.

@@ -1764,7 +1764,7 @@ function registerHandlers() {
     if (chosen.canceled || !chosen.filePath) return { cancelled: true };
     const file = gciSave.writeGci(save.gci, chosen.filePath);
     log(`Exported ${save.title} save to ${file}.`);
-    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, randomized: Boolean(saveRun(currentSaveDirectory()).run) };
+    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, extraBoxPokemon: save.extraBoxPokemon, randomized: Boolean(saveRun(currentSaveDirectory()).run) };
   }));
   ipcMain.handle('restore-saves', async (_event, id) => {
     if (operation || active) throw new Error('Stop the running game or task before restoring saves.');

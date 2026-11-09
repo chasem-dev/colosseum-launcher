@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Save backups now keep your PC's boxes 4 to 10 with your save, and exporting a save for Dolphin tells you when Pokémon in those boxes stay behind, as Dolphin's game has only 3 boxes.",
       "Show shiny Shadow Pokémon and Shiny starters: switches for the game's new shiny options, both on to start with. Find them under Gameplay.",
       "Language: play in French, German, Spanish or Italian, with the European release's text, menus, battle screens and colosseum title cards. Choose it under Settings → Gameplay; it downloads the first time you play with it. A fan translation works too: put its folder in the languages folder (Open languages folder) and it shows in the list.",
       "Fixed the game drawing with OpenGL instead of Vulkan on a Steam Deck and other Linux PCs with a newer Mesa: Vulkan found no graphics card because the game got the build tools' older copy of a graphics library. It now starts with your system's own copy.",
@@ -20,7 +21,8 @@
       "Fixed the game failing to build on Macs with Xcode 26, with \"ld: Missing -platform_version option\" in the activity log.",
       "Game Boy Advance: the game links with a Gen 3 Pokémon save on controller socket 2, answering as the GBA would, and writes trades and coupon prizes back into it. In a trade your controller also works the GBA's side. With a Game Pak too, mGBA runs the GBA itself, as in Dolphin, with its screen in a corner and its sound mixed in: press G (Back on a controller) to use it and again to go back, hold it to turn the GBA on or off, and drop an e-Reader card's file on the window to scan it.",
       "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log.",
-      "Fixed coloured text showing the wrong colour: the gold Name, Play Time and Snagged POKéMON labels on the save and Continue screens were red."
+      "Fixed coloured text showing the wrong colour: the gold Name, Play Time and Snagged POKéMON labels on the save and Continue screens were red.",
+      "The PC now has 10 boxes instead of 3, room for 300 Pokémon. L and R go through all ten, and a Pokémon sent to the PC goes to the first box with room. Boxes 4 to 10 are kept beside your save, so the save still opens in Dolphin, with boxes 1 to 3."
     ]
   },
   "releases": [
