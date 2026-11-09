@@ -6,6 +6,7 @@
       "Team builder: give each Pokémon in a party its own moves, held item, ability, nature, EVs, IVs, nickname, gender and shininess, with its stats worked out as you go and the moves it can learn in this game. Bring teams in or out as Pokémon Showdown text, or copy your Story party into a party of your own to change. Open it with New party or Edit on the Online tab."
     ],
     "game": [
+      "Linking a Game Boy Advance from a save now connects in a few seconds, instead of keeping you waiting while the game sent the GBA its program.",
       "Fixed the game failing to build on Macs with Xcode 26, with \"ld: Missing -platform_version option\" in the activity log.",
       "Game Boy Advance: the game links with a Gen 3 Pokémon save on controller socket 2, answering as the GBA would, and writes trades and coupon prizes back into it. In a trade your controller also works the GBA's side. With a Game Pak too, mGBA runs the GBA itself, as in Dolphin, with its screen in a corner and its sound mixed in: press G (Back on a controller) to use it and again to go back, hold it to turn the GBA on or off, and drop an e-Reader card's file on the window to scan it.",
       "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log.",
