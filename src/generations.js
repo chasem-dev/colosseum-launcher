@@ -175,11 +175,17 @@ function stageOf(data, number) {
 
 // A new species as a pokemon.json (src/pokemon-packs.js buildRow takes it): its own numbers, moves by Colosseum's number,
 // abilities Colosseum has, and evolutions it can make.
-function speciesSpec(tables, data, number, moves) {
+function speciesSpec(tables, data, number, moves, ownAbilities) {
   const entry = data.species[number], playable = new Set(moves.map(move => move.number));
   const usable = n => n < FIRST_NEW_MOVE ? n : playable.has(n) ? colosseumMove(n) : null;
   const abilities = [];
-  for (const name of entry.abilities) if (tables.abilities.has(key(name))) abilities.push(name);
+  // Under the generation's own rules its abilities are the game's too (host/gen4.c plays them: build's `abilities`);
+  // under Colosseum's, each becomes one the game has.
+  const numberOf = name => Number(Object.keys(data.abilities).find(n => data.abilities[n].name === name));
+  for (const name of entry.abilities) {
+    if (tables.abilities.has(key(name))) abilities.push(name);
+    else if (ownAbilities && numberOf(name) >= data.newAbilities[0]) abilities.push(name);
+  }
   if (!abilities.length) abilities.push(...entry.abilities.map(name => data.colosseum.abilities[name]).filter(Boolean));
   const levelUp = entry.levelUp.map(([level, move]) => [Math.max(1, level), usable(move)]).filter(([, move]) => move);
   // At most twenty, as a row holds: the first ones it learns, as a Pokémon met at a level knows its latest four
@@ -216,8 +222,12 @@ function speciesSpec(tables, data, number, moves) {
 
 // Everything the settings ask for, for the expansion file: { rules (or null), moves, species: [{ id, number, spec }],
 // notes }. tables: src/pokemon-packs.js readGameTables.
+// A later generation's ability by the game's number: its own, but Tangled Feet's 77 is Air Lock's in Colosseum (which keeps
+// Ruby and Sapphire's numbers, Cacophony 76 and Air Lock 77), so it's 124 (host/gen4.c).
+const colosseumAbility = number => number === 77 ? 124 : number;
+
 function build(tables, settings) {
-  const chosen = normalize(settings), out = { rules: null, moves: [], species: [], notes: [] };
+  const chosen = normalize(settings), out = { rules: null, moves: [], abilities: [], species: [], notes: [] };
   const generations = new Set([...chosen.generationPokemon, ...(chosen.battleRules > COLOSSEUM_RULES ? [chosen.battleRules] : [])]);
   const movesOf = new Map();
   for (const generation of [...generations].sort()) {
@@ -225,14 +235,17 @@ function build(tables, settings) {
     movesOf.set(generation, moves);
     // The moves come with the generation's rules too, Pokémon or not: its Metronome calls any of them.
     if (chosen.generationPokemon.includes(generation) || chosen.battleRules >= generation) out.moves.push(...moves);
+    // its abilities, [name, number], which the game has under its rules
+    if (chosen.battleRules >= generation)
+      for (let n = data.newAbilities[0]; n <= data.newAbilities[1]; n++) if (data.abilities[n]) out.abilities.push([data.abilities[n].name, colosseumAbility(n)]);
     if (chosen.generationPokemon.includes(generation)) {
       for (let number = data.newSpecies[0]; number <= data.newSpecies[1]; number++)
-        if (data.species[number]) out.species.push({ id: speciesId(number), number, generation, spec: speciesSpec(tables, data, number, moves) });
+        if (data.species[number]) out.species.push({ id: speciesId(number), number, generation, spec: speciesSpec(tables, data, number, moves, chosen.battleRules >= generation) });
     }
   }
   if (chosen.battleRules > COLOSSEUM_RULES) out.rules = rules(tables, load(chosen.battleRules), out.moves);
   return out;
 }
 
-module.exports = { COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build,
+module.exports = { colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build,
   newMoves, rules, speciesSpec, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };

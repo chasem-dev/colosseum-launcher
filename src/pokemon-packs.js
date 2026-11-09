@@ -547,7 +547,9 @@ function ownLooks(folder, tables) {
 // with model.pkx, model-shiny.pkx and its icons: a Pokémon with one has its own looks there instead of a stand-in's.
 function generationPokemon(tables, built, { modelsDirectory = null } = {}) {
   const generationsLib = require('./generations');
-  const withMoves = { ...tables, moves: new Map([...tables.moves, ...built.moves.map(move => [key(move.name), move.id])]) };
+  // the generation's moves, and its abilities where its rules are on (the game has them then: host/gen4.c)
+  const withMoves = { ...tables, moves: new Map([...tables.moves, ...built.moves.map(move => [key(move.name), move.id])]),
+    abilities: new Map([...tables.abilities, ...(built.abilities || []).map(([name, id]) => [key(name), id])]) };
   const target = value => {
     const match = /^generation:(\d+)$/.exec(String(value));
     if (match) return generationsLib.speciesId(Number(match[1]));
@@ -567,6 +569,12 @@ function generationPokemon(tables, built, { modelsDirectory = null } = {}) {
   return { pokemon, problems };
 }
 
+// A later generation's ability (77 on, which the game has under that generation's rules) by its name there
+function laterAbility(id) {
+  if (id <= ABILITY_COUNT) return undefined;
+  try { return require('./generations').load(4).abilities[id === 124 ? 77 : id]?.name; } catch { return undefined; }   // 124: Tangled Feet
+}
+
 // What the Pokédex shows of each: as its own entries do (pokedex.js), and where it's from.
 function pokedexEntries(pokemon, tables) {
   const TYPES = pokedex.TYPES;
@@ -574,7 +582,7 @@ function pokedexEntries(pokemon, tables) {
     const row = each.row, types = [TYPES[row[ROW.types]], TYPES[row[ROW.types + 1]]];
     const height = row.readUInt16BE(ROW.height);
     const abilities = [row[ROW.abilities], row[ROW.abilities + 1]].filter(Boolean)
-      .map(id => [...tables.abilities].find(([, value]) => value === id)?.[0]).filter(Boolean).map(pokedex.displayName);
+      .map(id => [...tables.abilities].find(([, value]) => value === id)?.[0] ?? laterAbility(id)).filter(Boolean).map(pokedex.displayName);
     const evolutions = [];
     for (let i = 0; i < EVOLUTIONS; i++) {
       const into = row.readUInt16BE(ROW.evolutions + i * 6 + 4);
