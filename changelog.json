@@ -10,6 +10,7 @@
       "HD textures: fixed black lines in some floors and furniture, such as Pyrite's metal floors and the shelves and stairs in Miror B.'s building, and dark edges on some textures, such as black at the base of Pikachu's ears. The updated pack, about 2 GB, downloads the next time you play with HD textures on."
     ],
     "game": [
+      "Fixed a number showing instead of the move's name when a Pokémon forgets a move in battle to learn a new one, such as \"Umbreon forgot 25\" for Taunt.",
       "Fixed the sandstorm, and the strong sunlight after Sunny Day, stopping short of the sides in widescreen: they now cover the whole screen, with the sandstorm's clouds at their usual size.",
       "Fixed the PDA leaving black bars, or the room behind it, at the sides in widescreen: its green background and scanlines now fill the screen.",
       "Randomizer: fixed the PDA's Snag List showing the original game's Shadow Pokémon, such as Makuhita named as Duskull, instead of the ones your run gave you.",
