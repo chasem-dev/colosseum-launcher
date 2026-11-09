@@ -377,6 +377,14 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .path-row strong, .backup-picker span { color: #4f3448; font-size: 13px; font-weight: 650; }
 .path-row .small-path { min-height: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .path-row > button, .path-row > .actions { flex: none; }
+/* Settings → Game Boy Advance: what a chosen file is, and what's wrong with it */
+.path-row .gba-note { color: #9a5a12; white-space: normal; }
+.path-row .gba-note.rom-error { color: #b3261e; }
+#pane-gba > .helper { display: block; margin: 4px 0 10px; }
+#gba-found { margin-top: 10px; }
+#gba-found > .helper { margin: 0 0 4px; }
+.dark .path-row .gba-note { color: #e8b56a; }
+.dark .path-row .gba-note.rom-error { color: #ff8a80; }
 .path-row .backup-picker { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; margin: 0; }
 .backup-picker span { flex: none; }
 .backup-progress { display: grid; gap: 10px; padding: 0 0 12px; }
@@ -532,12 +540,14 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .dark .segment.active { background: #501f39; color: #ffe2a3; }
 
 /* Game source (Manage game) and its note under Play */
-#game-source summary { cursor: pointer; list-style: none; }
-#game-source summary::-webkit-details-marker { display: none; }
-#game-source summary h2 { display: inline; }
-#game-source summary small { margin-left: 6px; color: #856c7e; font-size: 11px; font-weight: 500; }
-#game-source summary::after { content: '›'; float: right; color: #856c7e; transition: transform .15s; }
-#game-source[open] summary::after { transform: rotate(90deg); }
+#game-source summary, #gba-advanced summary { cursor: pointer; list-style: none; }
+#game-source summary::-webkit-details-marker, #gba-advanced summary::-webkit-details-marker { display: none; }
+#game-source summary h2, #gba-advanced summary h2 { display: inline; }
+#game-source summary small, #gba-advanced summary small { margin-left: 6px; color: #856c7e; font-size: 11px; font-weight: 500; }
+#game-source summary::after, #gba-advanced summary::after { content: '›'; float: right; color: #856c7e; transition: transform .15s; }
+#game-source[open] summary::after, #gba-advanced[open] summary::after { transform: rotate(90deg); }
+#gba-advanced .settings-group { margin: 10px 0; }
+#gba-advanced strong small { margin-left: 4px; color: #856c7e; font-size: 11px; font-weight: 500; }
 .source-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 10px 12px; margin-top: 10px; }
 .source-grid label { display: flex; flex-direction: column; gap: 4px; color: #5e4257; font-size: 12px; }
 .source-grid input { width: 100%; padding: 7px 10px; border: 1px solid #dcd4dd; border-radius: 7px; background: #fff; color: #3e2436; font: inherit; font-size: 12px; }

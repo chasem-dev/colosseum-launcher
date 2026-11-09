@@ -18,7 +18,8 @@
     { id: 'CSTICK_LEFT', label: 'C-stick left' }, { id: 'CSTICK_RIGHT', label: 'C-stick right' },
     { id: 'DPAD_UP', label: 'D-pad up' }, { id: 'DPAD_DOWN', label: 'D-pad down' },
     { id: 'DPAD_LEFT', label: 'D-pad left' }, { id: 'DPAD_RIGHT', label: 'D-pad right' },
-    { id: 'FAST_FORWARD', label: 'Fast-forward (hold)' }
+    { id: 'FAST_FORWARD', label: 'Fast-forward (hold)' },
+    { id: 'GBA', label: 'Game Boy Advance: use it (hold: on or off)' }
   ];
   // The game's built-in keys (bindings.txt in the port).
   const DEFAULTS = {
@@ -26,7 +27,7 @@
     DPAD_UP: ['1'], DPAD_DOWN: ['2'], DPAD_LEFT: ['3'], DPAD_RIGHT: ['4'],
     STICK_UP: ['W', 'UP'], STICK_DOWN: ['S', 'DOWN'], STICK_LEFT: ['A', 'LEFT'], STICK_RIGHT: ['D', 'RIGHT'],
     CSTICK_UP: ['I'], CSTICK_DOWN: ['K'], CSTICK_LEFT: ['J'], CSTICK_RIGHT: ['L'],
-    HALF_TILT: ['LCTRL'], FAST_FORWARD: ['TAB']
+    HALF_TILT: ['LCTRL'], FAST_FORWARD: ['TAB'], GBA: ['G']
   };
   // KeyboardEvent.code to the key names the game knows (kKeys in pad.cpp).
   const CODES = {
@@ -59,7 +60,7 @@
   const PAD_DEFAULTS = {
     A: ['PAD_A'], B: ['PAD_B'], X: ['PAD_X'], Y: ['PAD_Y'], Z: ['PAD_RB'], L: ['PAD_LT'], R: ['PAD_RT'],
     START: ['PAD_START'], DPAD_UP: ['PAD_DPUP'], DPAD_DOWN: ['PAD_DPDOWN'], DPAD_LEFT: ['PAD_DPLEFT'],
-    DPAD_RIGHT: ['PAD_DPRIGHT'], FAST_FORWARD: ['PAD_LB+PAD_RB']
+    DPAD_RIGHT: ['PAD_DPRIGHT'], FAST_FORWARD: ['PAD_LB+PAD_RB'], GBA: ['PAD_BACK']
   };
 
   // The controller button for a standard-mapping Gamepad API button index, or null.

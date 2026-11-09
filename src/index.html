@@ -166,6 +166,7 @@
           <button id="tab-display" class="settings-tab" role="tab" aria-controls="pane-display" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5"/><path d="M7 17h6M10 13.5V17"/></svg>Display</button>
           <button id="tab-graphics" class="settings-tab" role="tab" aria-controls="pane-graphics" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><circle cx="7.5" cy="8" r="1.5"/><path d="m3 15 4.5-4.5 3 3 2.5-2.5 4.5 4.5"/></svg>Graphics</button>
           <button id="tab-controls" class="settings-tab" role="tab" aria-controls="pane-controls" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6.5h8a4 4 0 0 1 3.9 4.8l-.6 3a2 2 0 0 1-3.4 1L12 13.5H8l-1.9 1.8a2 2 0 0 1-3.4-1l-.6-3A4 4 0 0 1 6 6.5z"/><path d="M6.5 9v3M5 10.5h3M12.5 9.5h.1M14.5 11.5h.1"/></svg>Controls</button>
+          <button id="tab-gba" class="settings-tab" role="tab" aria-controls="pane-gba" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="5" width="17" height="10" rx="3"/><rect x="6.5" y="7" width="7" height="6" rx="0.5"/><path d="M3.5 10h1.5M4.25 9.25v1.5M15.5 9.5h.1M16.5 10.5h.1"/></svg>Game Boy Advance</button>
           <button id="tab-manage" class="settings-tab" role="tab" aria-controls="pane-manage" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12M4 10h12M4 16h12"/><circle cx="8" cy="4" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="7" cy="16" r="2"/></svg>Manage game</button>
           <button id="tab-launcher" class="settings-tab" role="tab" aria-controls="pane-launcher" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.1"/></svg>Launcher</button>
         </nav>
@@ -266,6 +267,21 @@
             <section id="gc-adapter-note" class="controls-note" aria-label="GameCube adapter" aria-live="polite" hidden><h2>GameCube adapter</h2><p id="gc-adapter-text"></p><div class="actions" id="gc-adapter-actions" hidden><button id="gc-adapter-allow">Allow access</button><button class="subtle" id="gc-adapter-copy">Copy terminal command</button><button class="subtle" id="gc-adapter-check">Check again</button></div><p class="helper" id="gc-adapter-helper"></p></section>
           </section>
 
+          <section id="pane-gba" class="settings-pane" role="tabpanel" aria-labelledby="tab-gba" hidden>
+            <h2 class="group-title">Game Boy Advance</h2>
+            <p class="helper">Link your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save to the game, as the GCN-GBA cable did: register your team for Colosseum Battle, trade, and get Poké Coupon prizes. Choose the save your emulator keeps: the game reads it, and writes trades and prizes back into it, with a backup first.</p>
+            <p class="helper" id="gba-status" aria-live="polite"></p>
+            <div class="settings-group" id="gba-save"></div>
+            <div class="settings-group" id="gba-found" hidden></div>
+            <h2 class="group-title">Playing</h2>
+            <div class="settings-group">
+              <label class="switch"><span><strong>Turn the GBA on and off for me</strong><small>When the game asks you to turn the GBA on, or off, it does. Turn this off to switch it yourself.</small></span><input id="gbaAutoPower" type="checkbox"><i></i></label>
+              <label class="field range-field"><span><strong>GBA sound</strong><output id="gbaVolume-value" for="gbaVolume">100%</output><small>How loud the GBA is next to the game; 0% mutes it.</small></span><input id="gbaVolume" type="range" min="0" max="100" step="5" aria-label="GBA sound"></label>
+              <div class="path-row"><div><strong>GBA save backups</strong><span class="small-path" id="gba-backups-path"></span><span class="small-path">A copy of each GBA save, made before the GBA first starts each time you play.</span></div><button class="subtle" id="gba-backups-open">Open folder</button></div>
+            </div>
+            <div class="settings-group source-group"><details id="gba-advanced"><summary><h2>Run the GBA itself <small>Advanced</small></h2></summary><p class="helper">With a dump of the Game Pak the save belongs to, the GBA runs inside the game (mGBA, as in Dolphin): you see its screen and press its buttons, and an e-Reader can scan cards. Without one, the game answers from the save alone. A BIOS dump is optional; mGBA has its own.</p><div class="settings-group" id="gba-paks"></div><div class="path-row"><div><strong>GBA BIOS <small>Optional</small></strong><span class="small-path" id="gba-bios-path"></span><span class="small-path gba-note" id="gba-bios-note"></span></div><div class="actions"><button class="subtle" id="gba-bios-clear" hidden>Remove</button><button class="subtle" id="gba-bios-choose">Choose file</button></div></div><p class="helper">The game asks for the GBA on socket 2. Sockets 3 and 4 are for linking three GBAs at once, and need no controller there.</p></details></div>
+            <p class="preset-tip"><strong>With a Game Pak:</strong> press <strong>G</strong> (<strong>Back</strong> on a controller) to use the GBA, and again to go back to the game; hold it for a second to turn the GBA on or off. To scan an e-Reader card, drop its .raw file on the game's window.</p>
+          </section>
           <section id="pane-manage" class="settings-pane" role="tabpanel" aria-labelledby="tab-manage" hidden>
             <h2 class="group-title">Game version</h2>
             <div class="settings-group">

@@ -138,6 +138,14 @@ The **Online** tab is where you battle other players. Build a party first: **New
 
 Both players need the same build of the game. A room on another version says which one it needs.
 
+### Game Boy Advance
+
+The game links with a Game Boy Advance as it did through the GCN-GBA cable: register your team from Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen for Colosseum Battle, trade Pokémon between the two games, and spend the GBA game's Poké Coupons on prizes.
+
+Under **Settings → Game Boy Advance**, choose your save: the `.sav` (or RetroArch `.srm`) your emulator keeps. The launcher looks in the usual emulator folders and offers what it finds, shows the trainer and party, and says if the save isn't ready to link: Colosseum links only with a game saved inside a Pokémon Center, far enough along (the Pokédex in Ruby, Sapphire and Emerald, the National Pokédex in FireRed and LeafGreen), and in English. When the game asks for the GBA, it answers from the save, as the program it sends the GBA would, and writes trades and prizes back into it as the GBA game saves them. In a trade, your controller also chooses the GBA's side. A copy of the save goes to **GBA saves** in your backup folder before each session. Close your emulator first, so it doesn't save over what the game wrote.
+
+No GBA BIOS or Game Pak is needed. Under **Advanced**, a dump of the Game Pak the save belongs to runs the GBA itself in the game with [mGBA](https://mgba.io), as Dolphin's Integrated GBA does, with an optional BIOS dump. Its screen sits in a corner: press **G** (**Back** on a controller) to use it and again to go back, and hold it to turn the GBA on or off. The GBA turns on and off by itself when the game asks you to, unless you turn that off. With an e-Reader, drop a card's `.raw` file on the game's window to scan it. Sockets 3 and 4 are for linking three GBAs at once.
+
 ### Privacy
 
 The launcher sends nothing personal. Every 10 minutes it checks in with the online count server: your launcher and game versions, OS, update channel, whether the game is running, and a random ID made on first run. That's what the online count in the top bar is made from. Turn off **Share anonymous usage** under Settings → Launcher and you'll still see the count, without being part of it. An online room passes your trainer name and party to the other player through that server, and no address is stored. Otherwise the launcher talks to GitHub and the port's GitLab for updates, the setup files and the HD textures. Your disc image never leaves your computer.
@@ -154,6 +162,7 @@ Open the activity log with **Activity log** in the status bar, choose **Copy log
 | <img src="https://github.com/snatcherLeo.png?size=96" width="48" height="48" alt=""> | **[snatcherLeo](https://github.com/snatcherLeo)** | Engine expertise |
 | <img src="https://github.com/dougchansan.png?size=96" width="48" height="48" alt=""> | **[dougchansan](https://github.com/dougchansan)** | The [pkmn-colosseum](https://github.com/dougchansan/pkmn-colosseum) decompilation the game is built from |
 | <img src="https://github.com/SteamGridDB.png?size=96" width="48" height="48" alt=""> | **[SteamGridDB](https://www.steamgriddb.com)** | The artwork used by **Add to Steam** |
+| <img src="https://github.com/mgba-emu.png?size=96" width="48" height="48" alt=""> | **[mGBA](https://mgba.io)** | The Game Boy Advance in the game (Mozilla Public License 2.0) |
 
 ## For developers
 

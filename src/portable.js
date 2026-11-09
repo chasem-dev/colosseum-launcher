@@ -25,6 +25,14 @@ function mapPaths(saved, convert) {
   const mapped = { ...saved };
   for (const key of PATH_KEYS) if (typeof mapped[key] === 'string' && mapped[key]) mapped[key] = convert(mapped[key]);
   if (mapped.previousInstall) mapped.previousInstall = mapPaths(mapped.previousInstall, convert);
+  // The Game Boy Advance's files (src/gba.js): its BIOS, and each socket's Game Pak and save.
+  if (mapped.gba && typeof mapped.gba === 'object') {
+    const file = value => typeof value === 'string' && value ? convert(value) : value;
+    const sockets = {};
+    for (const [socket, entry] of Object.entries(mapped.gba.sockets || {}))
+      sockets[socket] = entry && typeof entry === 'object' ? { ...entry, rom: file(entry.rom), save: file(entry.save) } : entry;
+    mapped.gba = { ...mapped.gba, bios: file(mapped.gba.bios), sockets };
+  }
   return mapped;
 }
 

@@ -54,7 +54,7 @@ onPage('pokedex', { show: () => window.coloPokedex?.show(), hide: () => window.c
 onPage('online', { show: () => window.coloOnline?.show(), hide: () => window.coloOnline?.hide() });
 
 // Settings is one page with a tab per section; it reopens on the last one shown.
-const settingsTabs = ['gameplay', 'display', 'graphics', 'controls', 'manage', 'launcher'];
+const settingsTabs = ['gameplay', 'display', 'graphics', 'controls', 'gba', 'manage', 'launcher'];
 let settingsTab = 'gameplay';
 function showSettingsTab(name) {
   if (settingsTab === 'controls' && name !== 'controls') stopCapture();
@@ -95,6 +95,135 @@ for (const key of ['stickDeadzone', 'triggerClick']) {
 }
 $('rumbleStrength').addEventListener('input', () => renderRange('rumbleStrength', 'Off'));
 $('rumbleStrength').addEventListener('change', () => saveSettings());
+$('gbaVolume').addEventListener('input', () => renderRange('gbaVolume', 'Off'));
+$('gbaVolume').addEventListener('change', () => saveSettings());
+
+// Settings → Game Boy Advance: each socket's Gen 3 save (src/gen3-save.js reads it), and, under Advanced,
+// the Game Pak it belongs to and a BIOS, for running the GBA itself (src/gba.js checks them).
+const GBA_SOCKETS = ['2', '3', '4'];
+let gbaFound = null, gbaLooking = false, gbaBusy = false;
+async function gbaAction(call) {
+  setMessage('');
+  try {
+    const result = await call();
+    if (result && result.config) refresh(result);
+  } catch (error) { showError(error); }
+}
+function gbaNote(id, item) {
+  const text = item?.error || item?.warning || '';
+  $(id).textContent = text;
+  $(id).hidden = !text;
+  $(id).classList.toggle('rom-error', Boolean(item?.error));
+}
+function gbaElement(tag, className, text) {
+  const item = document.createElement(tag);
+  if (className) item.className = className;
+  if (text !== undefined) item.textContent = text;
+  return item;
+}
+function gbaButton(actions, label, call) {
+  const item = gbaElement('button', 'subtle', label);
+  item.disabled = gbaBusy;
+  item.addEventListener('click', () => gbaAction(call));
+  actions.append(item);
+}
+// "ASH's Emerald: 6 Pokémon, 12:34 played"
+function gbaSaveName(save) {
+  const party = save.party.length === 1 ? '1 Pokémon' : `${save.party.length} Pokémon`;
+  return `${save.trainer || 'Trainer'}'s ${save.gameName}: ${party}, ${save.playTime} played`;
+}
+function gbaSaveRow(socket, entry) {
+  const row = gbaElement('div', 'path-row gba-socket');
+  const text = gbaElement('div');
+  const save = entry?.save;
+  const label = socket === '2' ? 'Your save' : `Save on socket ${socket}`;
+  text.append(gbaElement('strong', '', save && !save.error ? `${label}: ${gbaSaveName(save)}` : label));
+  const file = gbaElement('span', 'small-path', save ? save.path : 'None chosen');
+  file.title = save?.path || '';
+  text.append(file);
+  const problem = save?.error || save?.problem || '';
+  if (problem) text.append(gbaElement('span', `small-path gba-note${save.error ? ' rom-error' : ''}`, problem));
+  const actions = gbaElement('div', 'actions');
+  if (save) gbaButton(actions, 'Remove', () => window.colo.clearGbaFile('save', socket));
+  gbaButton(actions, save ? 'Change save' : 'Choose save', () => window.colo.chooseGbaFile('save', socket));
+  row.append(text, actions);
+  return row;
+}
+function gbaPakRow(socket, entry) {
+  const row = gbaElement('div', 'path-row gba-socket');
+  const text = gbaElement('div');
+  const rom = entry?.rom;
+  text.append(gbaElement('strong', '', `Socket ${socket} Game Pak${rom ? `: ${rom.name || 'Not usable'}` : ''}`));
+  text.append(gbaElement('span', 'small-path', rom ? rom.path : entry ? 'None: the game answers from the save' : 'Choose a save for this socket first'));
+  if (rom && (rom.error || rom.warning)) text.append(gbaElement('span', `small-path gba-note${rom.error ? ' rom-error' : ''}`, rom.error || rom.warning));
+  const actions = gbaElement('div', 'actions');
+  if (rom) gbaButton(actions, 'Remove', () => window.colo.clearGbaFile('rom', socket));
+  if (entry) gbaButton(actions, rom ? 'Change Game Pak' : 'Choose Game Pak', () => window.colo.chooseGbaFile('rom', socket));
+  else if (socket !== '2') gbaButton(actions, 'Choose save', () => window.colo.chooseGbaFile('save', socket));
+  row.append(text, actions);
+  return row;
+}
+// Saves found where emulators keep them, offered while socket 2 has none.
+function renderGbaFound(gba) {
+  const box = $('gba-found');
+  const chosen = new Set(Object.values(gba.sockets).map(entry => entry.save?.path));
+  const found = (gbaFound || []).filter(item => !chosen.has(item.path)).slice(0, 5);
+  box.hidden = Boolean(gba.sockets['2']) || (!gbaLooking && !found.length);
+  if (box.hidden) return;
+  const rows = [gbaElement('p', 'helper', gbaLooking ? 'Looking for saves on this computer…' : 'Found on this computer:')];
+  for (const item of found) {
+    const row = gbaElement('div', 'path-row');
+    const text = gbaElement('div');
+    text.append(gbaElement('strong', '', `${item.trainer || 'Trainer'}'s ${item.gameName}: ${item.party === 1 ? '1 Pokémon' : `${item.party} Pokémon`}, ${item.playTime} played`));
+    const file = gbaElement('span', 'small-path', item.path);
+    file.title = item.path;
+    text.append(file);
+    if (item.problem) text.append(gbaElement('span', 'small-path gba-note', item.problem));
+    const actions = gbaElement('div', 'actions');
+    gbaButton(actions, 'Use this save', () => window.colo.useGbaSave('2', item.path));
+    row.append(text, actions);
+    rows.push(row);
+  }
+  box.replaceChildren(...rows);
+}
+async function lookForGbaSaves(gba) {
+  if (gbaFound || gbaLooking || !window.colo.gbaSuggestions) return;
+  gbaLooking = true;
+  renderGbaFound(gba);
+  try { gbaFound = await window.colo.gbaSuggestions(); } catch (_) { gbaFound = []; }
+  gbaLooking = false;
+  renderGbaFound(lastGba);
+}
+let lastGba = { bios: null, sockets: {}, ready: false };
+function renderGba(data) {
+  const gba = data.gba || { bios: null, sockets: {}, ready: false };
+  lastGba = gba;
+  gbaBusy = Boolean(data.active);
+  $('gba-bios-path').textContent = gba.bios ? `${gba.bios.name || 'Not usable'}: ${gba.bios.path}` : "None: mGBA's own BIOS starts the GBA.";
+  $('gba-bios-path').title = gba.bios?.path || '';
+  gbaNote('gba-bios-note', gba.bios);
+  $('gba-bios-choose').textContent = gba.bios ? 'Change file' : 'Choose file';
+  $('gba-bios-clear').hidden = !gba.bios;
+  for (const id of ['gba-bios-choose', 'gba-bios-clear']) $(id).disabled = gbaBusy;
+  $('gba-backups-path').textContent = gba.backupFolder || '';
+  $('gba-backups-path').title = gba.backupFolder || '';
+  // socket 2 always; 3 and 4 once they have a save, or under Advanced to add one
+  const extra = GBA_SOCKETS.slice(1).filter(socket => gba.sockets[socket]);
+  $('gba-save').replaceChildren(gbaSaveRow('2', gba.sockets['2']), ...extra.map(socket => gbaSaveRow(socket, gba.sockets[socket])));
+  $('gba-paks').replaceChildren(...GBA_SOCKETS.map(socket => gbaPakRow(socket, gba.sockets[socket])));
+  renderGbaFound(gba);
+  if (!gba.sockets['2']) lookForGbaSaves(gba);
+  const usable = Object.entries(gba.sockets).filter(([, entry]) => !entry.save.error && !entry.rom?.error);
+  const problem = usable.map(([, entry]) => entry.save.problem).find(Boolean);
+  $('gba-status').textContent = !gba.ready
+    ? (Object.keys(gba.sockets).length ? 'This save can\'t be used: choose another.' : 'Choose your save to link a GBA. Until then the game sees no GBA, as with no cable.')
+    : problem ? `The game will see your GBA, but won't link yet. ${problem}`
+      : usable.some(([, entry]) => entry.rom) ? 'Ready: when the game asks for a Game Boy Advance, it starts with your Game Pak and save.'
+        : 'Ready: when the game asks for a Game Boy Advance, it links with your save.';
+}
+$('gba-bios-choose').addEventListener('click', () => gbaAction(() => window.colo.chooseGbaFile('bios')));
+$('gba-bios-clear').addEventListener('click', () => gbaAction(() => window.colo.clearGbaFile('bios')));
+$('gba-backups-open').addEventListener('click', () => gbaAction(() => window.colo.openGbaBackups()));
 
 function bindingNote() {
   return bindingMode === 'controller'
@@ -646,6 +775,10 @@ function refresh(data) {
   renderRange('triggerClick');
   renderRange('rumbleStrength', 'Off');
   for (const key of ['stickDeadzone', 'triggerClick', 'rumbleStrength']) $(key).disabled = Boolean(data.active);
+  $('gbaVolume').value = String(config.settings.gbaVolume ?? 100);
+  renderRange('gbaVolume', 'Off');
+  $('gbaVolume').disabled = Boolean(data.active);
+  renderGba(data);
   if (!capture) renderBindings();
   $('reset-bindings').disabled = Boolean(data.active);
   for (const key of [...SELECTS, ...SWITCHES, 'graphicsPreset']) $(key).disabled = Boolean(data.active);
@@ -658,7 +791,7 @@ function refresh(data) {
 const SELECTS = ['widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic',
   'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
 const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3',
-  'randomizerSimilar', 'randomizerNoLegendaries', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'overlay', 'backgroundInput', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+  'randomizerSimilar', 'randomizerNoLegendaries', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 let updateChannels = [{ id: 'stable', label: 'Stable' }];
 function renderUpdateChannels(chosen) {
@@ -903,7 +1036,7 @@ function renderDependents(busy = false) {
 
 function settingsValue() {
   const value = { keyBindings, padBindings, stickDeadzone: Number($('stickDeadzone').value),
-    triggerClick: Number($('triggerClick').value), rumbleStrength: Number($('rumbleStrength').value),
+    triggerClick: Number($('triggerClick').value), rumbleStrength: Number($('rumbleStrength').value), gbaVolume: Number($('gbaVolume').value),
     graphicsPreset: $('graphicsPreset').value };
   for (const key of SELECTS) value[key] = $(key).value;
   for (const key of SWITCHES) value[key] = $(key).checked;
