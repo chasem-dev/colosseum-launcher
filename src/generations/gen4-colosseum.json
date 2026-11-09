@@ -116,6 +116,8 @@
     "Shadow Force": { "as": "Dig", "effect": 255, "exact": true }
   },
   "oldMoves": {
+    "Acid": { "effect": 72, "note": "A chance to lower Sp. Def (the game's Psychic), not Defense." },
+    "Crunch": { "effect": 69, "note": "A chance to lower Defense (the game's Iron Tail), not Sp. Def." },
     "Waterfall": { "effect": 31, "note": "A chance to flinch (the game's Bite)." },
     "Volt Tackle": { "effect": 256, "note": "Recoil, and a chance to paralyze (host/gen4.c)." }
   },
