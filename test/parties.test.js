@@ -6,7 +6,19 @@ const parties = require('../src/parties');
 
 test('a first run has no parties and the default rules', () => {
   assert.deepEqual(parties.normalize(undefined),
-    { trainer: 'Trainer', parties: [], selected: null, level: 50, size: 6, battleRules: 3, listed: true });
+    { trainer: 'Trainer', parties: [], selected: null, level: 50, size: 6, listed: true, battleRules: 3, format: 'casual', custom: {}, bestOf: 1 });
+});
+
+test('a room\'s format keeps only real changes to each format, and Casual its level and size', () => {
+  const online = parties.normalize({ format: 'orre', bestOf: 3, custom: { orre: { level: 50, battle: 'double', pool: 'nope' }, hoenn: { level: 100 }, casual: { level: 100 } } });
+  assert.equal(online.format, 'orre');
+  assert.equal(online.bestOf, 3);
+  assert.deepEqual(online.custom, { orre: { level: 50 } });
+  assert.equal(parties.roomRules(online).level, 50);
+  assert.equal(parties.roomRules(online).battle, 'double');
+  assert.equal(parties.roomRules({ ...online, format: 'casual', level: 100, size: 3 }).size, 3);
+  assert.equal(parties.normalize({ format: 'vgc', bestOf: 4 }).format, 'casual');
+  assert.equal(parties.normalize({ format: 'vgc', bestOf: 4 }).bestOf, 1);
 });
 
 test('trainer names are what the game can show', () => {
@@ -71,4 +83,10 @@ test('a party saved before sets gets one for each member', () => {
   const [party] = parties.normalize({ parties: [{ id: 'old', name: 'Old', members: [1, 2, 3, 4, 5, 6] }] }).parties;
   assert.deepEqual(party.sets.map(set => set.species), [1, 2, 3, 4, 5, 6]);
   assert.deepEqual(party.sets[0].ivs, [31, 31, 31, 31, 31, 31]);
+});
+
+test('a room the player makes plays by the battle rules they chose, in any format', () => {
+  assert.equal(parties.roomRules(parties.normalize({ battleRules: 4 })).battleRules, 4);
+  assert.equal(parties.roomRules(parties.normalize({ format: 'gen3ou', battleRules: 4 })).battleRules, 4);
+  assert.equal(parties.roomRules(parties.normalize({ format: 'orre' })).battleRules, 3);
 });

@@ -1,7 +1,7 @@
 {
   "beta": {
     "launcher": [
-      "Online: open a room with Pokémon Platinum's battle rules, under Rules beside Level and Battle, and both players battle by them. A room's rules show in the room list.",
+      "Online: a room of any format, Casual too, can play by Pokémon Platinum's battle rules. Choose Platinum's under Rules when you create the room, and both players battle by them; the room list says so.",
       "Fixed Generation 4 rules taking away an ability whose name Colosseum runs together, such as Rhydon's and Manectric's Lightning Rod.",
       "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves and TMs, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on, with who made them.",
       "Later generations, under Settings → Gameplay: play by Pokémon Platinum's battle rules, where Metronome can call Generation 4's moves too, and add the 107 Generation 4 Pokémon and their moves to your game (with their own abilities under Platinum's rules) and the Pokédex.",
@@ -14,7 +14,8 @@
       "Windows: the game's program now has its icon, Espeon and Umbreon from the game's memory card, taken from your disc when the game builds. The build log no longer shows an error about a missing main.dol.",
       "Team builder: give each Pokémon in a party its own moves, held item, ability, nature, EVs, IVs, nickname, gender and shininess, with its stats worked out as you go and the moves it can learn in this game. Bring teams in or out as Pokémon Showdown text, or copy your Story party into a party of your own to change. Open it with New party or Edit on the Online tab.",
       "HD textures: fixed black lines in some floors and furniture, such as Pyrite's metal floors and the shelves and stairs in Miror B.'s building, and dark edges on some textures, such as black at the base of Pikachu's ears. The updated pack, about 2 GB, downloads the next time you play with HD textures on and replaces the old one, and a download of an earlier pack that stopped partway is deleted.",
-      "Windows: if the folder for Setup files has an & in its path, the launcher now says so before building and explains how to choose another folder. Before, the game failed to build near the end, with \"ar.exe: … No such file or directory\" in the activity log."
+      "Windows: if the folder for Setup files has an & in its path, the launcher now says so before building and explains how to choose another folder. Before, the game failed to build near the end, with \"ar.exe: … No such file or directory\" in the activity log.",
+      "Online formats: create a room as Orre Colosseum (doubles, bring 6 pick 4), Hoenn Stadium (singles, pick 3) or Gen 3 OU (Smogon's 6-on-6), with their clauses and bans, or keep Casual, the rooms as they were. Customise changes any rule, and the room list shows a named variant such as Orre Limited, or Orre Colosseum* (custom) with what changed. Games makes a room a best of 3 or 5 with the same party for the set, and with team preview both players see both parties and pick before each game. A room your party can't play says why. Choose them under Create room on the Online tab."
     ],
     "game": [
       "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",
@@ -30,7 +31,9 @@
       "Game Boy Advance: the game links with a Gen 3 Pokémon save on controller socket 2, answering as the GBA would, and writes trades and coupon prizes back into it. In a trade your controller also works the GBA's side. With a Game Pak too, mGBA runs the GBA itself, as in Dolphin, with its screen in a corner and its sound mixed in: press G (Back on a controller) to use it and again to go back, hold it to turn the GBA on or off, and drop an e-Reader card's file on the window to scan it.",
       "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log.",
       "Fixed coloured text showing the wrong colour: the gold Name, Play Time and Snagged POKéMON labels on the save and Continue screens were red.",
-      "The PC now has 10 boxes instead of 3, room for 300 Pokémon. L and R go through all ten, and a Pokémon sent to the PC goes to the first box with room. Boxes 4 to 10 are kept beside your save, so the save still opens in Dolphin, with boxes 1 to 3."
+      "The PC now has 10 boxes instead of 3, room for 300 Pokémon. L and R go through all ten, and a Pokémon sent to the PC goes to the first box with room. Boxes 4 to 10 are kept beside your save, so the save still opens in Dolphin, with boxes 1 to 3.",
+      "Online battles now have critical hits, and Latias and Latios get Soul Dew's boost, as in the original game's link battles. Before, neither happened online.",
+      "Online battles can be double battles, and can play by the original game's Battle Mode clauses: sleep, freeze, self-KO (Selfdestruct or Explosion loses a tie) and no Perish Song or Destiny Bond from a last Pokémon, with the other player's HP shown as a bar only if the room asks."
     ]
   },
   "releases": [

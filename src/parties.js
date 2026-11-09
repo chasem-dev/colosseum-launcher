@@ -9,6 +9,7 @@
 // reads the party. The Story party (src/story-party.js) is the save's own,
 // chosen as STORY.
 const teamSets = require('./team-sets');
+const formats = require('./formats');
 
 const PARTY_SIZE = 6;
 const MAX_PARTIES = 32;
@@ -16,7 +17,6 @@ const NAME_LENGTH = 24;
 const TRAINER_LENGTH = 10;
 const LEVELS = [50, 100];
 const SIZES = [3, 6];
-const BATTLE_RULES = [3, 4];
 const STORY = 'story';
 // The game numbers its species up to 411, with a gap between the second generation and the third.
 const { validSpecies } = teamSets;
@@ -52,9 +52,32 @@ function normalize(input) {
   return { trainer: trainerName(input?.trainer), parties, selected,
     level: LEVELS.includes(input?.level) ? input.level : LEVELS[0],
     size: SIZES.includes(input?.size) ? input.size : SIZES[1],
-    // Colosseum's battle rules (3) or Pokémon Platinum's (4, src/generations.js), for both players of a room
-    battleRules: BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : BATTLE_RULES[0],
-    listed: input?.listed !== false };
+    listed: input?.listed !== false,
+    // whose battle rules the room plays by: Colosseum's (3) or Pokémon Platinum's (4), with any format
+    battleRules: formats.BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : formats.BATTLE_RULES[0],
+    // the room's format (src/formats.js), its changes for each format the player has changed, and how many games
+    format: formats.FORMAT_IDS.includes(input?.format) ? input.format : 'casual',
+    custom: cleanCustom(input?.custom),
+    bestOf: formats.bestOf(input?.bestOf) };
+}
+
+// Each competitive format's changes, kept to what the format allows: { orre: { level: 50 }, ... }.
+function cleanCustom(input) {
+  const out = {};
+  for (const format of formats.FORMAT_IDS.filter(id => id !== 'casual')) {
+    const rules = formats.normalize({ ...(input && typeof input[format] === 'object' ? input[format] : {}), format });
+    const changed = Object.fromEntries(formats.changes(rules).map(key => [key, rules[key]]));
+    if (Object.keys(changed).length) out[format] = changed;
+  }
+  return out;
+}
+
+// The rules of a room the player makes: Casual's level and size, or a format with their changes to it.
+// Either plays by the battle rules the player chose.
+function roomRules(online) {
+  const battleRules = online.battleRules;
+  if (online.format === 'casual') return formats.normalize({ format: 'casual', level: online.level, size: online.size, battleRules });
+  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format, battleRules });
 }
 
 // The chosen party of the player's own, when it is ready to battle with (not the Story party).
@@ -63,4 +86,4 @@ function selectedParty(online) {
   return party?.members.length === PARTY_SIZE ? party : null;
 }
 
-module.exports = { BATTLE_RULES, PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty };
+module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty, roomRules };

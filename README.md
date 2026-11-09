@@ -147,7 +147,15 @@ It starts with your next **New Game**, and the seed is kept inside that save. Fi
 
 The **Online** tab is where you battle other players. Build a party first: **New party** opens the team builder, where you choose six from the Pokédex and give each its own set, as in Pokémon Showdown: four moves, a held item, its ability and nature, EVs and IVs, a nickname, gender and whether it's shiny. The moves list shows what each Pokémon learns in this game and how; others can still be chosen and are marked. Stats are worked out as you go, at level 50 or 100. **Import** and **Export** take a team in Showdown's text, and **Copy to a new party** on your Story party starts a party from the Pokémon in your save. A Pokémon with no moves chosen battles with the moves it learns by the room's level. You can keep as many parties as you like, and pick the one you want to battle with.
 
-**Create room** opens a room at level 50 or 100, with 3 or 6 Pokémon each (the first three of your party in a 3-Pokémon battle). Your game starts and waits in the stadium, and your room appears for everyone on the list. Untick **Show on the room list** to keep it private and give a friend the code instead. When someone joins, your game starts again and you're both in the battle. Players choose their moves at the same time. **Give in** from the battle menu ends the battle, and closing the game counts as leaving.
+**Create room** opens a room in the **Format** you choose. **Casual** is a room at level 50 or 100, with 3 or 6 Pokémon each (the first three of your party in a 3-Pokémon battle) and no rules. The competitive formats are the ones players have used for years on Pokémon Showdown and OrreLink:
+
+- **Orre Colosseum**: the official doubles format. Level 100, bring 6 and pick 4, no box legendaries or mythical Pokémon (so no Groudon or Celebi; Articuno and Latios are fine), no Soul Dew, and the sleep, freeze, species, item and self-KO clauses.
+- **Hoenn Stadium**: the official singles format, the same rules with 3 picked.
+- **Gen 3 OU**: Smogon's 6-on-6 singles, with no team preview and the other player's HP as a bar only: no Ubers, species, sleep (Smogon's, where Rest doesn't count) and freeze clauses, no one-hit KO or evasion moves, and Smogon's other bans (Sand Veil, Soundproof, Quick Claw, Assist, Swagger, and its Baton Pass and trapping rules).
+
+**Customise** changes any of a format's rules. A room with Orre Unlimited (all Pokémon, Soul Dew allowed) or Orre Limited (level 50, no legendary Pokémon) shows that name, as do the Hoenn ones; any other change shows as, say, **Orre Colosseum\* (custom)** with what changed. **Games** makes the room a best of 3 or 5: you keep the same party for the whole set, and with team preview you pick again before each game. The game itself checks the clauses that happen in battle, as the original game's Battle Mode does, and every online battle has critical hits and Soul Dew working, as link battles did; what a party may bring is checked by the launcher before you make or join a room, and by the room server. A room your party can't play says why.
+
+Your game starts and waits in the stadium, and your room appears for everyone on the list. Untick **Show on the room list** to keep it private and give a friend the code instead. When someone joins, your game starts again and you're both in the battle; with team preview, it closes while you each pick, in order, from both parties shown on the Online tab, and starts again once you both have. Players choose their moves at the same time. **Give in** from the battle menu ends the battle, and closing the game counts as leaving.
 
 Both players need the same build of the game. A room on another version says which one it needs.
 
@@ -197,7 +205,7 @@ Node 22.12 or newer.
 
 ### Online battles
 
-The rooms and the online count are [colosseum-server-api](https://github.com/chasem-dev/colosseum-server-api), a Cloudflare Worker. `COLO_TELEMETRY_URL=http://localhost:8787 npm start` points a development launcher at one running with `npm run dev` (a development launcher reports nothing without it). `src/online.js` is the launcher's side, and the game's `host/online.c` lists the lines the two exchange.
+The rooms and the online count are [colosseum-server-api](https://github.com/chasem-dev/colosseum-server-api), a Cloudflare Worker. `COLO_TELEMETRY_URL=http://localhost:8787 npm start` points a development launcher at one running with `npm run dev` (a development launcher reports nothing without it). `src/online.js` is the launcher's side, and the game's `host/online.c` lists the lines the two exchange. `src/formats.js` holds the formats and checks parties; the room server keeps a copy (its `scripts/formats.mjs` makes it from this one), so change it here and make that again.
 
 ### Test and package
 

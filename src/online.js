@@ -18,9 +18,12 @@ const net = require('node:net');
 const { EventEmitter } = require('node:events');
 const telemetry = require('./telemetry');
 const storyParty = require('./story-party');
+const formats = require('./formats');
 
 // 2: a party can be a Story party, its Pokémon sent whole as `members`, and shorter than six.
-const PROTOCOL = 3;   // 3: a room's rules may be another generation's (battleRules)
+// 3: rooms have formats (src/formats.js), team preview with picks, and best-of sets.
+// 4: a room's rules may be Pokémon Platinum's battle rules (battleRules), which a launcher before 4 can't play.
+const PROTOCOL = 4;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list
@@ -101,7 +104,8 @@ function createBridge({ onLine, onClose = () => {}, createServer = net.createSer
       for (const line of lines) if (line) onLine(line.trim());
     });
     connection.on('error', () => {});
-    connection.on('close', () => { socket = null; onClose(); });
+    // only the game connected now: one let go by reset has already been forgotten
+    connection.on('close', () => { if (socket === connection) { socket = null; onClose(); } });
   });
   return {
     listen: () => new Promise((resolve, reject) => {
@@ -111,6 +115,13 @@ function createBridge({ onLine, onClose = () => {}, createServer = net.createSer
     send(line) {
       if (socket) socket.write(`${line}\n`);
       else waiting.push(line);
+    },
+    // the game that was connected is done with: lines from now wait for the next one
+    reset() {
+      const old = socket;
+      socket = null;
+      waiting = [];
+      old?.destroy();
     },
     close() {
       socket?.destroy();
@@ -134,64 +145,76 @@ const REFUSED = {
   version: 'That room is on another version of the game. Both players need the same version.',
   launcher: 'That room\'s player has another version of the launcher. Both players need the newest one.',
   full: 'That battle has already started.',
-  party: 'The room server didn\'t accept your party.'
+  party: 'The room server didn\'t accept your party.',
+  rules: 'Your party can\'t play by that room\'s rules.'
 };
 
-// One player's connection to one battle. Events: 'room' (code), 'start' (the
-// room's start message), 'peer' (lost or back), 'end' ({ reason, winner }).
+// One player's connection to one room: a battle, or a best-of set of them. Events: 'room' (code), 'preview' (the
+// room's team preview: pick with pick()), 'start' (a game's start message), 'peer' (lost or back), 'end' (a game's
+// or the room's end: { reason, winner }), 'set' (a set's end: { wins, reason }).
+//
+// The game runs once for each battle: playBattle in the main process starts it, and asks again() whether to start it
+// once more, which it does for a host's game that waited in the stadium, and for each game of a set.
 class Session extends EventEmitter {
-  constructor({ url = serverUrl(), WebSocket = globalThis.WebSocket, setTimeout: later = global.setTimeout } = {}) {
+  constructor({ url = serverUrl(), WebSocket = globalThis.WebSocket, setTimeout: later = global.setTimeout, features = {} } = {}) {
     super();
     this.url = url;
     this.WebSocket = WebSocket;
     this.later = later;
+    this.features = features;  // rules: the game takes a rules line, and `close` for a game waiting in the stadium
     this.ws = null;
     this.bridge = null;
     this.code = null;
     this.key = null;
-    this.start = null;
+    this.start = null;      // this game's start message
+    this.preview = null;    // this game's team preview, until it starts
     this.side = null;
+    this.game = 0;          // which game of the set the start is for
+    this.running = null;    // the game the running process plays: 0 for a host's waiting in the stadium
     this.outbox = [];       // what this game sent, in order: seq is its index + 1
     this.received = 0;      // the last seq delivered to this game
-    this.ended = false;
+    this.pending = [];      // and those that came before its process started
+    this.ended = false;     // this game has ended
+    this.over = false;      // and so has the room: no game comes after it
     this.restart = false;
     this.peerFinished = false;
     this.timers = [];
   }
 
   // A host's room: resolves with the code once the server has made it.
-  async host({ name, build, version, launcher, party, members, rules, listed }) {
+  async host({ name, build, version, launcher, party, members, rules, bestOf, listed }) {
     this.role = 'host';
     this.rules = { ...rules, stage: Number.isInteger(rules.stage) ? rules.stage : Math.floor(Math.random() * STAGES) };
     await this.connect(`${socketUrl(this.url)}/v1/rooms/new`);
     this.ws.send(JSON.stringify({ type: 'hello', name, build, version, launcher, protocol: PROTOCOL,
-      rules: this.rules, party, ...(members ? { members } : {}), public: listed !== false }));
+      rules: this.rules, bestOf: bestOf || 1, party, ...(members ? { members } : {}), public: listed !== false }));
     return this.answer('room', () => this.code);
   }
 
-  // Into a host's room: resolves with the room's start message, or rejects when refused.
+  // Into a host's room: resolves with the room's first message (its team preview, or the start), or rejects when refused.
   async join({ code, name, build, version, launcher, party, members }) {
     this.role = 'joiner';
     this.code = code;
     await this.connect(`${socketUrl(this.url)}/v1/rooms/${code}/join`);
     this.ws.send(JSON.stringify({ type: 'hello', name, build, version, launcher, protocol: PROTOCOL, party, ...(members ? { members } : {}) }));
-    return this.answer('start', message => message);
+    return this.answer(['start', 'preview'], message => message);
   }
 
-  answer(event, value) {
+  answer(events, value) {
+    const names = [].concat(events);
     return new Promise((resolve, reject) => {
       const timer = this.later(() => reject(new Error('The room server didn\'t answer.')), REPLY_WAIT);
       const finish = (callback, argument) => {
         clearTimeout(timer);
-        this.off(event, done);
+        for (const name of names) this.off(name, done);
         this.off('refused', refused);
         this.off('dropped', dropped);
         callback(argument);
       };
       const done = message => finish(resolve, value(message));
-      const refused = reason => finish(reject, new Error(REFUSED[reason] || 'The room turned you away.'));
+      const refused = (reason, problems) => finish(reject, Object.assign(new Error(REFUSED[reason] || 'The room turned you away.'), { problems }));
       const dropped = () => finish(reject, new Error('That room is no longer open.'));
-      this.on(event, done);
+      for (const name of names) this.on(name, done);
       this.on('refused', refused);
       this.on('dropped', dropped);
     });
@@ -218,25 +241,52 @@ class Session extends EventEmitter {
 
   sendJson(value) { this.send(JSON.stringify(value)); }
 
-  // Connects the local game: lines it sends go to the other player.
+  // The local port the game connects to. Lines go to it with prepareGame, before each time it starts.
   async attachGame(createBridgeImpl = createBridge) {
     this.bridge = createBridgeImpl({ onLine: line => this.onGameLine(line), onClose: () => this.onGameClosed() });
-    const port = await this.bridge.listen();
-    this.setUpGame();
-    return port;
+    return this.bridge.listen();
   }
 
-  // What the game needs as it starts, and the battle if there is one yet.
-  setUpGame() {
+  // What the game needs as it starts: the rules, its config, and the battle if there is one yet.
+  prepareGame() {
+    this.bridge.reset?.();
+    const rules = this.start ? this.start.rules : this.rules;
+    const line = this.features.rules ? formats.rulesLine(rules) : null;
+    if (line) this.bridge.send(line);
     this.bridge.send(this.start ? configLine(this.start) : configLine({ side: 0, rules: this.rules, code: this.code }));
-    if (this.start) for (const line of startLines(this.start)) this.bridge.send(line);
+    if (this.start) for (const each of startLines(this.start)) this.bridge.send(each);
+    this.running = this.start ? this.game : 0;
+    // the other game's turns that came before this one started
+    for (const line of this.pending) this.bridge.send(line);
+    this.pending = [];
   }
 
-  // A host's game waited in the stadium, and has gone so that it can start again for the battle.
-  takeRestart() {
-    const restart = this.restart;
-    this.restart = false;
-    return restart;
+  // Whether to start the game again, once it has closed: for a host whose game waited in the stadium, once the
+  // battle starts; for a set, once its next game starts (after both players pick, with team preview). Prepares it.
+  again() {
+    const next = () => {
+      if (this.start && this.game !== this.running && !this.ended) { this.restart = false; this.prepareGame(); return true; }
+      return null;
+    };
+    const ready = next();
+    // nothing to wait for: the room is over, or the game that ran wasn't one to start again
+    if (ready || this.over || this.closing || (this.running !== null && !this.restart && !this.ended)) return Promise.resolve(Boolean(ready));
+    return new Promise(resolve => {
+      const check = () => {
+        const go = next();
+        if (go === null && !this.over && !this.closing) return;
+        for (const name of ['start', 'end', 'set', 'end-session']) this.off(name, check);
+        resolve(Boolean(go));
+      };
+      for (const name of ['start', 'end', 'set', 'end-session']) this.on(name, check);
+    });
+  }
+
+  // This player's picks for the game: slots of their party, in order.
+  pick(order) {
+    if (!this.preview) return;
+    this.sendJson({ type: 'pick', order });
+    this.preview = { ...this.preview, picked: order };
   }
 
   onGameLine(line) {
@@ -244,19 +294,33 @@ class Session extends EventEmitter {
     if (word === 'restart') this.restart = true;
     else if (word === 'act' || word === 'irekae') {
       this.outbox.push(line);
-      this.sendJson({ type: 'game', seq: this.outbox.length, line });
-    } else if (word === 'desync') this.finish({ reason: 'desync' });
+      this.sendJson({ type: 'game', game: this.game, seq: this.outbox.length, line });
+    } else if (word === 'desync') this.finish({ reason: 'desync' }, true);
     else if (word === 'end') {
       const winner = Number(value);
       this.sendJson({ type: 'result', winner });
-      this.finish({ reason: 'over', winner: Number.isInteger(winner) && winner >= 0 ? winner : null });
+      this.finish({ reason: 'over', winner: Number.isInteger(winner) && winner >= 0 ? winner : null }, this.bestOf() === 1 || Boolean(this.peerGone));
     }
   }
 
+  bestOf() { return (this.start || this.preview)?.bestOf || 1; }
+
   onGameClosed() {
-    if (this.restart) return this.setUpGame();
-    this.finish({ reason: 'closed' });
-    this.close();
+    // to start again for the battle, or for a set's next game (or a game from before it, still showing its end): playBattle
+    // asks again()
+    if (this.restart || this.running !== (this.start ? this.game : 0) || (this.ended && !this.over)) return;
+    if (!this.ended) this.finish({ reason: 'closed' }, true);
+  }
+
+  // A game of the set begins: its messages are numbered afresh.
+  newGame(msg) {
+    this.game = msg.game || 1;
+    this.outbox = [];
+    this.received = 0;
+    this.pending = [];
+    this.ended = false;
+    this.peerFinished = false;
+    this.peerGone = false;
   }
 
   onMessage(ws, data) {
@@ -264,52 +328,102 @@ class Session extends EventEmitter {
     let msg;
     try { msg = JSON.parse(data); } catch (_) { return; }
     if (msg.type === 'room') { this.code = msg.code; this.key = msg.key; this.emit('room', msg.code); }
-    else if (msg.type === 'start') {
-      this.start = msg;
-      this.side = msg.side;
-      this.key = msg.key;
-      this.emit('start', msg);
-      if (this.bridge) for (const line of startLines(msg)) this.bridge.send(line);
-    } else if (msg.type === 'refused') this.emit('refused', msg.reason);
+    else if (msg.type === 'preview') this.onPreview(msg);
+    else if (msg.type === 'start') this.onStart(msg);
+    else if (msg.type === 'refused') this.emit('refused', msg.reason, Array.isArray(msg.problems) ? msg.problems.map(String) : null);
     else if (msg.type === 'game') this.onGame(msg);
     else if (msg.type === 'peer-lost') { this.bridge?.send('lost'); this.emit('peer', 'lost'); }
     else if (msg.type === 'peer-back') this.onPeerBack();
-    else if (msg.type === 'resumed') this.sendJson({ type: 'game', resume: this.received });
+    else if (msg.type === 'resumed') this.onResumed();
     else if (msg.type === 'finished') this.peerFinished = true;
     else if (msg.type === 'left') this.onLeft();
+    else if (msg.type === 'set') this.onSet(msg);
+  }
+
+  // A host's game waiting in the stadium closes when the challenger comes: it starts again for the battle.
+  closeWaiting() {
+    if (this.role !== 'host' || this.running !== 0 || this.restart) return false;
+    this.restart = true;
+    this.bridge?.send('close');
+    return true;
+  }
+
+  onPreview(msg) {
+    // sent again after a reconnection: this game's picks are made already
+    if (this.preview && this.preview.game === msg.game) return;
+    if ((msg.game || 1) <= this.game && this.start) return;
+    this.side = msg.side;
+    this.key = msg.key;
+    this.preview = { ...msg, picked: null };
+    if (this.features.rules) this.closeWaiting();
+    this.emit('preview', msg);
+  }
+
+  onStart(msg) {
+    if (this.start && (msg.game || 1) === this.game) return;   // sent again after a reconnection
+    this.newGame(msg);
+    this.start = msg;
+    this.preview = null;
+    this.side = msg.side;
+    this.key = msg.key;
+    this.emit('start', msg);
+    // the game waiting in the stadium goes, to start again for the battle (one from before rules hears of the
+    // battle, and says restart)
+    if (this.role === 'host' && this.running === 0 && this.bridge && !this.restart) {
+      if (this.features.rules) this.closeWaiting();
+      else for (const line of startLines(msg)) this.bridge.send(line);
+    }
+  }
+
+  onSet(msg) {
+    this.over = true;
+    this.emit('set', { wins: Array.isArray(msg.wins) ? msg.wins : [0, 0], reason: msg.reason || null });
   }
 
   onGame(msg) {
+    if (Number.isInteger(msg.game) && msg.game !== this.game) return;
     // the other side is back and says what it last had: send it the rest
     if (Number.isInteger(msg.resume)) {
-      for (let seq = msg.resume + 1; seq <= this.outbox.length; seq++) this.sendJson({ type: 'game', seq, line: this.outbox[seq - 1] });
+      for (let seq = msg.resume + 1; seq <= this.outbox.length; seq++) this.sendJson({ type: 'game', game: this.game, seq, line: this.outbox[seq - 1] });
       return;
     }
     if (!Number.isInteger(msg.seq) || msg.seq !== this.received + 1 || typeof msg.line !== 'string') return;
     this.received = msg.seq;
-    this.bridge?.send(msg.line);
+    // this game's process hasn't started yet: its turns wait for it
+    if (this.running !== this.game) this.pending.push(msg.line);
+    else this.bridge?.send(msg.line);
   }
 
   onPeerBack() {
     this.bridge?.send('back');
     this.emit('peer', 'back');
-    this.sendJson({ type: 'game', resume: this.received });
+    this.sendJson({ type: 'game', game: this.game, resume: this.received });
+  }
+
+  onResumed() {
+    this.sendJson({ type: 'game', game: this.game, resume: this.received });
+    // picks made while away
+    if (this.preview?.picked) this.sendJson({ type: 'pick', order: this.preview.picked });
   }
 
   onLeft() {
+    if (this.over) return;
     // its game saw the end first and closed: this one gets there by itself, and says how it ended
-    if (this.peerFinished) return;
+    if (this.peerFinished && !this.ended) { this.peerGone = true; return; }
     this.bridge?.send('left');
-    this.finish({ reason: 'left' });
+    this.finish({ reason: 'left' }, true);
   }
+
+  // Inside a battle or a set, a dropped connection comes back in.
+  inRoom() { return Boolean(this.start || this.preview) && !this.over; }
 
   async onClose(ws, event) {
     if (ws !== this.ws || this.closing) return;
     this.ws = null;
-    if (!this.start || this.ended) {
-      if (event?.code === 4409 || this.ended) return;
+    if (!this.inRoom()) {
+      if (event?.code === 4409 || this.over) return;
       this.emit('dropped');
-      if (this.start === null && this.role === 'host') this.finish({ reason: 'dropped' });
+      if (this.start === null && this.preview === null && this.role === 'host') this.finish({ reason: 'dropped' }, true);
       return;
     }
     // the battle goes on: back in with this player's key
@@ -317,17 +431,21 @@ class Session extends EventEmitter {
       ? `${socketUrl(this.url)}/v1/rooms/new?code=${this.code}&key=${this.key}`
       : `${socketUrl(this.url)}/v1/rooms/${this.code}/join?key=${this.key}`;
     const until = Date.now() + RECONNECT_FOR;
-    while (!this.ended && !this.closing && Date.now() < until) {
+    while (!this.over && !this.closing && Date.now() < until) {
       try { await this.connect(url); return; }
       catch (_) { await new Promise(resolve => this.later(resolve, RECONNECT_EVERY)); }
     }
-    if (!this.ended) { this.bridge?.send('left'); this.finish({ reason: 'dropped' }); }
+    if (!this.over) { this.bridge?.send('left'); this.finish({ reason: 'dropped' }, true); }
   }
 
-  finish(result) {
-    if (this.ended) return;
+  // A game's end; `last` when no game comes after it.
+  finish(result, last = false) {
+    if (last) this.over = true;
+    if (this.ended && !last) return;
+    if (this.ended && last && result.reason === 'over') return;
+    const first = !this.ended;
     this.ended = true;
-    this.emit('end', result);
+    if (first || last) this.emit('end', result);
   }
 
   // Everything goes: the room, and the port the game was using.
@@ -339,6 +457,7 @@ class Session extends EventEmitter {
     this.ws = null;
     this.bridge?.close();
     this.bridge = null;
+    this.emit('end-session');
   }
 }
 
