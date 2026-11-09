@@ -375,10 +375,57 @@ function textureCommand(root, platform = process.platform, environment = process
   return { command: path.join(msys, 'mingw64', 'bin', 'python.exe'), args, cwd: root, env: msysEnvironment(msys, environment) };
 }
 
+// The system's libdrm_amdgpu, for the game to load before anything else on Linux. The game's graphics
+// drivers are the system's, and a newer Mesa needs this library from the same system: RADV 26.2 on a
+// Steam Deck calls amdgpu_va_manager_query_sw_info, which the build tools' older copy (2.4.129) lacks.
+// In the game's process the drivers were getting the tools' copy, so Vulkan found no GPU and the game
+// drew with OpenGL; a player's LD_PRELOAD of the system's copy made Vulkan start. Each folder is checked
+// for a library of this processor (Fedora's /usr/lib is 32-bit). None found: the game starts as it is.
+const LIBDRM_AMDGPU_FOLDERS = {
+  x64: ['/usr/lib/x86_64-linux-gnu', '/lib/x86_64-linux-gnu', '/usr/lib64', '/usr/lib'],
+  arm64: ['/usr/lib/aarch64-linux-gnu', '/lib/aarch64-linux-gnu', '/usr/lib64', '/usr/lib']
+};
+const ELF_MACHINE = { x64: 0x3e, arm64: 0xb7 };
+
+function elfMatches(file, arch) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const header = Buffer.alloc(20);
+    if (fs.readSync(fd, header, 0, 20, 0) < 20) return false;
+    // 64-bit, little-endian, this processor
+    return header.readUInt32BE(0) === 0x7f454c46 && header[4] === 2 && header[5] === 1 && header.readUInt16LE(18) === ELF_MACHINE[arch];
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+function systemLibdrmAmdgpu(arch = process.arch) {
+  for (const folder of LIBDRM_AMDGPU_FOLDERS[arch] || []) {
+    const file = path.posix.join(folder, 'libdrm_amdgpu.so.1');
+    if (elfMatches(file, arch)) return file;
+  }
+  return null;
+}
+
+// LD_PRELOAD with the system's libdrm_amdgpu added, keeping what is there (Steam's overlay, or a player's own).
+function withSystemLibdrmAmdgpu(environment, library) {
+  const current = environment.LD_PRELOAD || '';
+  const listed = current.split(/[\s:]+/).filter(Boolean);
+  if (!library || listed.some(entry => path.posix.basename(entry) === 'libdrm_amdgpu.so.1')) return environment;
+  return { ...environment, LD_PRELOAD: [...listed, library].join(':') };
+}
+
 // The game itself, started directly: MSYS bash translates many native exception statuses to 127, which
 // hides the cause of a crash. It reads bindings.txt and mods/ from its working folder, the game folder.
-function gameRunCommand(root, disc, platform = process.platform, environment = process.env) {
+function gameRunCommand(root, disc, platform = process.platform, environment = process.env, libdrmAmdgpu = undefined) {
   const binary = binaryPath(root, platform);
+  if (platform === 'linux') {
+    const library = libdrmAmdgpu === undefined ? systemLibdrmAmdgpu() : libdrmAmdgpu;
+    return { command: binary, args: [disc], cwd: root, env: withSystemLibdrmAmdgpu(environment, library) };
+  }
   if (platform !== 'win32') return { command: binary, args: [disc], cwd: root, env: environment };
   return { command: binary, args: [disc], cwd: root, env: prependWindowsPath(environment, gameRuntimeFolders(environment)) };
 }
@@ -391,4 +438,4 @@ function gameRuntimeFolders(environment = process.env) {
 module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, playableInstall, useLauncherScripts, launcherScript,
-  buildCommand, textureCommand, gameRunCommand, gameRuntimeFolders };
+  buildCommand, textureCommand, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };

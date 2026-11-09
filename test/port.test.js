@@ -239,6 +239,29 @@ test('the game is one build, and starts in its folder with the disc named', () =
   assert.deepEqual([start.command, start.args, start.cwd], [port.binaryPath('/game', 'linux'), ['/my/disc.iso'], '/game']);
 });
 
+test('on Linux the game starts with the system\'s libdrm_amdgpu preloaded, after what LD_PRELOAD holds', () => {
+  const lib = '/usr/lib/libdrm_amdgpu.so.1';
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', { HOME: '/h' }, lib).env.LD_PRELOAD, lib);
+  const steam = 'ubuntu12_32/gameoverlayrenderer.so:ubuntu12_64/gameoverlayrenderer.so';
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', { LD_PRELOAD: steam }, lib).env.LD_PRELOAD, `${steam}:${lib}`);
+  // A player's own preload of it stands, and no system copy leaves the environment as it is.
+  const own = { LD_PRELOAD: '/usr/lib64/libdrm_amdgpu.so.1' };
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', own, lib).env, own);
+  const none = { HOME: '/h' };
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', none, null).env, none);
+  assert.equal('LD_PRELOAD' in port.gameRunCommand('/game', 'd.iso', 'darwin', { HOME: '/h' }, lib).env, false);
+});
+
+test('the system\'s libdrm_amdgpu is one for this processor, or none', () => {
+  const found = port.systemLibdrmAmdgpu('x64');
+  if (found) {
+    const header = fs.readFileSync(found).subarray(0, 20);
+    assert.equal(header[4], 2);
+    assert.equal(header.readUInt16LE(18), 0x3e);
+  }
+  assert.equal(port.systemLibdrmAmdgpu('ia32'), null);
+});
+
 test('builds run the launcher\'s script, through MSYS2\'s shell on Windows', t => {
   const unix = port.buildCommand('/game', 'linux', {});
   assert.equal(unix.command, '/bin/sh');
