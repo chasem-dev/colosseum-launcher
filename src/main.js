@@ -15,6 +15,8 @@ const game = require('./game-version');
 const updateChannel = require('./update-channel');
 const gameSource = require('./game-source');
 const gcAdapter = require('./gc-adapter');
+const gbaLink = require('./gba');
+const gen3Save = require('./gen3-save');
 const appImageUpdate = require('./appimage-update');
 const bindings = require('./bindings');
 const portable = require('./portable');
@@ -210,7 +212,9 @@ function loadConfig() {
     // Random, made on first run, and only ever sent with usage heartbeats.
     installId: telemetry.validInstallId(saved.installId) ? saved.installId : crypto.randomUUID(),
     // The trainer name, parties and room options of the Online page.
-    online: parties.normalize(saved.online)
+    online: parties.normalize(saved.online),
+    // The Game Boy Advance's BIOS, and each socket's Game Pak and save (Settings → Game Boy Advance).
+    gba: gbaLink.normalize(saved.gba)
   };
   if (config.installId !== saved.installId) {
     try { saveConfig(); } catch (error) { log(`Could not save preferences: ${error.message}`); }
@@ -945,6 +949,7 @@ async function play(installation = null, battle = null) {
   fs.mkdirSync(cacheFolder, { recursive: true });
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings),
+    ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
     COLO_RANDOMIZER_LOG: spoilerFile(),
     SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
@@ -1348,9 +1353,13 @@ function state() {
     crashReports: crashReports.summary(crashReports.directory()), directPlayFailure,
     // The run on the memory card, and whether the game on disk can play one.
     randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c')),
-    usage: usageCount, online: onlineState()
+    usage: usageCount, online: onlineState(),
+    gba: { ...gbaLink.status(config.gba), backupFolder: gbaBackupFolder() }
   };
 }
+
+// Copies of GBA saves the game keeps before a GBA first starts in a session, beside the launcher's own backups.
+function gbaBackupFolder() { return path.join(saves.backupRoot(), 'GBA saves'); }
 
 // Stable never sees a pre-release. Beta and pull request previews are opt-in,
 // and may be older than what is installed, so leaving one can go back down.
@@ -1588,6 +1597,66 @@ function registerHandlers() {
     config.rom = port.validateRom(chosen.filePaths[0]);
     saveConfig();
     return state();
+  });
+  // The Game Boy Advance's files: what is chosen is checked, and kept only if the game can use it. A socket's
+  // save comes first (a virtual GBA answers from it); its Game Pak and the BIOS are optional.
+  const setGbaSocket = (socket, change) => {
+    const sockets = { ...config.gba.sockets };
+    const next = { save: '', rom: '', ...(sockets[socket] || {}), ...change };
+    if (next.save) sockets[socket] = next; else delete sockets[socket];
+    config.gba = gbaLink.normalize({ ...config.gba, sockets });
+    saveConfig();
+  };
+  const useGbaSave = (socket, file) => {
+    gen3Save.read(file);   // throws with the reason when it isn't a Gen 3 save
+    setGbaSocket(socket, { save: file });
+  };
+  ipcMain.handle('choose-gba-file', async (_event, kind, socket) => {
+    if (operation || active) throw new Error('Finish the current task before changing game files.');
+    if (kind !== 'bios' && !gbaLink.SOCKETS.includes(String(socket))) throw new Error('No such controller socket.');
+    const entry = kind === 'bios' ? null : config.gba.sockets[String(socket)];
+    if (kind === 'rom' && !entry) throw new Error('Choose the save first.');
+    const options = {
+      bios: { title: 'Choose a dump of your Game Boy Advance\'s BIOS', filters: [{ name: 'GBA BIOS', extensions: ['bin', 'rom', 'gba'] }, { name: 'All files', extensions: ['*'] }] },
+      save: { title: 'Choose your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save', filters: [{ name: 'GBA saves', extensions: ['sav', 'srm'] }, { name: 'All files', extensions: ['*'] }] },
+      rom: { title: 'Choose a dump of the Game Pak this save belongs to', filters: [{ name: 'GBA games', extensions: ['gba', 'agb', 'bin'] }, { name: 'All files', extensions: ['*'] }] }
+    }[kind];
+    if (!options) throw new Error('Unknown file.');
+    const chosen = await dialog.showOpenDialog(window, { ...options, properties: ['openFile'] });
+    if (chosen.canceled || !chosen.filePaths[0]) return state();
+    const file = chosen.filePaths[0];
+    if (kind === 'bios') {
+      const check = gbaLink.checkBios(file);
+      if (check.error) throw new Error(check.error);
+      config.gba = gbaLink.normalize({ ...config.gba, bios: file });
+      saveConfig();
+    } else if (kind === 'save') {
+      useGbaSave(String(socket), file);
+    } else {
+      const check = gbaLink.checkGamePak(file);
+      if (check.error) throw new Error(check.error);
+      setGbaSocket(String(socket), { rom: file });
+    }
+    return state();
+  });
+  ipcMain.handle('use-gba-save', (_event, socket, file) => {
+    if (operation || active) throw new Error('Finish the current task before changing game files.');
+    if (!gbaLink.SOCKETS.includes(String(socket))) throw new Error('No such controller socket.');
+    useGbaSave(String(socket), String(file));
+    return state();
+  });
+  ipcMain.handle('clear-gba-file', (_event, kind, socket) => {
+    if (operation || active) throw new Error('Finish the current task before changing game files.');
+    if (kind === 'bios') { config.gba = gbaLink.normalize({ ...config.gba, bios: '' }); saveConfig(); }
+    else if (kind === 'rom') setGbaSocket(String(socket), { rom: '' });
+    else setGbaSocket(String(socket), { save: '', rom: '' });
+    return state();
+  });
+  // Gen 3 saves where emulators keep them (a few folders a few levels down), for Settings to offer.
+  ipcMain.handle('gba-suggestions', () => gbaLink.suggestions(config.rom ? [path.dirname(config.rom)] : []));
+  ipcMain.handle('open-gba-backups', () => {
+    fs.mkdirSync(gbaBackupFolder(), { recursive: true });
+    return shell.openPath(gbaBackupFolder());
   });
   ipcMain.handle('choose-repo', async () => {
     if (portableRoot) throw new Error('The portable launcher keeps its setup files in its own folder.');

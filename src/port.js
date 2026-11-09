@@ -178,6 +178,10 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     triggerClick: numberSetting(input.triggerClick, 85, 10, 100),
     // Controller rumble in percent: 0 turns it off.
     rumbleStrength: numberSetting(input.rumbleStrength, 100, 0, 100),
+    // A Game Boy Advance on a socket (src/gba.js): switched on and off as the game asks, unless the player
+    // would rather; and its sound, in percent.
+    gbaAutoPower: input.gbaAutoPower !== false,
+    gbaVolume: numberSetting(input.gbaVolume, 100, 0, 100),
     // What a new save randomizes (randomizer.js): a save keeps the seed it starts with.
     ...randomizer.normalize(input)
   };
