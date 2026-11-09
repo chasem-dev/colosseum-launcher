@@ -135,8 +135,9 @@ test('Battle Revolution models are made by the game\'s own pbr2pkx, with the bui
   const port = require('../src/port');
   const cmd = port.pbrModelsCommand('/game', '/discs/pbr.rvz', '/data/battle-revolution', [387, 388], 'linux', {});
   assert.equal(cmd.command, 'python3');
-  assert.deepEqual(cmd.args, ['/game/tools/pbr2pkx/make_models.py', '/discs/pbr.rvz', '/data/battle-revolution', '387', '388']);
-  assert.equal(cmd.cwd, '/game/tools/pbr2pkx');
+  const tools = require('path').join('/game', 'tools', 'pbr2pkx');   // with the system's own separators
+  assert.deepEqual(cmd.args, [require('path').join(tools, 'make_models.py'), '/discs/pbr.rvz', '/data/battle-revolution', '387', '388']);
+  assert.equal(cmd.cwd, tools);
 });
 
 test("an ability Ruby writes as one word stays a Pokémon's under Generation 4's rules", () => {
