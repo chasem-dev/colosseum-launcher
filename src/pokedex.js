@@ -58,26 +58,29 @@ function displayName(text) {
   return text.toLowerCase().replace(/(^|[\s.-])(\p{L})/gu, (_, before, letter) => before + letter.toUpperCase());
 }
 
-// A message's text: UTF-16, with 0xFFFF and a byte for each of the game's control codes.
-function messageText(data, at) {
+// A message's text: UTF-16, with 0xFFFF and a byte for each of the game's control codes. Code 0 starts a
+// new line of the game's box, which reads as a space on one line here.
+function messageText(data, at, limit = 200) {
   let text = '';
-  for (let from = at; from + 2 <= data.length && text.length < 200;) {
+  for (let from = at; from + 2 <= data.length && text.length < limit;) {
     const unit = data.readUInt16BE(from);
     from += 2;
     if (!unit) break;
-    if (unit === 0xffff) from += 1;
-    else text += String.fromCharCode(unit);
+    if (unit === 0xffff) {
+      if (data[from] === 0 && text && !/[ -]$/.test(text)) text += ' ';
+      from += 1;
+    } else text += String.fromCharCode(unit);
   }
-  return text;
+  return text.trim();
 }
 
-function readMessages(data) {
+function readMessages(data, limit) {
   const messages = new Map();
   for (const table of MESSAGES) {
     const count = data.readUInt16BE(table + 4);
     for (let i = 0; i < count; i++) {
       const key = data.readUInt32BE(table + 0x10 + i * 8);
-      if (!messages.has(key)) messages.set(key, messageText(data, table + data.readUInt32BE(table + 0x14 + i * 8)));
+      if (!messages.has(key)) messages.set(key, messageText(data, table + data.readUInt32BE(table + 0x14 + i * 8), limit));
     }
   }
   return messages;

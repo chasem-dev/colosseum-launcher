@@ -54,7 +54,7 @@ onPage('pokedex', { show: () => window.coloPokedex?.show(), hide: () => window.c
 onPage('online', { show: () => window.coloOnline?.show(), hide: () => window.coloOnline?.hide() });
 
 // Settings is one page with a tab per section; it reopens on the last one shown.
-const settingsTabs = ['gameplay', 'display', 'graphics', 'controls', 'manage', 'launcher'];
+const settingsTabs = ['gameplay', 'display', 'graphics', 'controls', 'gba', 'manage', 'launcher'];
 let settingsTab = 'gameplay';
 function showSettingsTab(name) {
   if (settingsTab === 'controls' && name !== 'controls') stopCapture();
@@ -95,6 +95,135 @@ for (const key of ['stickDeadzone', 'triggerClick']) {
 }
 $('rumbleStrength').addEventListener('input', () => renderRange('rumbleStrength', 'Off'));
 $('rumbleStrength').addEventListener('change', () => saveSettings());
+$('gbaVolume').addEventListener('input', () => renderRange('gbaVolume', 'Off'));
+$('gbaVolume').addEventListener('change', () => saveSettings());
+
+// Settings → Game Boy Advance: each socket's Gen 3 save (src/gen3-save.js reads it), and, under Advanced,
+// the Game Pak it belongs to and a BIOS, for running the GBA itself (src/gba.js checks them).
+const GBA_SOCKETS = ['2', '3', '4'];
+let gbaFound = null, gbaLooking = false, gbaBusy = false;
+async function gbaAction(call) {
+  setMessage('');
+  try {
+    const result = await call();
+    if (result && result.config) refresh(result);
+  } catch (error) { showError(error); }
+}
+function gbaNote(id, item) {
+  const text = item?.error || item?.warning || '';
+  $(id).textContent = text;
+  $(id).hidden = !text;
+  $(id).classList.toggle('rom-error', Boolean(item?.error));
+}
+function gbaElement(tag, className, text) {
+  const item = document.createElement(tag);
+  if (className) item.className = className;
+  if (text !== undefined) item.textContent = text;
+  return item;
+}
+function gbaButton(actions, label, call) {
+  const item = gbaElement('button', 'subtle', label);
+  item.disabled = gbaBusy;
+  item.addEventListener('click', () => gbaAction(call));
+  actions.append(item);
+}
+// "ASH's Emerald: 6 Pokémon, 12:34 played"
+function gbaSaveName(save) {
+  const party = save.party.length === 1 ? '1 Pokémon' : `${save.party.length} Pokémon`;
+  return `${save.trainer || 'Trainer'}'s ${save.gameName}: ${party}, ${save.playTime} played`;
+}
+function gbaSaveRow(socket, entry) {
+  const row = gbaElement('div', 'path-row gba-socket');
+  const text = gbaElement('div');
+  const save = entry?.save;
+  const label = socket === '2' ? 'Your save' : `Save on socket ${socket}`;
+  text.append(gbaElement('strong', '', save && !save.error ? `${label}: ${gbaSaveName(save)}` : label));
+  const file = gbaElement('span', 'small-path', save ? save.path : 'None chosen');
+  file.title = save?.path || '';
+  text.append(file);
+  const problem = save?.error || save?.problem || '';
+  if (problem) text.append(gbaElement('span', `small-path gba-note${save.error ? ' rom-error' : ''}`, problem));
+  const actions = gbaElement('div', 'actions');
+  if (save) gbaButton(actions, 'Remove', () => window.colo.clearGbaFile('save', socket));
+  gbaButton(actions, save ? 'Change save' : 'Choose save', () => window.colo.chooseGbaFile('save', socket));
+  row.append(text, actions);
+  return row;
+}
+function gbaPakRow(socket, entry) {
+  const row = gbaElement('div', 'path-row gba-socket');
+  const text = gbaElement('div');
+  const rom = entry?.rom;
+  text.append(gbaElement('strong', '', `Socket ${socket} Game Pak${rom ? `: ${rom.name || 'Not usable'}` : ''}`));
+  text.append(gbaElement('span', 'small-path', rom ? rom.path : entry ? 'None: the game answers from the save' : socket === '2' ? 'Choose your save above first' : 'Choose a save for this socket first'));
+  if (rom && (rom.error || rom.warning)) text.append(gbaElement('span', `small-path gba-note${rom.error ? ' rom-error' : ''}`, rom.error || rom.warning));
+  const actions = gbaElement('div', 'actions');
+  if (rom) gbaButton(actions, 'Remove', () => window.colo.clearGbaFile('rom', socket));
+  if (entry) gbaButton(actions, rom ? 'Change Game Pak' : 'Choose Game Pak', () => window.colo.chooseGbaFile('rom', socket));
+  else if (socket !== '2') gbaButton(actions, 'Choose save', () => window.colo.chooseGbaFile('save', socket));
+  row.append(text, actions);
+  return row;
+}
+// Saves found where emulators keep them, offered while socket 2 has none.
+function renderGbaFound(gba) {
+  const box = $('gba-found');
+  const chosen = new Set(Object.values(gba.sockets).map(entry => entry.save?.path));
+  const found = (gbaFound || []).filter(item => !chosen.has(item.path)).slice(0, 5);
+  box.hidden = Boolean(gba.sockets['2']) || (!gbaLooking && !found.length);
+  if (box.hidden) return;
+  const rows = [gbaElement('p', 'helper', gbaLooking ? 'Looking for saves on this computer…' : 'Found on this computer:')];
+  for (const item of found) {
+    const row = gbaElement('div', 'path-row');
+    const text = gbaElement('div');
+    text.append(gbaElement('strong', '', `${item.trainer || 'Trainer'}'s ${item.gameName}: ${item.party === 1 ? '1 Pokémon' : `${item.party} Pokémon`}, ${item.playTime} played`));
+    const file = gbaElement('span', 'small-path', item.path);
+    file.title = item.path;
+    text.append(file);
+    if (item.problem) text.append(gbaElement('span', 'small-path gba-note', item.problem));
+    const actions = gbaElement('div', 'actions');
+    gbaButton(actions, 'Use this save', () => window.colo.useGbaSave('2', item.path));
+    row.append(text, actions);
+    rows.push(row);
+  }
+  box.replaceChildren(...rows);
+}
+async function lookForGbaSaves(gba) {
+  if (gbaFound || gbaLooking || !window.colo.gbaSuggestions) return;
+  gbaLooking = true;
+  renderGbaFound(gba);
+  try { gbaFound = await window.colo.gbaSuggestions(); } catch (_) { gbaFound = []; }
+  gbaLooking = false;
+  renderGbaFound(lastGba);
+}
+let lastGba = { bios: null, sockets: {}, ready: false };
+function renderGba(data) {
+  const gba = data.gba || { bios: null, sockets: {}, ready: false };
+  lastGba = gba;
+  gbaBusy = Boolean(data.active);
+  $('gba-bios-path').textContent = gba.bios ? `${gba.bios.name || 'Not usable'}: ${gba.bios.path}` : "None: mGBA's own BIOS starts the GBA.";
+  $('gba-bios-path').title = gba.bios?.path || '';
+  gbaNote('gba-bios-note', gba.bios);
+  $('gba-bios-choose').textContent = gba.bios ? 'Change file' : 'Choose file';
+  $('gba-bios-clear').hidden = !gba.bios;
+  for (const id of ['gba-bios-choose', 'gba-bios-clear']) $(id).disabled = gbaBusy;
+  $('gba-backups-path').textContent = gba.backupFolder || '';
+  $('gba-backups-path').title = gba.backupFolder || '';
+  // socket 2 always; 3 and 4 once they have a save, or under Advanced to add one
+  const extra = GBA_SOCKETS.slice(1).filter(socket => gba.sockets[socket]);
+  $('gba-save').replaceChildren(gbaSaveRow('2', gba.sockets['2']), ...extra.map(socket => gbaSaveRow(socket, gba.sockets[socket])));
+  $('gba-paks').replaceChildren(...GBA_SOCKETS.map(socket => gbaPakRow(socket, gba.sockets[socket])));
+  renderGbaFound(gba);
+  if (!gba.sockets['2']) lookForGbaSaves(gba);
+  const usable = Object.entries(gba.sockets).filter(([, entry]) => !entry.save.error && !entry.rom?.error);
+  const problem = usable.map(([, entry]) => entry.save.problem).find(Boolean);
+  $('gba-status').textContent = !gba.ready
+    ? (Object.keys(gba.sockets).length ? 'This save can\'t be used: choose another.' : 'Choose your save to link a GBA. Until then the game sees no GBA, as with no cable.')
+    : problem ? `The game will see your GBA, but won't link yet. ${problem}`
+      : usable.some(([, entry]) => entry.rom) ? 'Ready: when the game asks for a Game Boy Advance, it starts with your Game Pak and save.'
+        : 'Ready: when the game asks for a Game Boy Advance, it links with your save.';
+}
+$('gba-bios-choose').addEventListener('click', () => gbaAction(() => window.colo.chooseGbaFile('bios')));
+$('gba-bios-clear').addEventListener('click', () => gbaAction(() => window.colo.clearGbaFile('bios')));
+$('gba-backups-open').addEventListener('click', () => gbaAction(() => window.colo.openGbaBackups()));
 
 function bindingNote() {
   return bindingMode === 'controller'
@@ -631,6 +760,9 @@ function refresh(data) {
   $('update-channel-field').hidden = data.portable;
   $('update-channel-note').hidden = data.portable;
   renderGameSource(data);
+  renderLanguages(data.languages, config.settings.language);
+  $('language-note').hidden = data.languagesReady !== false || config.settings.language === 'en';
+  $('language-note').textContent = 'Update your game to play in this language. This version of the game plays in English.';
   for (const key of SELECTS) $(key).value = String(config.settings[key]);
   renderRanges();
   for (const key of SWITCHES) $(key).checked = config.settings[key];
@@ -648,6 +780,10 @@ function refresh(data) {
   renderRange('triggerClick');
   renderRange('rumbleStrength', 'Off');
   for (const key of ['stickDeadzone', 'triggerClick', 'rumbleStrength']) $(key).disabled = Boolean(data.active);
+  $('gbaVolume').value = String(config.settings.gbaVolume ?? 100);
+  renderRange('gbaVolume', 'Off');
+  $('gbaVolume').disabled = Boolean(data.active);
+  renderGba(data);
   if (!capture) renderBindings();
   $('reset-bindings').disabled = Boolean(data.active);
   for (const key of [...SELECTS, ...SWITCHES, 'graphicsPreset']) $(key).disabled = Boolean(data.active);
@@ -658,10 +794,20 @@ function refresh(data) {
 }
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
-const SELECTS = ['battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic',
-  'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
-const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3',
-  'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'overlay', 'backgroundInput', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+const SELECTS = ['battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
+const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'shinyShadow', 'shinyStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+
+// The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
+// removed from the folder stays listed, as the game plays in English without it.
+function renderLanguages(list = [{ code: 'en', name: 'English' }], chosen = 'en') {
+  const items = list.some(item => item.code === chosen) ? list : list.concat({ code: chosen, name: chosen, missing: true });
+  $('language').replaceChildren(...items.map(item => {
+    const option = document.createElement('option');
+    option.value = item.code;
+    option.textContent = item.missing ? `${item.name} (not found: plays in English)` : item.local ? `${item.name} (your folder)` : item.name;
+    return option;
+  }));
+}
 
 let updateChannels = [{ id: 'stable', label: 'Stable' }];
 function renderUpdateChannels(chosen) {
@@ -769,30 +915,55 @@ function renderMacTools(tools) {
     : tools.checked ? 'Some tools still need to be installed.' : 'Checking tools…';
 }
 
-// A Windows folder too deep to build the game in: the part of its path over
-// the limit is marked, so players see how much shorter it must be.
+// A Windows folder the game can't be built in: too deep, with the part of its
+// path over the limit marked so players see how much shorter it must be, or
+// with an & in its path, marked where it is.
 function showPathProblem() {
   const problem = current?.pathProblem;
   if (!problem) return false;
-  const over = problem.length - problem.limit;
-  $('path-folder-name').textContent = problem.portable ? 'The Colosseum-Launcher-Portable folder' : 'The folder holding the setup files';
-  $('path-length').textContent = problem.length;
-  $('path-limit').textContent = problem.limit;
-  const mark = document.createElement('mark');
-  mark.textContent = problem.folder.slice(problem.limit);
-  $('path-folder').replaceChildren(problem.folder.slice(0, problem.limit), mark);
-  $('path-over').textContent = `${over} character${over === 1 ? '' : 's'} too long`;
+  const folderName = problem.portable ? 'The Colosseum-Launcher-Portable folder' : 'The folder holding the setup files';
+  const characters = problem.kind === 'characters';
+  const listed = characters ? problem.characters.join(' or ') : '';
+  $('path-too-long-title').textContent = characters ? `Move the launcher to a folder without ${listed}` : 'Move the launcher to a shorter folder';
+  $('path-too-long-lead').textContent = characters ? `Windows can't build the game in a folder with ${listed} in its path.`
+    : "Windows can't build the game this deep in your folders.";
+  if (characters) {
+    const strong = document.createElement('strong');
+    strong.textContent = listed;
+    $('path-summary').replaceChildren(`${problem.name}'s path has `, strong, ' in it.');
+    $('path-folder').replaceChildren(...problem.folder.split(/([&^])/).filter(Boolean).map(part => {
+      if (!problem.characters.includes(part)) return part;
+      const mark = document.createElement('mark');
+      mark.textContent = part;
+      return mark;
+    }));
+    $('path-over').textContent = `Can't be in the path`;
+  } else {
+    const over = problem.length - problem.limit;
+    const length = document.createElement('strong'), limit = document.createElement('strong');
+    length.textContent = problem.length;
+    limit.textContent = problem.limit;
+    $('path-summary').replaceChildren(`${folderName}'s path is `, length,
+      ' characters long, but the game can only be built in a folder of up to ', limit, '.');
+    const mark = document.createElement('mark');
+    mark.textContent = problem.folder.slice(problem.limit);
+    $('path-folder').replaceChildren(problem.folder.slice(0, problem.limit), mark);
+    $('path-over').textContent = `${over} character${over === 1 ? '' : 's'} too long`;
+  }
+  const place = characters ? `a folder without ${listed} in its path` : 'a shorter folder';
   $('path-steps').replaceChildren(...(problem.portable ? [
     'Close the launcher.',
-    'Move the launcher and its Colosseum-Launcher-Portable folder together to a short folder, such as C:\\Games.',
+    `Move the launcher and its Colosseum-Launcher-Portable folder together to ${characters ? place : 'a short folder'}, such as C:\\Games.`,
     'Open the launcher from there. Your saves, settings and downloads come with it.'
-  ] : ['Open Settings and choose a shorter folder for Setup files, such as C:\\Games.']).map(text => {
+  ] : [`Open Settings and choose ${place} for Setup files, such as C:\\Games.`]).map(text => {
     const item = document.createElement('li');
     item.textContent = text;
     return item;
   }));
-  $('path-why').textContent = `Windows' compiler can't open files whose paths are 260 characters or more, and the build ` +
-    `reaches ${problem.deepest} characters deeper than this folder.`;
+  $('path-why').textContent = characters
+    ? `Windows' command prompt runs some of the build's steps and reads ${listed} as part of a command, so the build would stop partway.`
+    : `Windows' compiler can't open files whose paths are 260 characters or more, and the build ` +
+      `reaches ${problem.deepest} characters deeper than this folder.`;
   closeModal();
   $('path-too-long').showModal();
   return true;
@@ -906,7 +1077,7 @@ function renderDependents(busy = false) {
 
 function settingsValue() {
   const value = { keyBindings, padBindings, stickDeadzone: Number($('stickDeadzone').value),
-    triggerClick: Number($('triggerClick').value), rumbleStrength: Number($('rumbleStrength').value),
+    triggerClick: Number($('triggerClick').value), rumbleStrength: Number($('rumbleStrength').value), gbaVolume: Number($('gbaVolume').value),
     graphicsPreset: $('graphicsPreset').value };
   for (const key of SELECTS) value[key] = $(key).value;
   for (const key of SWITCHES) value[key] = $(key).checked;
@@ -1394,7 +1565,9 @@ $('export-gci-save').addEventListener('click', async () => {
     else {
       const warning = result.damaged ? ' Its newest progress could not be read, so the game will load the copy before it.' : '';
       const randomized = result.randomized ? ' This is a randomizer run: your team comes with it, but Dolphin plays the rest as the normal game.' : '';
-      resultText.textContent = `Exported ${result.trainer}'s save to ${result.file}.${warning}${randomized}`;
+      const n = result.extraBoxPokemon;
+      const boxes = n ? ` Dolphin's game has 3 PC boxes, so ${n === 1 ? 'the Pokémon' : `the ${n} Pokémon`} in boxes 4 to 10 ${n === 1 ? 'is' : 'are'} not in this file.` : '';
+      resultText.textContent = `Exported ${result.trainer}'s save to ${result.file}.${warning}${randomized}${boxes}`;
     }
   } catch (error) { resultText.textContent = errorText(error); }
   await sync();
@@ -1417,6 +1590,7 @@ for (const type of ['dragover', 'drop']) window.addEventListener(type, event => 
 $('open-custom-textures').addEventListener('click', () => window.colo.openCustomTextures().catch(showError));
 $('choose-pbr-disc').addEventListener('click', () => action('choosePbrDisc'));
 $('make-pbr-models').addEventListener('click', () => action('makePbrModels'));
+$('open-languages').addEventListener('click', () => window.colo.openLanguages().catch(showError));
 for (const key of [...SELECTS, ...SWITCHES]) $(key).addEventListener('change', saveSettings);
 $('randomizer-reroll').addEventListener('click', async () => {
   try {

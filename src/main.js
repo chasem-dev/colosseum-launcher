@@ -15,6 +15,8 @@ const game = require('./game-version');
 const updateChannel = require('./update-channel');
 const gameSource = require('./game-source');
 const gcAdapter = require('./gc-adapter');
+const gbaLink = require('./gba');
+const gen3Save = require('./gen3-save');
 const appImageUpdate = require('./appimage-update');
 const bindings = require('./bindings');
 const portable = require('./portable');
@@ -34,10 +36,13 @@ const parties = require('./parties');
 const storyParty = require('./story-party');
 const pokedexNames = require('./pokedex');
 const pokedexData = pokedexNames.create();
+const battleData = require('./battle-data').create();
+const teamSets = require('./team-sets');
 const pokemonPacks = require('./pokemon-packs');
 const generations = require('./generations');
 const hsdModel = require('./hsd-model');
 const randomizer = require('./randomizer');
+const languagePacks = require('./language-packs');
 const { retrying, httpError } = require('./retry');
 
 const GAME_NAME = 'Pokémon Colosseum';
@@ -214,7 +219,9 @@ function loadConfig() {
     // Random, made on first run, and only ever sent with usage heartbeats.
     installId: telemetry.validInstallId(saved.installId) ? saved.installId : crypto.randomUUID(),
     // The trainer name, parties and room options of the Online page.
-    online: parties.normalize(saved.online)
+    online: parties.normalize(saved.online),
+    // The Game Boy Advance's BIOS, and each socket's Game Pak and save (Settings → Game Boy Advance).
+    gba: gbaLink.normalize(saved.gba)
   };
   if (config.installId !== saved.installId) {
     try { saveConfig(); } catch (error) { log(`Could not save preferences: ${error.message}`); }
@@ -587,21 +594,23 @@ async function checkTools(refresh = false) {
   return buildTools.check(app.getPath('userData'), { refresh });
 }
 
-// A Windows game folder or build tools too deep for the compiler fail deep
-// into the build with "No such file or directory" for a file that is there.
-// The launcher shows this when it opens, and stops before downloading the
-// tools or building. root defaults to where the next game update builds.
+// A Windows game folder or build tools too deep for the compiler, or a game
+// folder with an & in its path, fail deep into the build with "No such file
+// or directory". The launcher shows this when it opens, and stops before
+// downloading the tools or building. root defaults to where the next game
+// update builds.
 function pathProblem(root = config.repo && game.snapshotPath(config.installRoot || config.repo, currentSource())) {
   if (process.platform !== 'win32' || !root) return null;
-  return port.longPathProblem(root, { portable: Boolean(portableRoot),
-    folder: portableRoot || path.dirname(config.installRoot || config.repo),
-    msys: process.env.COLO_MSYS2_ROOT || path.join(buildTools.rootFor(app.getPath('userData')), 'msys64') });
+  const folder = portableRoot || path.dirname(config.installRoot || config.repo);
+  return port.longPathProblem(root, { portable: Boolean(portableRoot), folder,
+    msys: process.env.COLO_MSYS2_ROOT || path.join(buildTools.rootFor(app.getPath('userData')), 'msys64') }) ||
+    port.pathCharacterProblem(root, { portable: Boolean(portableRoot), folder });
 }
 
 // The last one that stopped a build, which the launcher shows in place of the
 // next update's: a fresh build's folder is longer.
 let blockedPath = null;
-function requireShortPaths(root) {
+function requireBuildablePath(root) {
   const problem = blockedPath = pathProblem(root);
   if (!problem) return;
   log(problem.message);
@@ -643,7 +652,7 @@ function systemDllList(files) {
 }
 
 async function prepareBuildTools() {
-  requireShortPaths();
+  requireBuildablePath();
   if (preparingTools) throw new Error('Wait for build tools to finish preparing.');
   if (active) throw new Error(`Wait for ${active.label} to finish, or stop it first.`);
   const userData = app.getPath('userData');
@@ -792,7 +801,7 @@ async function build(forceFresh = false) {
     game.carryUserFiles(original, root);
   }
   // A fresh build's folder is longer than the one ensureBuildTools checked.
-  requireShortPaths(root);
+  requireBuildablePath(root);
   if (!port.hdVisualsInstalled(root, settings)) await installTextures(root);
   // Only the icon needs it, so a build without it goes on without one.
   if (process.platform === 'win32') {
@@ -1029,6 +1038,28 @@ function pokedexLook(key, form) {
   return { pkx: entry.files[form] };
 }
 
+// Language packs, in the launcher's own folder: every game version uses them (language-packs.js).
+function languageFolder() { return languagePacks.folder(app.getPath('userData')); }
+
+// The chosen language's pack, downloaded first when this launcher's catalog has it and it isn't there yet.
+async function ensureLanguage(settings) {
+  if (!languagePacks.needsInstall(settings, languageFolder())) return;
+  const pack = languagePacks.catalogPack(settings.language);
+  log(`Downloading the ${pack.name} language pack (${(pack.size / 1048576).toFixed(1)} MB).`);
+  try {
+    await languagePacks.install(languageFolder(), pack, {
+      onProgress: (have, size) => {
+        if (!operation) return;
+        Object.assign(operation, { detail: `Downloading ${pack.name}…`, percent: size ? Math.min(100, Math.round(have / size * 100)) : null });
+        broadcast('activity', activityState());
+      }
+    });
+  } catch (error) {
+    throw new Error(`Couldn't download the ${pack.name} language pack (${error.message}). Check your connection, or choose English under Settings → Gameplay.`);
+  }
+  log(`The ${pack.name} language pack is ready.`);
+}
+
 // A game that closed with an error says where its crash report is, when it left one.
 function noteCrashReport(error, since) {
   const report = crashReports.newestSince(crashReports.directory(), since);
@@ -1045,6 +1076,7 @@ async function play(installation = null, battle = null) {
   if (!binaryReady(root)) throw new Error('Set up this version of the game before playing.');
   if (!port.hdVisualsInstalled(root, settings))
     throw new Error('HD visuals need to be set up. Return to the main screen to finish setup, or turn them off in Settings.');
+  await ensureLanguage(settings);
   // An online battle plays on no save: the memory card stays as it was.
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
@@ -1056,7 +1088,8 @@ async function play(installation = null, battle = null) {
     catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); }
   }
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
-    ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings),
+    ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
+    ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
     COLO_RANDOMIZER_LOG: spoilerFile(),
     SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
@@ -1262,7 +1295,11 @@ function storyState() {
   const { party, error } = readStory();
   return { error, supported: binaryReady() && onlineFeatures(config.repo).story,
     trainer: party?.trainer || null, leftOut: party?.leftOut || 0, packsLeftOut: party?.packsLeftOut || 0,
-    members: (party?.members || []).map(member => ({ species: member.species, nickname: member.nickname, level: member.level, shiny: member.shiny })) };
+    members: (party?.members || []).map(member => ({ species: member.species, nickname: member.nickname, level: member.level, shiny: member.shiny,
+      // all the team builder needs to copy it into a party of the player's own
+      set: { species: member.species, nickname: member.nickname, item: member.item, ability: member.ability, nature: member.rnd % 25,
+        genderByte: member.rnd & 0xff, shiny: member.shiny, moves: member.moves.map(([move]) => move).filter(Boolean), evs: member.evs,
+        ivs: member.ivs, friendship: member.friendship, ball: member.ball } })) };
 }
 
 // Why the Story party can't battle in a room of `size` each, or null.
@@ -1288,7 +1325,13 @@ function battleParty(size) {
     const members = readStory().party.members.slice(0, parties.PARTY_SIZE);
     return { party: members.map(member => member.species), members: members.map(storyParty.wireMember) };
   }
-  return { party: parties.selectedParty(config.online).members };
+  // A built party's sets go to the game as a Story party's Pokémon do. A game from before those takes the species only.
+  const party = parties.selectedParty(config.online);
+  if (!onlineFeatures(config.repo).story) return { party: party.members };
+  let species = {};
+  try { species = battleData(port.validateRom(config.rom)).species; }
+  catch (error) { log(`Team builder: couldn't read genders from the disc (${error.message}).`); }
+  return { party: party.members, members: party.sets.map((set, slot) => teamSets.toWire(set, species[set.species]?.gender ?? teamSets.GENDER.none, slot)) };
 }
 
 // Why a room can't be made or joined now, or null.
@@ -1439,6 +1482,9 @@ function state() {
     texturesInstalled: repoReady && port.texturePackInstalled(config.repo),
     pbr: pbrState(),
     texturePack: { size: port.TEXTURE_PACK.size, unpacked: port.TEXTURE_PACK.unpacked },
+    languages: languagePacks.choices(languageFolder()),
+    // Whether the game on disk reads language packs.
+    languagesReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'language.c')),
     binaryReady: ready,
     tools: toolsStatus(),
     gameSource: config.gameSource ? { override: config.gameSource.override, version: config.gameSource.resolved.version } : null,
@@ -1453,9 +1499,13 @@ function state() {
     crashReports: crashReports.summary(crashReports.directory()), directPlayFailure,
     // The run on the memory card, and whether the game on disk can play one.
     randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c')),
-    usage: usageCount, online: onlineState()
+    usage: usageCount, online: onlineState(),
+    gba: { ...gbaLink.status(config.gba), backupFolder: gbaBackupFolder() }
   };
 }
+
+// Copies of GBA saves the game keeps before a GBA first starts in a session, beside the launcher's own backups.
+function gbaBackupFolder() { return path.join(saves.backupRoot(), 'GBA saves'); }
 
 // Stable never sees a pre-release. Beta and pull request previews are opt-in,
 // and may be older than what is installed, so leaving one can go back down.
@@ -1657,6 +1707,8 @@ function registerHandlers() {
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('pokedex', () => pokedexList(port.validateRom(config.rom)));
+  // gameTakesSets: false when the installed game is from before sets, and battles with its species only
+  ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story }));
   ipcMain.handle('pokedex-model', (_event, key, form) => {
     const look = pokedexLook(key, String(form));
     return look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form));
@@ -1713,6 +1765,66 @@ function registerHandlers() {
     config.pbrDisc = chosen.filePaths[0];
     saveConfig();
     return state();
+  });
+  // The Game Boy Advance's files: what is chosen is checked, and kept only if the game can use it. A socket's
+  // save comes first (a virtual GBA answers from it); its Game Pak and the BIOS are optional.
+  const setGbaSocket = (socket, change) => {
+    const sockets = { ...config.gba.sockets };
+    const next = { save: '', rom: '', ...(sockets[socket] || {}), ...change };
+    if (next.save) sockets[socket] = next; else delete sockets[socket];
+    config.gba = gbaLink.normalize({ ...config.gba, sockets });
+    saveConfig();
+  };
+  const useGbaSave = (socket, file) => {
+    gen3Save.read(file);   // throws with the reason when it isn't a Gen 3 save
+    setGbaSocket(socket, { save: file });
+  };
+  ipcMain.handle('choose-gba-file', async (_event, kind, socket) => {
+    if (operation || active) throw new Error('Finish the current task before changing game files.');
+    if (kind !== 'bios' && !gbaLink.SOCKETS.includes(String(socket))) throw new Error('No such controller socket.');
+    const entry = kind === 'bios' ? null : config.gba.sockets[String(socket)];
+    if (kind === 'rom' && !entry) throw new Error('Choose the save first.');
+    const options = {
+      bios: { title: 'Choose a dump of your Game Boy Advance\'s BIOS', filters: [{ name: 'GBA BIOS', extensions: ['bin', 'rom', 'gba'] }, { name: 'All files', extensions: ['*'] }] },
+      save: { title: 'Choose your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save', filters: [{ name: 'GBA saves', extensions: ['sav', 'srm'] }, { name: 'All files', extensions: ['*'] }] },
+      rom: { title: 'Choose a dump of the Game Pak this save belongs to', filters: [{ name: 'GBA games', extensions: ['gba', 'agb', 'bin'] }, { name: 'All files', extensions: ['*'] }] }
+    }[kind];
+    if (!options) throw new Error('Unknown file.');
+    const chosen = await dialog.showOpenDialog(window, { ...options, properties: ['openFile'] });
+    if (chosen.canceled || !chosen.filePaths[0]) return state();
+    const file = chosen.filePaths[0];
+    if (kind === 'bios') {
+      const check = gbaLink.checkBios(file);
+      if (check.error) throw new Error(check.error);
+      config.gba = gbaLink.normalize({ ...config.gba, bios: file });
+      saveConfig();
+    } else if (kind === 'save') {
+      useGbaSave(String(socket), file);
+    } else {
+      const check = gbaLink.checkGamePak(file);
+      if (check.error) throw new Error(check.error);
+      setGbaSocket(String(socket), { rom: file });
+    }
+    return state();
+  });
+  ipcMain.handle('use-gba-save', (_event, socket, file) => {
+    if (operation || active) throw new Error('Finish the current task before changing game files.');
+    if (!gbaLink.SOCKETS.includes(String(socket))) throw new Error('No such controller socket.');
+    useGbaSave(String(socket), String(file));
+    return state();
+  });
+  ipcMain.handle('clear-gba-file', (_event, kind, socket) => {
+    if (operation || active) throw new Error('Finish the current task before changing game files.');
+    if (kind === 'bios') { config.gba = gbaLink.normalize({ ...config.gba, bios: '' }); saveConfig(); }
+    else if (kind === 'rom') setGbaSocket(String(socket), { rom: '' });
+    else setGbaSocket(String(socket), { save: '', rom: '' });
+    return state();
+  });
+  // Gen 3 saves where emulators keep them (a few folders a few levels down), for Settings to offer.
+  ipcMain.handle('gba-suggestions', () => gbaLink.suggestions(config.rom ? [path.dirname(config.rom)] : []));
+  ipcMain.handle('open-gba-backups', () => {
+    fs.mkdirSync(gbaBackupFolder(), { recursive: true });
+    return shell.openPath(gbaBackupFolder());
   });
   ipcMain.handle('choose-repo', async () => {
     if (portableRoot) throw new Error('The portable launcher keeps its setup files in its own folder.');
@@ -1794,7 +1906,7 @@ function registerHandlers() {
     if (chosen.canceled || !chosen.filePath) return { cancelled: true };
     const file = gciSave.writeGci(save.gci, chosen.filePath);
     log(`Exported ${save.title} save to ${file}.`);
-    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, randomized: Boolean(saveRun(currentSaveDirectory()).run) };
+    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, extraBoxPokemon: save.extraBoxPokemon, randomized: Boolean(saveRun(currentSaveDirectory()).run) };
   }));
   ipcMain.handle('restore-saves', async (_event, id) => {
     if (operation || active) throw new Error('Stop the running game or task before restoring saves.');
@@ -1814,6 +1926,10 @@ function registerHandlers() {
   ipcMain.handle('open-backups', () => {
     fs.mkdirSync(saves.backupRoot(), { recursive: true, mode: 0o700 });
     return shell.openPath(saves.backupRoot());
+  });
+  ipcMain.handle('open-languages', () => {
+    fs.mkdirSync(languageFolder(), { recursive: true });
+    return shell.openPath(languageFolder());
   });
   ipcMain.handle('open-custom-textures', () => {
     fs.mkdirSync(customTextureDirectory(), { recursive: true });

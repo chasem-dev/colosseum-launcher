@@ -156,6 +156,25 @@ test('battle speed is 1.5x unless changed, in tenths from 1x to 5x, and 1x leave
   } finally { if (saved !== undefined) process.env.COLO_BATTLE_SPEED = saved; }
 });
 
+test('the shiny settings are on unless turned off, and on leaves them to the game', () => {
+  const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
+  const saved = [process.env.COLO_SHINY_SHADOW, process.env.COLO_SHINY_STARTERS];
+  delete process.env.COLO_SHINY_SHADOW;
+  delete process.env.COLO_SHINY_STARTERS;
+  try {
+    assert.equal(port.normalizeSettings({}).shinyShadow, true);
+    assert.equal(port.normalizeSettings({}).shinyStarters, true);
+    assert.equal(env({}).COLO_SHINY_SHADOW, undefined);
+    assert.equal(env({}).COLO_SHINY_STARTERS, undefined);
+    assert.equal(env({ shinyShadow: false }).COLO_SHINY_SHADOW, '0');
+    assert.equal(env({ shinyShadow: false }).COLO_SHINY_STARTERS, undefined);
+    assert.equal(env({ shinyStarters: false }).COLO_SHINY_STARTERS, '0');
+  } finally {
+    if (saved[0] !== undefined) process.env.COLO_SHINY_SHADOW = saved[0];
+    if (saved[1] !== undefined) process.env.COLO_SHINY_STARTERS = saved[1];
+  }
+});
+
 test('HD models are on unless turned off, and on leaves it to the game', () => {
   const env = hdModels => port.buildEnvironment(port.normalizeSettings({ hdModels }), 'disc', '/port').COLO_HD_MODELS;
   const saved = process.env.COLO_HD_MODELS;
@@ -239,6 +258,29 @@ test('the game is one build, and starts in its folder with the disc named', () =
   assert.deepEqual([start.command, start.args, start.cwd], [port.binaryPath('/game', 'linux'), ['/my/disc.iso'], '/game']);
 });
 
+test('on Linux the game starts with the system\'s libdrm_amdgpu preloaded, after what LD_PRELOAD holds', () => {
+  const lib = '/usr/lib/libdrm_amdgpu.so.1';
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', { HOME: '/h' }, lib).env.LD_PRELOAD, lib);
+  const steam = 'ubuntu12_32/gameoverlayrenderer.so:ubuntu12_64/gameoverlayrenderer.so';
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', { LD_PRELOAD: steam }, lib).env.LD_PRELOAD, `${steam}:${lib}`);
+  // A player's own preload of it stands, and no system copy leaves the environment as it is.
+  const own = { LD_PRELOAD: '/usr/lib64/libdrm_amdgpu.so.1' };
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', own, lib).env, own);
+  const none = { HOME: '/h' };
+  assert.equal(port.gameRunCommand('/game', 'd.iso', 'linux', none, null).env, none);
+  assert.equal('LD_PRELOAD' in port.gameRunCommand('/game', 'd.iso', 'darwin', { HOME: '/h' }, lib).env, false);
+});
+
+test('the system\'s libdrm_amdgpu is one for this processor, or none', () => {
+  const found = port.systemLibdrmAmdgpu('x64');
+  if (found) {
+    const header = fs.readFileSync(found).subarray(0, 20);
+    assert.equal(header[4], 2);
+    assert.equal(header.readUInt16LE(18), 0x3e);
+  }
+  assert.equal(port.systemLibdrmAmdgpu('ia32'), null);
+});
+
 test('builds run the launcher\'s script, through MSYS2\'s shell on Windows', t => {
   const unix = port.buildCommand('/game', 'linux', {});
   assert.equal(unix.command, '/bin/sh');
@@ -273,6 +315,27 @@ test('a Windows folder too deep to build in is found before the build, with what
   assert.match(problem.message, /C:\\Games/);
   const portable = port.longPathProblem(`${folder}\\game`, { platform: 'win32', folder, portable: true });
   assert.match(portable.message, /Colosseum-Launcher-Portable/);
+});
+
+test('a Windows folder with an & in its path is found before the build, with what to do', () => {
+  assert.equal(port.pathCharacterProblem('/Games & Stuff/game', { platform: 'linux' }), null);
+  assert.equal(port.pathCharacterProblem('C:\\Games\\Colosseum Game', { platform: 'win32' }), null);
+  const folder = 'E:\\Recomp & Decomp Games\\Colosseum Launcher\\Game';
+  const problem = port.pathCharacterProblem(`${folder}\\Colosseum Game.releases\\1988204-abcd`, { platform: 'win32', folder });
+  assert.equal(problem.kind, 'characters');
+  assert.equal(problem.folder, folder);
+  assert.deepEqual(problem.characters, ['&']);
+  assert.match(problem.message, /folder holding the setup files's path has & in it/);
+  assert.match(problem.message, /C:\\Games/);
+  const caret = port.pathCharacterProblem('C:\\a^b\\x & y\\game', { platform: 'win32', folder: 'C:\\a^b\\x & y' });
+  assert.deepEqual(caret.characters, ['^', '&']);
+  // Only the game folder below the chosen one has it: that folder is the one shown.
+  const below = port.pathCharacterProblem('C:\\Games\\Me & You\\game', { platform: 'win32', folder: 'C:\\Games' });
+  assert.equal(below.folder, 'C:\\Games\\Me & You\\game');
+  assert.match(below.message, /^The game folder's path/);
+  const portable = port.pathCharacterProblem('D:\\A&B\\Colosseum-Launcher-Portable\\game',
+    { platform: 'win32', folder: 'D:\\A&B\\Colosseum-Launcher-Portable', portable: true });
+  assert.match(portable.message, /^The Colosseum-Launcher-Portable folder's path/);
 });
 
 test('launcher updates stay on Stable unless a known channel is chosen', () => {

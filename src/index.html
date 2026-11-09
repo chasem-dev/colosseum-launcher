@@ -168,6 +168,7 @@
           <button id="tab-display" class="settings-tab" role="tab" aria-controls="pane-display" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5"/><path d="M7 17h6M10 13.5V17"/></svg>Display</button>
           <button id="tab-graphics" class="settings-tab" role="tab" aria-controls="pane-graphics" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><circle cx="7.5" cy="8" r="1.5"/><path d="m3 15 4.5-4.5 3 3 2.5-2.5 4.5 4.5"/></svg>Graphics</button>
           <button id="tab-controls" class="settings-tab" role="tab" aria-controls="pane-controls" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6.5h8a4 4 0 0 1 3.9 4.8l-.6 3a2 2 0 0 1-3.4 1L12 13.5H8l-1.9 1.8a2 2 0 0 1-3.4-1l-.6-3A4 4 0 0 1 6 6.5z"/><path d="M6.5 9v3M5 10.5h3M12.5 9.5h.1M14.5 11.5h.1"/></svg>Controls</button>
+          <button id="tab-gba" class="settings-tab" role="tab" aria-controls="pane-gba" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="5" width="17" height="10" rx="3"/><rect x="6.5" y="7" width="7" height="6" rx="0.5"/><path d="M3.5 10h1.5M4.25 9.25v1.5M15.5 9.5h.1M16.5 10.5h.1"/></svg>Game Boy Advance</button>
           <button id="tab-manage" class="settings-tab" role="tab" aria-controls="pane-manage" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12M4 10h12M4 16h12"/><circle cx="8" cy="4" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="7" cy="16" r="2"/></svg>Manage game</button>
           <button id="tab-launcher" class="settings-tab" role="tab" aria-controls="pane-launcher" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.1"/></svg>Launcher</button>
         </nav>
@@ -180,6 +181,11 @@
               <label class="switch"><span><strong>Skip battle animations</strong><small>Moves, send-outs and HP bars finish at once, without being shown. Text stays up long enough to read.</small></span><input id="skipBattleAnimations" type="checkbox"><i></i></label>
               <label class="field range-field"><span><strong>Battle animation speed</strong><output id="battleSpeed-value" for="battleSpeed">1.5×</output><small>How fast moves, send-outs and HP bars play; 1× is the original speed. Menus stay at normal speed, and text stays up long enough to read.</small></span><input id="battleSpeed" type="range" min="1" max="5" step="0.1" aria-label="Battle animation speed"></label>
               <label class="field"><span>Text<small>HD draws the game's fonts sharp from the Inter typeface. Upscaled keeps their original look, enlarged.</small></span><select id="hdText"><option value="on">HD</option><option value="upscaled">Upscaled</option><option value="off">As on the disc</option></select></label>
+              <label class="switch"><span><strong>Show shiny Shadow Pokémon</strong><small>A Shadow Pokémon looks shiny in battle if it will be shiny once you snag it. That's decided when you first meet it in battle, and it stays the same if you lose or battle it again. Only resetting to a save from before you met it gives a new chance.</small></span><input id="shinyShadow" type="checkbox"><i></i></label>
+              <label class="switch"><span><strong>Shiny starters</strong><small>Espeon and Umbreon can be shiny, at 1 in 8192 as in other Pokémon games; the original never makes them shiny. From your next New Game.</small></span><input id="shinyStarters" type="checkbox"><i></i></label>
+              <label class="field"><span>Language<small>The game's text, menus and title cards in French, German, Spanish or Italian, from the European release. A language downloads the first time you play with it.</small></span><select id="language"></select></label>
+              <p id="language-note" class="row-note" hidden></p>
+              <div class="field"><span>Other languages<small>A fan translation is a folder with a pack.json and a text.txt: put it in the languages folder and it shows in the list above.</small></span><button class="subtle" id="open-languages" type="button">Open languages folder</button></div>
             </div>
             <p class="preset-tip"><strong>Fast-forward:</strong> hold <strong>L + R</strong> (Q + E on the keyboard) to run the game at 4× and skip movies. <strong>A</strong> skips a movie.</p>
                       <h2 class="group-title">Randomizer</h2>
@@ -274,6 +280,21 @@
             <section id="gc-adapter-note" class="controls-note" aria-label="GameCube adapter" aria-live="polite" hidden><h2>GameCube adapter</h2><p id="gc-adapter-text"></p><div class="actions" id="gc-adapter-actions" hidden><button id="gc-adapter-allow">Allow access</button><button class="subtle" id="gc-adapter-copy">Copy terminal command</button><button class="subtle" id="gc-adapter-check">Check again</button></div><p class="helper" id="gc-adapter-helper"></p></section>
           </section>
 
+          <section id="pane-gba" class="settings-pane" role="tabpanel" aria-labelledby="tab-gba" hidden>
+            <h2 class="group-title">Game Boy Advance</h2>
+            <p class="helper">Link your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save to the game, as the GCN-GBA cable did: register your team for Colosseum Battle, trade, and get Poké Coupon prizes. Choose the save your emulator keeps: the game reads it, and writes trades and prizes back into it, with a backup first.</p>
+            <p class="helper" id="gba-status" aria-live="polite"></p>
+            <div class="settings-group" id="gba-save"></div>
+            <div class="settings-group" id="gba-found" hidden></div>
+            <h2 class="group-title">Playing</h2>
+            <div class="settings-group">
+              <label class="switch"><span><strong>Turn the GBA on and off for me</strong><small>When the game asks you to turn the GBA on, or off, it does. Turn this off to switch it yourself.</small></span><input id="gbaAutoPower" type="checkbox"><i></i></label>
+              <label class="field range-field"><span><strong>GBA sound</strong><output id="gbaVolume-value" for="gbaVolume">100%</output><small>How loud the GBA is next to the game; 0% mutes it.</small></span><input id="gbaVolume" type="range" min="0" max="100" step="5" aria-label="GBA sound"></label>
+              <div class="path-row"><div><strong>GBA save backups</strong><span class="small-path" id="gba-backups-path"></span><span class="small-path">A copy of each GBA save, made before the GBA first starts each time you play.</span></div><button class="subtle" id="gba-backups-open">Open folder</button></div>
+            </div>
+            <div class="settings-group source-group"><details id="gba-advanced"><summary><h2>If linking doesn't work: run the GBA itself <small>Advanced</small></h2></summary><p class="helper">Linking from the save alone has been checked with Emerald. If it doesn't work with your game, choose a dump of the Game Pak your save belongs to: the GBA then runs inside the game (mGBA, as in Dolphin) and the Game Pak does the linking itself, as on a console. This is also how to choose moves on a GBA's screen in Colosseum Battle, or to scan e-Reader cards. A BIOS dump is optional; mGBA has its own.</p><div class="settings-group" id="gba-paks"></div><div class="path-row"><div><strong>GBA BIOS <small>Optional</small></strong><span class="small-path" id="gba-bios-path"></span><span class="small-path gba-note" id="gba-bios-note"></span></div><div class="actions"><button class="subtle" id="gba-bios-clear" hidden>Remove</button><button class="subtle" id="gba-bios-choose">Choose file</button></div></div><p class="helper">The game asks for the GBA on socket 2. Sockets 3 and 4 are for linking three GBAs at once, and need no controller there.</p></details></div>
+            <p class="preset-tip"><strong>With a Game Pak:</strong> press <strong>G</strong> (<strong>Back</strong> on a controller) to use the GBA, and again to go back to the game; hold it for a second to turn the GBA on or off. To scan an e-Reader card, drop its .raw file on the game's window.</p>
+          </section>
           <section id="pane-manage" class="settings-pane" role="tabpanel" aria-labelledby="tab-manage" hidden>
             <h2 class="group-title">Game version</h2>
             <div class="settings-group">
@@ -340,9 +361,9 @@
     </dialog>
 
     <dialog id="path-too-long" class="launcher-modal path-modal" aria-labelledby="path-too-long-title">
-      <div class="modal-head"><div><p class="eyebrow">CAN'T BUILD HERE</p><h1 id="path-too-long-title">Move the launcher to a shorter folder</h1><p>Windows can't build the game this deep in your folders.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
+      <div class="modal-head"><div><p class="eyebrow">CAN'T BUILD HERE</p><h1 id="path-too-long-title">Move the launcher to a shorter folder</h1><p id="path-too-long-lead">Windows can't build the game this deep in your folders.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
       <div class="modal-body">
-        <p class="path-summary"><span id="path-folder-name"></span>'s path is <strong id="path-length"></strong> characters long, but the game can only be built in a folder of up to <strong id="path-limit"></strong>.</p>
+        <p id="path-summary" class="path-summary"><span id="path-folder-name"></span>'s path is <strong id="path-length"></strong> characters long, but the game can only be built in a folder of up to <strong id="path-limit"></strong>.</p>
         <p class="path-box"><code id="path-folder"></code></p>
         <p class="path-legend"><span class="path-legend-over" aria-hidden="true"></span><span id="path-over"></span></p>
         <ol id="path-steps" class="path-steps"></ol>
@@ -352,14 +373,50 @@
     </dialog>
 
     <dialog id="party-editor" class="launcher-modal party-editor" aria-labelledby="party-editor-title">
-      <div class="modal-head"><div><h1 id="party-editor-title">Party</h1><p>Choose six from the Pokédex. They'll battle at the room's level with their level-up moves, in this order.</p></div><button id="party-editor-close" class="modal-close" aria-label="Close">×</button></div>
-      <div class="party-editor-body">
-        <label class="online-field"><span>Party name</span><input id="party-name" class="online-input" type="text" maxlength="24" spellcheck="false" autocomplete="off"></label>
-        <div id="party-slots" class="party-slots" aria-label="Your party"></div>
-        <input id="party-search" class="pokedex-search" type="search" placeholder="Search by name or number" aria-label="Search Pokémon by name or number">
-        <div id="party-dex" class="party-dex" aria-label="Pokédex"></div>
+      <div class="modal-head tb-head">
+        <div class="tb-title">
+          <p class="eyebrow">TEAM BUILDER</p>
+          <h1 id="party-editor-title" class="visually-hidden">Party</h1>
+          <input id="party-name" class="tb-name" type="text" maxlength="24" spellcheck="false" autocomplete="off" aria-label="Party name">
+        </div>
+        <div class="tb-head-actions">
+          <button id="party-import" class="subtle" title="Paste a team in Pokémon Showdown's text format">Import</button>
+          <button id="party-export" class="subtle" title="Copy this team as Pokémon Showdown text">Export</button>
+          <button id="party-editor-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="tb-body">
+        <nav class="tb-team-column" aria-label="Your party">
+          <ol id="party-slots" class="tb-team"></ol>
+          <p class="tb-team-hint helper">Drag to change the order. The first one leads.</p>
+        </nav>
+        <section id="tb-main" class="tb-main" aria-live="polite">
+          <div id="tb-picker" class="tb-picker" hidden>
+            <div class="tb-picker-head">
+              <input id="party-search" class="pokedex-search" type="search" placeholder="Search by name, number or type" aria-label="Search Pokémon by name, number or type" spellcheck="false" autocomplete="off">
+              <button id="tb-picker-cancel" class="subtle" hidden>Back to set</button>
+            </div>
+            <div class="tb-dex-head" aria-hidden="true"><span></span><span>Pokémon</span><span>Types</span><span>Abilities</span><span>HP</span><span>Atk</span><span>Def</span><span>SpA</span><span>SpD</span><span>Spe</span><span>BST</span></div>
+            <div id="party-dex" class="tb-dex" role="listbox" aria-label="Pokédex"></div>
+          </div>
+          <div id="tb-set" class="tb-set" hidden></div>
+          <div id="tb-list" class="tb-list" role="listbox" hidden></div>
+        </section>
+      </div>
+      <div class="tb-foot">
         <p id="party-dex-note" class="helper" hidden></p>
-        <div class="actions party-editor-actions"><button id="party-delete" class="subtle">Delete party</button><span class="nav-spacer" aria-hidden="true"></span><button id="party-save" class="solid">Save party</button></div>
+        <button id="party-delete" class="text-button tb-delete">Delete party</button>
+        <span class="nav-spacer" aria-hidden="true"></span>
+        <span id="party-editor-status" class="tb-status"></span>
+        <button id="party-save" class="solid">Done</button>
+      </div>
+    </dialog>
+    <dialog id="party-text" class="launcher-modal party-text" aria-labelledby="party-text-title">
+      <div class="modal-head"><div><p class="eyebrow">POKÉMON SHOWDOWN TEXT</p><h1 id="party-text-title">Import a team</h1><p id="party-text-intro">Paste a team exported from Pokémon Showdown or another team builder.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
+      <div class="party-text-body">
+        <textarea id="party-text-box" class="party-text-box" spellcheck="false" autocomplete="off" aria-labelledby="party-text-title"></textarea>
+        <ul id="party-text-problems" class="party-text-problems" hidden></ul>
+        <div class="actions"><span id="party-text-result" class="helper" role="status"></span><span class="nav-spacer" aria-hidden="true"></span><button class="subtle" data-close-modal>Close</button><button id="party-text-copy" class="solid" hidden>Copy</button><button id="party-text-import" class="solid">Import</button></div>
       </div>
     </dialog>
     <dialog id="steam-add" class="launcher-modal steam-modal" aria-labelledby="steam-add-kicker steam-add-title">
@@ -384,6 +441,8 @@
   <script src="renderer.js"></script>
   <script type="module" src="pokedex-page.js"></script>
   <script src="room-poll.js"></script>
+  <script src="team-sets.js"></script>
+  <script src="team-builder.js"></script>
   <script src="online-page.js"></script>
 </body>
 </html>

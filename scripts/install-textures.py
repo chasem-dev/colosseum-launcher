@@ -50,6 +50,10 @@ def main():
     size = int(size)
     os.makedirs(textures, exist_ok=True)
     part = os.path.join(textures, 'pack-%s.zip.part' % sha256[:12])
+    # A stopped download of an earlier pack is never finished once the launcher pins a newer one.
+    for name in os.listdir(textures):
+        if name.startswith('pack-') and name.endswith('.zip.part') and name != os.path.basename(part):
+            os.remove(os.path.join(textures, name))
     target = os.path.join(textures, folder)
     prefix = 'mods/textures/%s/' % folder
     say('Checking HD texture download')

@@ -145,11 +145,19 @@ It starts with your next **New Game**, and the seed is kept inside that save. Fi
 
 ### Online battles
 
-The **Online** tab is where you battle other players. Build a party first: choose six from the Pokédex, give it a name, and pick the party you want to battle with. You can keep as many as you like. Pokémon come with their level-up moves, at the room's level, with the best individual values and a neutral nature, so a party is just its six species.
+The **Online** tab is where you battle other players. Build a party first: **New party** opens the team builder, where you choose six from the Pokédex and give each its own set, as in Pokémon Showdown: four moves, a held item, its ability and nature, EVs and IVs, a nickname, gender and whether it's shiny. The moves list shows what each Pokémon learns in this game and how; others can still be chosen and are marked. Stats are worked out as you go, at level 50 or 100. **Import** and **Export** take a team in Showdown's text, and **Copy to a new party** on your Story party starts a party from the Pokémon in your save. A Pokémon with no moves chosen battles with the moves it learns by the room's level. You can keep as many parties as you like, and pick the one you want to battle with.
 
 **Create room** opens a room at level 50 or 100, with 3 or 6 Pokémon each (the first three of your party in a 3-Pokémon battle). Your game starts and waits in the stadium, and your room appears for everyone on the list. Untick **Show on the room list** to keep it private and give a friend the code instead. When someone joins, your game starts again and you're both in the battle. Players choose their moves at the same time. **Give in** from the battle menu ends the battle, and closing the game counts as leaving.
 
 Both players need the same build of the game. A room on another version says which one it needs.
+
+### Game Boy Advance
+
+The game links with a Game Boy Advance as it did through the GCN-GBA cable: register your team from Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen for Colosseum Battle, trade Pokémon between the two games, and spend the GBA game's Poké Coupons on prizes.
+
+Under **Settings → Game Boy Advance**, choose your save: the `.sav` (or RetroArch `.srm`) your emulator keeps. The launcher looks in the usual emulator folders and offers what it finds, shows the trainer and party, and says if the save isn't ready to link: Colosseum links only with a game saved inside a Pokémon Center, far enough along (the Pokédex in Ruby, Sapphire and Emerald, the National Pokédex in FireRed and LeafGreen), and in English. When the game asks for the GBA, it answers from the save, as the program it sends the GBA would, and writes trades and prizes back into it as the GBA game saves them. In a trade, your controller also chooses the GBA's side. A copy of the save goes to **GBA saves** in your backup folder before each session. Close your emulator first, so it doesn't save over what the game wrote.
+
+No GBA BIOS or Game Pak is needed. Linking from the save alone has been checked with Emerald; if it doesn't work with your game, open **If linking doesn't work: run the GBA itself** under Advanced and choose a dump of the Game Pak the save belongs to. The GBA then runs inside the game with [mGBA](https://mgba.io), as Dolphin's Integrated GBA does, and the Game Pak does the linking itself, as on a console; a BIOS dump is optional. You also need this to choose moves on a GBA's screen in Colosseum Battle, or to scan e-Reader cards. Colosseum never showed a GBA game itself: on a console the GBA was a separate handheld on the cable, and here its screen sits in a corner instead. Press **G** (**Back** on a controller) to use it and again to go back, and hold it to turn the GBA on or off. The GBA turns on and off by itself when the game asks you to, unless you turn that off. With an e-Reader, drop a card's `.raw` file on the game's window to scan it. Sockets 3 and 4 are for linking three GBAs at once.
 
 ### Privacy
 
@@ -168,6 +176,7 @@ Open the activity log with **Activity log** in the status bar, choose **Copy log
 | <img src="https://github.com/dougchansan.png?size=96" width="48" height="48" alt=""> | **[dougchansan](https://github.com/dougchansan)** | The [pkmn-colosseum](https://github.com/dougchansan/pkmn-colosseum) decompilation the game is built from |
 | <img src="https://github.com/SteamGridDB.png?size=96" width="48" height="48" alt=""> | **[SteamGridDB](https://www.steamgriddb.com)** | The artwork used by **Add to Steam** |
 | <img src="https://github.com/StarsMmd.png?size=96" width="48" height="48" alt=""> | **[StarsMmd](https://github.com/StarsMmd)** | Years of work on Colosseum, XD and Battle Revolution's files: the [GoD Tool](https://github.com/StarsMmd/GoD-Tool) and the [Blender add-on for GameCube models](https://github.com/StarsMmd/Blender-Addon-Gamecube-Models), which Battle Revolution Pokémon packs are made with |
+| <img src="https://github.com/mgba-emu.png?size=96" width="48" height="48" alt=""> | **[mGBA](https://mgba.io)** | The Game Boy Advance in the game (Mozilla Public License 2.0) |
 
 ## For developers
 

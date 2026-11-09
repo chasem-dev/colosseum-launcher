@@ -6,6 +6,7 @@ const bindings = require('./bindings');
 const presets = require('./presets');
 const randomizer = require('./randomizer');
 const generations = require('./generations');
+const languagePacks = require('./language-packs');
 const { normalizeChannel } = require('./update-channel');
 const { prependWindowsPath } = require('./windows-path');
 const { Disc, describe } = require('./disc');
@@ -146,10 +147,15 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     // A battle's animations skipped, or else played at battleSpeed: 1 is as on the disc.
     skipBattleAnimations: input.battleSpeed === 'skip' || Boolean(input.skipBattleAnimations),
     battleSpeed: battleSpeedSetting(input.battleSpeed),
+    // A Shadow Pokémon looks in battle as it will once snagged; Espeon and Umbreon can be shiny. Both on unless turned off.
+    shinyShadow: input.shinyShadow !== false,
+    shinyStarters: input.shinyStarters !== false,
     // The frame-time overlay at start.
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
     hdText: choiceSetting(input.hdText, ['on', 'upscaled', 'off'], 'on'),
+    // The game's language: English, or a language pack's code (language-packs.js).
+    language: languagePacks.normalizeLanguage(input.language),
     // Controllers keep playing while another window has focus; off unless chosen.
     backgroundInput: Boolean(input.backgroundInput),
     // Each controller its own player (Battle Mode), or every controller player 1.
@@ -188,6 +194,10 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     triggerClick: numberSetting(input.triggerClick, 85, 10, 100),
     // Controller rumble in percent: 0 turns it off.
     rumbleStrength: numberSetting(input.rumbleStrength, 100, 0, 100),
+    // A Game Boy Advance on a socket (src/gba.js): switched on and off as the game asks, unless the player
+    // would rather; and its sound, in percent.
+    gbaAutoPower: input.gbaAutoPower !== false,
+    gbaVolume: numberSetting(input.gbaVolume, 100, 0, 100),
     // What a new save randomizes (randomizer.js): a save keeps the seed it starts with.
     ...randomizer.normalize(input),
     // Later generations (generations.js): whose battle rules, and whose Pokémon are added. generation<N>Pokemon is the
@@ -291,6 +301,9 @@ function buildEnvironment(settings, disc, root, { customTextures = null } = {}) 
   const run = randomizer.environmentValue(settings);
   if (run) env.COLO_RANDOMIZER = run;
   if (settings.hdModels === false) env.COLO_HD_MODELS = '0';
+  // Unset is on in the game, as it is in a game built before these settings.
+  if (settings.shinyShadow === false) env.COLO_SHINY_SHADOW = '0';
+  if (settings.shinyStarters === false) env.COLO_SHINY_STARTERS = '0';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   // Unset is the default; any other value would name a glyph file.
@@ -333,6 +346,33 @@ function longPathProblem(root, { platform = process.platform, portable = false,
     message: `${name}'s path is ${folder.length} characters long, more than the ${limit} Windows can build ` +
       `the game in, so the build would fail: Windows' compiler can't open paths of ` +
       `260 characters or more, and the build reaches ${WINDOWS_MAX_PATH - limit} characters deeper than this folder. ${fix}` };
+}
+
+// cmd.exe runs the commands that pack the build's objects into libraries, and
+// ninja quotes an object's path only when it has a space. The GD objects'
+// paths hold the whole game folder (CMake writes "Recomp & Decomp" as
+// "Recomp_&_Decomp"), so cmd ends the command at an & and drops a ^, and the
+// build fails with "ar.exe: CMakeFiles/sms_gx.dir/E_/Recomp_: No such file".
+const WINDOWS_BUILD_UNSAFE = /[&^]/g;
+
+// When a Windows build would fail because of a character in the game folder's
+// path: the folder to change, those characters and what to do; otherwise null.
+function pathCharacterProblem(root, { platform = process.platform, portable = false,
+  folder = path.win32.dirname(root) } = {}) {
+  if (platform !== 'win32' || !root) return null;
+  const characters = [...new Set(root.match(WINDOWS_BUILD_UNSAFE) || [])];
+  if (!characters.length) return null;
+  // The game folder below the chosen one can have the character in its own name.
+  if (!folder || !characters.some(character => folder.includes(character))) folder = root;
+  const listed = characters.join(' or ');
+  const name = folder === root ? 'The game folder'
+    : portable ? 'The Colosseum-Launcher-Portable folder' : 'The folder holding the setup files';
+  const fix = portable
+    ? `Move the launcher and its Colosseum-Launcher-Portable folder together to a folder without ${listed} in its path, such as C:\\Games, and open it from there.`
+    : `Choose a folder without ${listed} in its path for Setup files in Settings, such as C:\\Games.`;
+  return { kind: 'characters', folder, characters, portable, name,
+    message: `${name}'s path has ${listed} in it, so the build would fail: Windows' command prompt reads ` +
+      `${characters.length === 1 ? 'it' : 'them'} as part of a command. ${fix}` };
 }
 
 function playableInstall(saved, platform = process.platform) {
@@ -393,10 +433,57 @@ function pbrModelsCommand(root, disc, work, numbers, platform = process.platform
   return { command: path.join(msys, 'mingw64', 'bin', 'python.exe'), args, cwd: path.dirname(args[0]), env: msysEnvironment(msys, environment) };
 }
 
+// The system's libdrm_amdgpu, for the game to load before anything else on Linux. The game's graphics
+// drivers are the system's, and a newer Mesa needs this library from the same system: RADV 26.2 on a
+// Steam Deck calls amdgpu_va_manager_query_sw_info, which the build tools' older copy (2.4.129) lacks.
+// In the game's process the drivers were getting the tools' copy, so Vulkan found no GPU and the game
+// drew with OpenGL; a player's LD_PRELOAD of the system's copy made Vulkan start. Each folder is checked
+// for a library of this processor (Fedora's /usr/lib is 32-bit). None found: the game starts as it is.
+const LIBDRM_AMDGPU_FOLDERS = {
+  x64: ['/usr/lib/x86_64-linux-gnu', '/lib/x86_64-linux-gnu', '/usr/lib64', '/usr/lib'],
+  arm64: ['/usr/lib/aarch64-linux-gnu', '/lib/aarch64-linux-gnu', '/usr/lib64', '/usr/lib']
+};
+const ELF_MACHINE = { x64: 0x3e, arm64: 0xb7 };
+
+function elfMatches(file, arch) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const header = Buffer.alloc(20);
+    if (fs.readSync(fd, header, 0, 20, 0) < 20) return false;
+    // 64-bit, little-endian, this processor
+    return header.readUInt32BE(0) === 0x7f454c46 && header[4] === 2 && header[5] === 1 && header.readUInt16LE(18) === ELF_MACHINE[arch];
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+function systemLibdrmAmdgpu(arch = process.arch) {
+  for (const folder of LIBDRM_AMDGPU_FOLDERS[arch] || []) {
+    const file = path.posix.join(folder, 'libdrm_amdgpu.so.1');
+    if (elfMatches(file, arch)) return file;
+  }
+  return null;
+}
+
+// LD_PRELOAD with the system's libdrm_amdgpu added, keeping what is there (Steam's overlay, or a player's own).
+function withSystemLibdrmAmdgpu(environment, library) {
+  const current = environment.LD_PRELOAD || '';
+  const listed = current.split(/[\s:]+/).filter(Boolean);
+  if (!library || listed.some(entry => path.posix.basename(entry) === 'libdrm_amdgpu.so.1')) return environment;
+  return { ...environment, LD_PRELOAD: [...listed, library].join(':') };
+}
+
 // The game itself, started directly: MSYS bash translates many native exception statuses to 127, which
 // hides the cause of a crash. It reads bindings.txt and mods/ from its working folder, the game folder.
-function gameRunCommand(root, disc, platform = process.platform, environment = process.env) {
+function gameRunCommand(root, disc, platform = process.platform, environment = process.env, libdrmAmdgpu = undefined) {
   const binary = binaryPath(root, platform);
+  if (platform === 'linux') {
+    const library = libdrmAmdgpu === undefined ? systemLibdrmAmdgpu() : libdrmAmdgpu;
+    return { command: binary, args: [disc], cwd: root, env: withSystemLibdrmAmdgpu(environment, library) };
+  }
   if (platform !== 'win32') return { command: binary, args: [disc], cwd: root, env: environment };
   return { command: binary, args: [disc], cwd: root, env: prependWindowsPath(environment, gameRuntimeFolders(environment)) };
 }
@@ -408,5 +495,5 @@ function gameRuntimeFolders(environment = process.env) {
 
 module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
-  buildEnvironment, binaryPath, longPathProblem, playableInstall, useLauncherScripts, launcherScript,
-  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, gameRunCommand, gameRuntimeFolders };
+  buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
+  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
