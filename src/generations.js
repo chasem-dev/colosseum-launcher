@@ -24,7 +24,7 @@ const MOVE_OFFSET = 3, FIRST_NEW_MOVE = 355, SPECIES_OFFSET = 26;
 const FEATURES = { physicalSpecialSplit: 1, sandstormRockSpecialDefense: 2 };
 const CATEGORY = { Physical: 1, Special: 2, Status: 0 };
 const MOVE_ROW = 0x38;
-const MV = { priority: 0, pp: 1, type: 2, target: 3, accuracy: 4, chance: 5, contact: 6, protect: 7, magicCoat: 8, snatch: 9, mirror: 0x0a, power: 0x16 };
+const MV = { priority: 0, pp: 1, type: 2, target: 3, accuracy: 4, chance: 5, contact: 6, protect: 7, magicCoat: 8, snatch: 9, mirror: 0x0a, power: 0x16, effect: 0x1a };
 // Who stands in for a new Pokémon's looks and cry: a Pokémon Colosseum has, by first type and stage.
 const STAND_INS = {
   Grass: ['Treecko', 'Grovyle', 'Sceptile'], Fire: ['Torchic', 'Combusken', 'Blaziken'], Water: ['Mudkip', 'Marshtomp', 'Swampert'],
@@ -113,7 +113,11 @@ function newMoves(tables, data) {
     if (!how) continue;
     const template = tables.moves.get(key(how.as));
     if (!template || template >= FIRST_NEW_MOVE) throw new Error(`generation ${data.generation}: ${move.name} plays as "${how.as}", which Colosseum hasn't`);
-    const row = writeMove(Buffer.from(tables.moveRows[template]), move, learned, tables, how.power ?? move.power);
+    // A damaging move whose power is worked out as it's used has 1 in its row, as Pokémon Platinum has it.
+    const power = how.power ?? (move.power || (move.category === 'Status' ? 0 : 1));
+    const row = writeMove(Buffer.from(tables.moveRows[template]), move, learned, tables, power);
+    // The effect the game plays: the template's, or one of the port's own (host/gen4.c's EFFECT_*), or another of the game's.
+    if (how.effect !== undefined) row.writeUInt16BE(how.effect, MV.effect);
     out.push({ id: colosseumMove(number), number, name: move.name.toUpperCase().slice(0, 12), description: move.description,
       row, exact: Boolean(how.exact), note: how.note || '', as: how.as });
   }
