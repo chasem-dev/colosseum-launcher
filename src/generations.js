@@ -162,7 +162,20 @@ function rules(tables, data, moves) {
     if (effect !== undefined) wanted.writeUInt16BE(effect, MV.effect);
     if (!wanted.equals(row)) changed.push({ id, row: wanted });
   }
-  return { generation: data.generation, features, categories, changed };
+  // The game's own Pokémon with the abilities the generation gives them (Diamond and Pearl gave many a second one:
+  // Scizor's Technician, Breloom's Poison Heal), the generation's own by their number in the game (colosseumAbility).
+  const numberOf = name => Number(Object.keys(data.abilities).find(n => data.abilities[n].name === name));
+  const abilityId = name => tables.abilities.get(key(name)) ?? (numberOf(name) >= data.newAbilities[0] ? colosseumAbility(numberOf(name)) : undefined);
+  const species = [];
+  for (const each of tables.species || []) {
+    const entry = each.national >= 1 && each.national <= 386 ? data.species[each.national] : null;
+    if (!entry || !each.row) continue;
+    const ids = entry.abilities.map(abilityId).filter(Boolean).slice(0, 2);
+    if (!ids.length) continue;
+    const wanted = [ids[0], ids[1] || 0];
+    if (wanted[0] !== each.row[0x32] || wanted[1] !== each.row[0x33]) species.push({ id: each.id, abilities: wanted });
+  }
+  return { generation: data.generation, features, categories, changed, species };
 }
 
 function stageOf(data, number) {

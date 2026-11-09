@@ -518,6 +518,11 @@ function compile(contents) {
     head.writeUInt16BE(rules.categories.length, 8); head.writeUInt16BE(rules.changed.length, 10);
     const parts = [head, padded(rules.categories)];
     for (const change of rules.changed) { const id = Buffer.alloc(4); id.writeUInt16BE(change.id, 0); parts.push(id, change.row); }
+    // then the game's Pokémon whose abilities the generation changed: u16 count, u16 0, then u16 species, u8 u8 abilities
+    const species = rules.species || [], list = Buffer.alloc(4 + species.length * 4);
+    list.writeUInt16BE(species.length, 0);
+    species.forEach((each, i) => { list.writeUInt16BE(each.id, 4 + i * 4); list[6 + i * 4] = each.abilities[0]; list[7 + i * 4] = each.abilities[1]; });
+    parts.push(list);
     chunk('MECH', parts);
   }
   const header = Buffer.alloc(16);
