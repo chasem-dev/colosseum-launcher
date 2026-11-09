@@ -1544,7 +1544,9 @@ $('export-gci-save').addEventListener('click', async () => {
     else {
       const warning = result.damaged ? ' Its newest progress could not be read, so the game will load the copy before it.' : '';
       const randomized = result.randomized ? ' This is a randomizer run: your team comes with it, but Dolphin plays the rest as the normal game.' : '';
-      resultText.textContent = `Exported ${result.trainer}'s save to ${result.file}.${warning}${randomized}`;
+      const n = result.extraBoxPokemon;
+      const boxes = n ? ` Dolphin's game has 3 PC boxes, so ${n === 1 ? 'the Pokémon' : `the ${n} Pokémon`} in boxes 4 to 10 ${n === 1 ? 'is' : 'are'} not in this file.` : '';
+      resultText.textContent = `Exported ${result.trainer}'s save to ${result.file}.${warning}${randomized}${boxes}`;
     }
   } catch (error) { resultText.textContent = errorText(error); }
   await sync();
