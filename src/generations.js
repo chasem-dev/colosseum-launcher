@@ -141,7 +141,7 @@ function newMoves(tables, data) {
 
 // A generation's rules: its feature bits, each move's category, and Colosseum's own moves as that generation has them
 // (power, accuracy, PP, type, priority, range, added-effect chance and flags), as whole rows; their effects, messages
-// and animations stay Colosseum's.
+// and animations stay Colosseum's, but for the few whose effect the generation changed (oldMoves).
 function rules(tables, data, moves) {
   let features = 0;
   for (const [name, on] of Object.entries(data.mechanics)) if (on && FEATURES[name]) features |= FEATURES[name];
@@ -156,7 +156,10 @@ function rules(tables, data, moves) {
     // A move whose power is worked out as it's used has 1 in Platinum's data. Colosseum's Spit Up has 100 there, the
     // power Ruby and Sapphire multiply by the Stockpile count, as Platinum's script does: it keeps it.
     const power = move.power === 1 ? row.readUInt16BE(MV.power) : move.power;
-    const wanted = writeMove(Buffer.from(row), move, learned, tables, { power, chance: chanceFor(move, row, true) });
+    // An old move whose effect the generation changed plays another (gen4-colosseum.json's oldMoves): Waterfall flinches.
+    const effect = data.colosseum.oldMoves?.[move.name]?.effect;
+    const wanted = writeMove(Buffer.from(row), move, learned, tables, { power, chance: chanceFor(move, row, effect === undefined) });
+    if (effect !== undefined) wanted.writeUInt16BE(effect, MV.effect);
     if (!wanted.equals(row)) changed.push({ id, row: wanted });
   }
   return { generation: data.generation, features, categories, changed };

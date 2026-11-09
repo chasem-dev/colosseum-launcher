@@ -94,7 +94,7 @@
     "Captivate": { "as": "Attract", "effect": 246, "exact": true },
     "Stealth Rock": { "as": "Spikes", "effect": 229, "exact": true },
     "Grass Knot": { "as": "Low Kick", "exact": true },
-    "Chatter": { "as": "Psybeam", "exact": true },
+    "Chatter": { "as": "Psybeam", "effect": 257, "exact": true },
     "Judgment": { "as": "Water Gun", "effect": 0, "exact": true },
     "Bug Bite": { "as": "Strength", "exact": false, "note": "Doesn't eat a Berry." },
     "Charge Beam": { "as": "Water Gun", "effect": 223, "exact": true },
@@ -114,6 +114,10 @@
     "Seed Flare": { "as": "Psychic", "effect": 224, "exact": true },
     "Ominous Wind": { "as": "AncientPower", "exact": true },
     "Shadow Force": { "as": "Dig", "effect": 255, "exact": true }
+  },
+  "oldMoves": {
+    "Waterfall": { "effect": 31, "note": "A chance to flinch (the game's Bite)." },
+    "Volt Tackle": { "effect": 256, "note": "Recoil, and a chance to paralyze (host/gen4.c)." }
   },
   "abilities": {
     "Tangled Feet": "Keen Eye", "Motor Drive": "Volt Absorb", "Rivalry": "Guts", "Steadfast": "Inner Focus",
