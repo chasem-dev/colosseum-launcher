@@ -80,10 +80,27 @@
               <div><strong id="online-banner-title"></strong><small id="online-banner-detail"></small></div>
               <button id="online-leave" class="subtle">Leave</button>
             </div>
+            <div id="online-pick" class="online-pick" hidden>
+              <div class="online-pick-head"><strong id="online-pick-title"></strong><span id="online-pick-time" class="online-pick-time"></span></div>
+              <small id="online-pick-help"></small>
+              <div id="online-pick-mine" class="online-pick-team" role="group" aria-label="Your party"></div>
+              <small id="online-pick-theirs-label" class="online-pick-label"></small>
+              <div id="online-pick-theirs" class="online-pick-team theirs"></div>
+              <div class="online-pick-actions"><button id="online-pick-clear" class="subtle" type="button">Clear</button><button id="online-pick-go" class="solid" type="button">Battle</button></div>
+            </div>
             <p id="online-result" class="online-result" role="status" hidden></p>
             <div class="online-create">
-              <label class="online-field"><span>Level</span><select id="online-level"><option value="50">Level 50</option><option value="100">Level 100</option></select></label>
-              <label class="online-field"><span>Battle</span><select id="online-size"><option value="6">6 Pokémon each</option><option value="3">3 Pokémon each</option></select></label>
+              <label class="online-field"><span>Format</span><select id="online-format">
+                <option value="casual">Casual</option><option value="orre">Orre Colosseum (doubles)</option>
+                <option value="hoenn">Hoenn Stadium (singles)</option><option value="gen3ou">Gen 3 OU (6 on 6)</option></select></label>
+              <label class="online-field"><span>Games</span><select id="online-best-of"><option value="1">One battle</option><option value="3">Best of 3</option><option value="5">Best of 5</option></select></label>
+              <label class="online-field online-casual"><span>Level</span><select id="online-level"><option value="50">Level 50</option><option value="100">Level 100</option></select></label>
+              <label class="online-field online-casual"><span>Battle</span><select id="online-size"><option value="6">6 Pokémon each</option><option value="3">3 Pokémon each</option></select></label>
+              <div id="online-format-summary" class="online-format-summary" hidden>
+                <div><strong id="online-format-name"></strong><small id="online-format-rules"></small></div>
+                <button id="online-customise" class="text-button" type="button" aria-expanded="false" aria-controls="online-custom">Customise</button>
+              </div>
+              <div id="online-custom" class="online-custom" hidden></div>
               <label class="online-check"><input id="online-listed" type="checkbox"><span>Show on the room list</span></label>
               <button id="online-create" class="solid">Create room</button>
             </div>
@@ -434,6 +451,7 @@
   <script type="module" src="pokedex-page.js"></script>
   <script src="room-poll.js"></script>
   <script src="team-sets.js"></script>
+  <script src="formats.js"></script>
   <script src="team-builder.js"></script>
   <script src="online-page.js"></script>
 </body>
