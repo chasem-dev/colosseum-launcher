@@ -8,7 +8,7 @@
     ],
     "game": [
       "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",
-      "Generation 4 battle rules as Pokémon Platinum plays them: its damage, critical hits, accuracy and turn order, moves physical or special by themselves, Waterfall's chance to flinch and Volt Tackle's to paralyze, the game's Pokémon with the abilities Platinum gives them (Scizor's Technician, Breloom's Poison Heal), Generation 4's moves after the game's own, each doing what it does in Platinum (Natural Gift, Fling, Pluck and Bug Bite are still to come), and room for far more than 25 new Pokémon.",
+      "Generation 4 battle rules as Pokémon Platinum plays them: its damage, critical hits, accuracy and turn order, moves physical or special by themselves, Waterfall's chance to flinch and Volt Tackle's to paralyze, the game's Pokémon with the abilities Platinum gives them (Scizor's Technician, Breloom's Poison Heal), Generation 4's moves after the game's own, each doing what it does in Platinum, Generation 4's held items such as Life Orb, Focus Sash, Choice Scarf and Light Clay, Berries eaten as soon as HP drops far enough, and room for far more than 25 new Pokémon.",
       "Fixed setup failing near the end when the game's Vulkan parts couldn't be downloaded from GitHub: the game now builds anyway and draws with OpenGL, and a build that fails at its last step says why in the activity log."
     ]
   },
