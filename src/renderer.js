@@ -154,7 +154,7 @@ function gbaPakRow(socket, entry) {
   const text = gbaElement('div');
   const rom = entry?.rom;
   text.append(gbaElement('strong', '', `Socket ${socket} Game Pak${rom ? `: ${rom.name || 'Not usable'}` : ''}`));
-  text.append(gbaElement('span', 'small-path', rom ? rom.path : entry ? 'None: the game answers from the save' : 'Choose a save for this socket first'));
+  text.append(gbaElement('span', 'small-path', rom ? rom.path : entry ? 'None: the game answers from the save' : socket === '2' ? 'Choose your save above first' : 'Choose a save for this socket first'));
   if (rom && (rom.error || rom.warning)) text.append(gbaElement('span', `small-path gba-note${rom.error ? ' rom-error' : ''}`, rom.error || rom.warning));
   const actions = gbaElement('div', 'actions');
   if (rom) gbaButton(actions, 'Remove', () => window.colo.clearGbaFile('rom', socket));
