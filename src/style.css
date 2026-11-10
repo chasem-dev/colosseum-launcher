@@ -372,6 +372,10 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .settings-group > .row-note.lead + .actions, .settings-group > .small-path + .actions { border-top: 0; }
 /* a setting that only matters with the one above it on */
 .settings-group > .sub { margin-left: 14px; padding-left: 14px; box-shadow: inset 2px 0 #dfd0df; }
+.prompt-preview { display: grid; gap: 6px; margin: 0 0 12px; padding: 10px; border-radius: 9px; background: #f6f0f5; }
+.prompt-row { display: flex; align-items: center; gap: 10px; color: #5e4257; font-size: 11px; }
+.prompt-row span { width: 150px; flex: none; }
+.prompt-row img { height: 32px; width: 128px; }
 .path-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .path-row > div:first-child { display: grid; gap: 3px; min-width: 0; }
 .path-row strong, .backup-picker span { color: #4f3448; font-size: 13px; font-weight: 650; }
@@ -437,6 +441,8 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .dark .switch i { background: #623c54; }
 .dark .switch input:checked + i { background: #9b218a; }
 .dark .settings-group > .sub { box-shadow: inset 2px 0 #6a3254; }
+.dark .prompt-preview { background: #3e152a; }
+.dark .prompt-row { color: #e0cada; }
 .dark .badge { background: #4d243d; color: #d0b7c8; }
 .dark .badge.good { background: #17473a; color: #8fe0bd; }
 .dark .badge.warn { background: #4a3a17; color: #f5cf86; }

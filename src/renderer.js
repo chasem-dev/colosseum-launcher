@@ -328,7 +328,45 @@ function startCapture(id, add) {
   renderBindings();
 }
 
+// --- Button prompts (src/prompts.js): the buttons Quick moves shows beside each move, drawn from the bindings
+// above. The strips go to the launcher's prompts folder whenever what they show changes.
+function promptOptions(styles) {
+  return styles.map(({ id, label }) => {
+    const option = document.createElement('option'); option.value = id; option.textContent = label; return option;
+  });
+}
+if (globalThis.ColoPrompts) {
+  $('buttonPrompts').replaceChildren(...promptOptions(ColoPrompts.STYLES));
+  $('promptPad').replaceChildren(...promptOptions(ColoPrompts.PAD_STYLES));
+}
+let sentPrompts = '';
+function renderPrompts() {
+  if (!globalThis.ColoPrompts) return;
+  const style = $('buttonPrompts').value;
+  const strips = Object.fromEntries(ColoPrompts.DRAWN.map(id => [id, ColoPrompts.drawStrip(document, id, keyBindings, padBindings, {}, 4)]));
+  const pad = $('promptPad').value;
+  // Automatic shows the keyboard and every controller style it can switch to.
+  const label = id => ColoPrompts.STYLES.find(item => item.id === id).label;
+  const padRows = pad === 'match' ? ['xbox', 'playstation', 'steamdeck', 'nintendo'] : [pad];
+  const shown = style === 'auto'
+    ? [['keyboard', 'Keyboard'], ...padRows.map(id => [id, pad === 'match' ? `${label(id)} controller` : 'Any controller'])]
+    : [[style, label(style)]];
+  $('prompt-preview').replaceChildren(...shown.map(([id, text]) => {
+    const row = document.createElement('div'); row.className = 'prompt-row';
+    const name = document.createElement('span'); name.textContent = text;
+    const image = document.createElement('img'); image.src = strips[id].toDataURL('image/png'); image.alt = '';
+    row.append(name, image);
+    return row;
+  }));
+  const images = Object.fromEntries(ColoPrompts.DRAWN.map(id => [id, ColoPrompts.drawStrip(document, id, keyBindings, padBindings).toDataURL('image/png')]));
+  const signature = JSON.stringify(images);
+  if (signature === sentPrompts) return;
+  sentPrompts = signature;
+  window.colo.savePrompts(images).catch(error => { sentPrompts = ''; showError(error); });
+}
+
 function renderBindings() {
+  renderPrompts();
   if (!globalThis.ColoBindings || $('pane-controls').hidden) return;
   const controller = bindingMode === 'controller';
   for (const button of document.querySelectorAll('[data-binding-mode]'))
@@ -795,8 +833,8 @@ function refresh(data) {
 }
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
-const SELECTS = ['battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
-const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'shinyShadow', 'shinyStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+const SELECTS = ['buttonPrompts', 'promptPad', 'battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
+const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'quickMoves', 'quickStatus', 'shinyShadow', 'shinyStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 // The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
 // removed from the folder stays listed, as the game plays in English without it.
@@ -1058,6 +1096,8 @@ function renderExclusiveResolutions(chosen) {
 
 // Choices that only matter with another one on are dimmed until then.
 function renderDependents(busy = false) {
+  // which controller's prompts Automatic switches to
+  $('promptPad').disabled = busy || $('buttonPrompts').value !== 'auto';
   $('battleSpeed').disabled = busy || $('skipBattleAnimations').checked;
   $('fullscreenMode').disabled = busy || !$('fullscreen').checked;
   $('exclusiveResolution').disabled = busy || !$('fullscreen').checked || $('fullscreenMode').value !== 'exclusive';
@@ -1633,6 +1673,7 @@ $('randomizer-reroll').addEventListener('click', async () => {
 });
 $('randomizer-spoilers').addEventListener('click', () => window.colo.randomizerSpoilers().catch(showError));
 for (const key of ['sharpen', 'brightness', 'battleSpeed']) $(key).addEventListener('input', renderRanges);
+for (const key of ['buttonPrompts', 'promptPad']) $(key).addEventListener('input', () => { renderPrompts(); renderDependents(); });
 for (const key of ['skipBattleAnimations', 'fullscreen', 'fullscreenMode', 'widescreen', 'presentFilter', 'textures', 'textureLoading'])
   $(key).addEventListener('input', () => renderDependents());
 window.colo.onLog(appendLog);

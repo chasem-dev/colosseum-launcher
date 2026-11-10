@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('colo', {
   checkTools: () => ipcRenderer.invoke('check-tools'),
   copyMacCommand: index => ipcRenderer.invoke('copy-mac-command', index),
   saveSettings: value => ipcRenderer.invoke('save-settings', value),
+  savePrompts: images => ipcRenderer.invoke('save-prompts', images),
   chooseRom: () => ipcRenderer.invoke('choose-rom'),
   chooseGbaFile: (kind, socket) => ipcRenderer.invoke('choose-gba-file', kind, socket),
   clearGbaFile: (kind, socket) => ipcRenderer.invoke('clear-gba-file', kind, socket),
