@@ -148,7 +148,7 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     // A battle's animations skipped, or else played at battleSpeed: 1 is as on the disc.
     skipBattleAnimations: input.battleSpeed === 'skip' || Boolean(input.skipBattleAnimations),
     battleSpeed: battleSpeedSetting(input.battleSpeed),
-    // In battle, R or Z opens the moves and A, B, X or Y uses one at once; off unless chosen.
+    // In battle, Z (R1 or RB on other controllers) opens the moves and A, B, X or Y uses one at once; off unless chosen.
     quickMoves: Boolean(input.quickMoves),
     // Status conditions and stat changes show over the move that caused them, and the battle moves on; off unless chosen.
     quickStatus: Boolean(input.quickStatus),
