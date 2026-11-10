@@ -144,6 +144,23 @@ test('a team goes out as Showdown\'s text and comes back the same', () => {
   assert.deepEqual(T.parseShowdown(text, dex), { sets: team, problems: [] });
 });
 
+test('a species learns what any game of the third generation teaches it, not Colosseum\'s alone', () => {
+  const { generationMoves } = require('../src/battle-data');
+  const machines = Array.from({ length: 58 }, () => 0);
+  machines[5] = 92;   // TM06 Toxic
+  const learned = new Map(generationMoves(94, machines).map(({ move, how }) => [move, how]));   // Gengar
+  assert.equal(learned.get(8), 'Tutor');   // Ice Punch
+  assert.equal(learned.get(92), 'TM06');
+  assert.equal(learned.get(85), 'TM');     // Thunderbolt, a machine this table leaves out
+  assert.ok(!learned.has(261));            // Will-O-Wisp: a TM from generation 4 on
+  assert.ok(!learned.has(72));             // Mega Drain: generation 1's TM, which couldn't come to generation 3
+  assert.equal(new Map(generationMoves(172, machines).map(({ move, how }) => [move, how])).get(344), 'Egg');   // Pichu: Volt Tackle
+  const sketch = new Map(generationMoves(235, machines).map(({ move, how }) => [move, how]));
+  assert.equal(sketch.get(147), 'Sketch');   // Smeargle: Spore
+  assert.ok(!sketch.has(165));               // but not Struggle
+  assert.deepEqual(generationMoves(387, machines), []);   // Turtwig: no Pokémon of later generations
+});
+
 // --- The real disc: COLO_TEST_DISC=/path/to/GC6E01.iso npm test
 const disc = process.env.COLO_TEST_DISC;
 const withDisc = { skip: disc && fs.existsSync(disc) ? false : 'set COLO_TEST_DISC to your disc to run this' };
@@ -164,6 +181,10 @@ test('the disc\'s moves, items and learnsets are where the team builder reads th
   assert.equal(umbreon.get(236), 'Lv 52');     // Moonlight
   assert.equal(umbreon.get(92), 'TM06');       // Toxic
   assert.equal(umbreon.get(204), 'Earlier form');   // Charm, an Eevee egg move
+  assert.equal(new Map(data.species[94].learnset).get(8), 'Tutor');   // Gengar: Ice Punch, a FireRed, Emerald and XD tutor move
+  assert.equal(new Map(data.species[25].learnset).get(344), 'Earlier form');   // Pikachu: Volt Tackle, a Pichu egg move
+  assert.equal(new Map(data.species[400].learnset).get(153), 'Tutor');   // Metagross, by the game's own number: Explosion
+  assert.equal(new Map(data.species[235].learnset).get(147), 'Sketch');   // Smeargle: Spore
   assert.equal(data.species[UMBREON].gender, 31);
   assert.deepEqual(data.species[400].abilities.map(ability => ability.name), ['Clear Body']);   // Metagross, by the game's own numbers
   assert.deepEqual(data.species[94].abilities.map(ability => ability.name), ['Levitate']);

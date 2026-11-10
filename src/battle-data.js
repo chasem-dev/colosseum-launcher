@@ -3,11 +3,15 @@
 // What the team builder offers, read from the player's disc: every move with its type, power, accuracy and PP, the
 // items a Pokémon can hold, each species' abilities and gender ratio, and the moves each species can learn. The tables
 // are the game's own (the decomp's waza.c, people_data.c and pokemon_data.h), so what's offered is what the game plays.
+// What a species can learn is the whole third generation's, as Pokémon Showdown has it (generations/gen3-learnsets.json,
+// made by scripts/generation-data/learnsets.js): Colosseum's own moves, and those of the other games of its generation
+// (move tutors, Ruby and Sapphire's level-up moves and so on), as a Pokémon traded in from them would know.
 
 const fsys = require('./fsys');
 const { Disc } = require('./disc');
 const pokedex = require('./pokedex');
 const { category } = require('./team-sets');
+const GEN3 = require('./generations/gen3-learnsets.json').species;
 
 // common_rel: the moves, 0x38 bytes each, from move 0 (none). The species table follows them.
 const MOVES = { offset: 0x11c7c4, size: 0x38, last: 0x162 };   // 0x163 on are the Shadow moves
@@ -89,6 +93,20 @@ function ownMoves(data, at, machines) {
   return moves;
 }
 
+// What the other games of the generation teach the species of national number `national`, after what the disc gives.
+function generationMoves(national, machines) {
+  const entry = GEN3[national];
+  if (!entry) return [];
+  const machine = new Map(machines.map((move, i) => [move, i]).reverse());
+  const moves = entry.levelUp.map(([level, move]) => ({ move, how: `Lv ${level}`, order: level }));
+  for (const move of entry.tm || []) moves.push({ move, how: machine.has(move) ? machineName(machine.get(move)) : 'TM', order: 200 + (machine.get(move) ?? 60) });
+  for (const move of entry.tutor || []) moves.push({ move, how: 'Tutor', order: 270 });
+  for (const move of entry.egg || []) moves.push({ move, how: 'Egg', order: 300 });
+  for (const move of entry.event || []) moves.push({ move, how: 'Event', order: 350 });
+  for (const move of entry.sketch || []) moves.push({ move, how: 'Sketch', order: 380 });
+  return moves;
+}
+
 function readSpecies(data, messages, machines) {
   const { offset, count, size } = pokedex.SPECIES, rows = new Map();
   for (let id = 0; id < count; id++) {
@@ -104,7 +122,7 @@ function readSpecies(data, messages, machines) {
     }
     // The second ability only where it differs: the game gives either, and two of one are the same.
     rows.set(id, { gender: data[at + 0x02], abilities: abilities.filter((a, i) => !i || a.id !== abilities[0].id),
-      own: ownMoves(data, at, machines), evolutions });
+      own: [...ownMoves(data, at, machines), ...generationMoves(data.readUInt16BE(at + 0x12), machines)], evolutions });
   }
   // What an earlier form learned comes along when it evolves.
   const before = new Map();
@@ -145,4 +163,4 @@ function create(read = readBattleData) {
   };
 }
 
-module.exports = { create, readBattleData, prose, MOVES };
+module.exports = { create, readBattleData, generationMoves, prose, MOVES };

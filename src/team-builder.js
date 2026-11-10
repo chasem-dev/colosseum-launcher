@@ -70,7 +70,7 @@
   const speciesName = id => byId.get(id)?.name || `#${id}`;
   const displayName = set => set.nickname || speciesName(set.species);
   const learnset = id => new Map(data?.species[id]?.learnset || []);
-  // Moves its species can't learn in this game: allowed, as Showdown's custom games allow them, and shown.
+  // Moves its species can't learn in any game of the third generation: allowed, as Showdown's custom games allow them, and shown.
   const unlearnable = set => set.moves.filter(move => !learnset(set.species).has(move));
 
   function setStatus(text) { $('party-editor-status').textContent = text || ''; }
@@ -90,7 +90,7 @@
           el('span', { className: 'tb-slot-text' },
             el('strong', { textContent: displayName(set) }),
             el('small', { textContent: set.item ? itemById.get(set.item)?.name || 'Item' : set.moves.length ? `${set.moves.length} move${set.moves.length === 1 ? '' : 's'}` : 'Level-up moves' })),
-          odd ? el('i', { className: 'tb-slot-warn', title: `${odd} move${odd === 1 ? '' : 's'} it can't learn in this game`, textContent: '!' }) : null].filter(Boolean));
+          odd ? el('i', { className: 'tb-slot-warn', title: `${odd} move${odd === 1 ? '' : 's'} it can't learn in Gen 3`, textContent: '!' }) : null].filter(Boolean));
         button.addEventListener('click', () => select(i));
         button.draggable = true;
         button.addEventListener('dragstart', event => { dragFrom = i; event.dataTransfer.effectAllowed = 'move'; button.classList.add('dragging'); });
@@ -293,7 +293,7 @@
         el('span', { textContent: `${hidden ? hidden.power : move.power > 1 ? move.power : '—'} pow` }),
         el('span', { textContent: `${move.accuracy ? `${move.accuracy}%` : '—'} acc` }),
         el('span', { textContent: `${move.pp} PP` }),
-        learned.has(move.id) ? el('span', { className: 'tb-how', textContent: learned.get(move.id) }) : el('span', { className: 'tb-how odd', textContent: 'Not learnable here' }));
+        learned.has(move.id) ? el('span', { className: 'tb-how', textContent: learned.get(move.id) }) : el('span', { className: 'tb-how odd', textContent: 'Not in Gen 3' }));
     };
     input.addEventListener('focus', () => { input.select(); openMoves(input, set, slot, show, ''); });
     input.addEventListener('input', () => openMoves(input, set, slot, show, input.value));
@@ -413,7 +413,7 @@
     if (note) {
       const odd = unlearnable(set).map(id => moveById.get(id)?.name).filter(Boolean);
       note.textContent = !set.moves.length ? `With no moves chosen, ${displayName(set)} battles with the moves it learns by the room's level.`
-        : odd.length ? `${speciesName(set.species)} can't learn ${odd.join(' or ')} in this game. It still battles with ${odd.length === 1 ? 'it' : 'them'}.`
+        : odd.length ? `${speciesName(set.species)} can't learn ${odd.join(' or ')} in any Gen 3 game. It still battles with ${odd.length === 1 ? 'it' : 'them'}.`
         : set.moves.includes(T.HIDDEN_POWER) ? `Hidden Power is ${T.hiddenPower(set.ivs).type}, ${T.hiddenPower(set.ivs).power} power, from its IVs.` : '';
       note.classList.toggle('warn', odd.length > 0);
     }
@@ -514,7 +514,7 @@
     const rows = own.map(([move, how]) => moveRow(move, how, move.id === T.HIDDEN_POWER ? hidden : null));
     if (query) {
       const others = data.moves.filter(move => !learned.has(move.id) && matches(move) && !taken.has(move.id)).slice(0, LIST_LIMIT);
-      if (others.length) rows.push({ label: `Moves ${speciesName(set.species)} can't learn in this game` }, ...others.map(move => moveRow(move, null, move.id === T.HIDDEN_POWER ? hidden : null)));
+      if (others.length) rows.push({ label: `Moves ${speciesName(set.species)} can't learn in Gen 3` }, ...others.map(move => moveRow(move, null, move.id === T.HIDDEN_POWER ? hidden : null)));
     }
     const header = el('div', { className: 'tb-list-row tb-list-head' }, ...['Move', 'Type', 'Category', 'Pow', 'Acc', 'PP', 'Learned', ''].map(text => el('span', { textContent: text })));
     openList(input, rows, id => { setMove(set, slot, id); show(); }, header, 'moves');

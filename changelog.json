@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Fixed the team builder offering only the moves a Pokémon learns in Colosseum: it now lists every move it can learn in Generation 3, as Pokémon Showdown does, with move tutor, Ruby and Sapphire, FireRed and LeafGreen, XD and event moves, and says how each is learned.",
       "Team builder: with Platinum's rules chosen under Rules on the Online page, each move shows as physical or special by itself, as it battles, not by its type: Shadow Ball is special and Hidden Power always special.",
       "Online: a room of any format, Casual too, can play by Pokémon Platinum's battle rules. Choose Platinum's under Rules when you create the room, and both players battle by them; the room list says so.",
       "Fixed Generation 4 rules taking away an ability whose name Colosseum runs together, such as Rhydon's and Manectric's Lightning Rod.",
