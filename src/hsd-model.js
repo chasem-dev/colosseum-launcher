@@ -25,6 +25,8 @@ const QUADS = 0x80, TRIANGLES = 0x90, STRIP = 0x98, FAN = 0xa0;
 const TRACK_CHANNEL = { 1: 3, 2: 4, 3: 5, 5: 6, 6: 7, 7: 8, 8: 0, 9: 1, 10: 2 };
 // What a texture track sets, of a material's translation and scale.
 const TEXTURE_CHANNEL = { 2: 0, 3: 1, 4: 2, 5: 3 };
+// A material track that sets its alpha (HSD_A_M_ALPHA): a Battle Revolution model shows and hides meshes this way.
+const MATERIAL_ALPHA = 10;
 const MIN_SCALE = 0.001, MAX_FRAMES = 1200, FRAME_RATE = 30;
 
 class Dat {
@@ -551,21 +553,23 @@ function bakeClip(dat, joints, firstJoint, root, textureRoot) {
     }
   };
   walk(root, firstJoint);
-  const textures = textureRoot ? bakeTextureTracks(dat, joints, firstJoint, textureRoot, frames) : { tracks: [], materials: [] };
+  const textures = textureRoot ? bakeTextureTracks(dat, joints, firstJoint, textureRoot, frames) : { tracks: [], materials: [], alphas: [] };
   for (let frame = 0; frame < frames; frame++) {
     for (const track of tracks) track.advance(frame ? 1 : 0);
     values.set(current, frame * jointCount * 9);
     for (const track of textures.tracks) track.advance(frame ? 1 : 0);
     for (const material of textures.materials) material.values.set(material.current, frame * 4);
+    for (const alpha of textures.alphas) alpha.values[frame] = alpha.current[0];
   }
-  return { frames, fps: FRAME_RATE, values, materials: textures.materials.map(({ material, values: tracked }) => ({ material, values: tracked })) };
+  return { frames, fps: FRAME_RATE, values, materials: textures.materials.map(({ material, values: tracked }) => ({ material, values: tracked })),
+    alphas: textures.alphas.map(({ material, values: tracked }) => ({ material, values: tracked })) };
 }
 
 // The tracks that move the materials' textures: the game slides a face along a strip
 // of expressions this way. The material animation's tree has the joints' shape, and
 // each joint's list has its display objects' order.
 function bakeTextureTracks(dat, joints, firstJoint, root, frames) {
-  const ownerMaterials = new Map(), materials = new Map(), tracks = [];
+  const ownerMaterials = new Map(), materials = new Map(), alphas = new Map(), tracks = [];
   eachDisplayObject(dat, joints, (dobj, _owner, at, index) => ownerMaterials.set(dobj, { at, index }));
   const addTrack = (dobj, textureAnimation) => {
     const known = ownerMaterials.get(dobj), aobj = dat.pointer(textureAnimation + 8);
@@ -581,15 +585,29 @@ function bakeTextureTracks(dat, joints, firstJoint, root, frames) {
       tracks.push(new Track(dat.data, data, dat.u32(at + 4), dat.f32(at + 8), dat.u8(at + 0x0d), dat.u8(at + 0x0e), value => { current[slot] = value; }));
     }
   };
+  // The material's own tracks (its animation at +4): its alpha, on each frame
+  const addAlpha = (dobj, item) => {
+    const known = ownerMaterials.get(dobj), aobj = dat.pointer(item + 4);
+    if (!known || !aobj) return;
+    for (let at = dat.pointer(aobj + 8); at; at = dat.pointer(at)) {
+      const data = dat.pointer(at + 0x10);
+      if (dat.u8(at + 0x0c) !== MATERIAL_ALPHA || !data) continue;
+      if (!alphas.has(known.index)) alphas.set(known.index, { material: known.index, values: new Float32Array(frames).fill(1), current: Float32Array.of(1) });
+      const { current } = alphas.get(known.index);
+      tracks.push(new Track(dat.data, data, dat.u32(at + 4), dat.f32(at + 8), dat.u8(at + 0x0d), dat.u8(at + 0x0e), value => { current[0] = value; }));
+    }
+  };
   const walk = (start, jointStart) => {
     for (let anim = start, joint = jointStart; anim && joint; anim = dat.pointer(anim + 4), joint = dat.pointer(joint + 0x0c)) {
-      for (let item = dat.pointer(anim + 8), dobj = dat.pointer(joint + 0x10); item && dobj; item = dat.pointer(item), dobj = dat.pointer(dobj + 4))
+      for (let item = dat.pointer(anim + 8), dobj = dat.pointer(joint + 0x10); item && dobj; item = dat.pointer(item), dobj = dat.pointer(dobj + 4)) {
         for (let texture = dat.pointer(item + 8); texture; texture = dat.pointer(texture)) addTrack(dobj, texture);
+        addAlpha(dobj, item);
+      }
       walk(dat.pointer(anim), dat.pointer(joint + 8));
     }
   };
   walk(root, firstJoint);
-  return { tracks, materials: [...materials.values()] };
+  return { tracks, materials: [...materials.values()], alphas: [...alphas.values()] };
 }
 
 // --- The model -----------------------------------------------------------------------
