@@ -12,9 +12,16 @@
 // its own Battle Mode rules (the game's host/online.c, rulesLine here). Any format, Casual too, can have timers. What a party may hold (which Pokémon, items, moves and abilities) is checked here, by the launcher before it
 // makes or joins a room, and by the room server (colosseum-server-api keeps a copy of this file) before a battle.
 //
+// The competitive formats take only legal Pokémon ("Only legal Pokémon", which a host can turn off): each move one
+// the Pokémon could know in the third generation (src/gen3-learnsets.js, from Pokémon Showdown's data), its held item
+// one a Pokémon can hold, and its EVs, IVs, PP Ups, friendship and ball in range. A party of species alone battles
+// with the moves they learn by level, which are legal already.
+//
 // Species, moves, items and abilities are the game's numbers: the third generation's, with the Hoenn Pokémon at
-// 277 to 411. Shared by the main process, the Online page and the room server, so it needs nothing but itself.
+// 277 to 411. Shared by the main process, the Online page and the room server, so it needs nothing but itself and
+// src/gen3-learnsets.js (loaded before it on the page).
 (function (root) {
+  const learnsets = typeof module === 'object' && module.exports ? require('./gen3-learnsets') : root.coloGen3Learnsets;
   const LEVELS = [50, 100];
   const BEST_OF = [1, 3, 5];
   const SIZES = { single: [3, 6], double: [4, 6] };
@@ -67,22 +74,22 @@
     371: [43], 372: [43] };
 
   const OFF = { preview: false, pool: 'any', soulDew: true, speciesClause: false, itemClause: false, sleep: 'off', freeze: false,
-    selfKO: false, lastMon: false, hideHp: false, ohko: false, evasion: false, smogonBans: false, turnTime: 0, battleTime: 0 };
+    selfKO: false, lastMon: false, hideHp: false, ohko: false, evasion: false, smogonBans: false, legal: false, turnTime: 0, battleTime: 0 };
   // Each format's settings. Casual is the rooms from before formats: the host picks its level and how many each, and
   // has no timers unless it sets them. The competitive formats have a minute for each choice, and a battle timer of
   // 20 minutes (30 for six on six).
   const FORMATS = {
     casual: { name: 'Casual', ...OFF, level: 50, battle: 'single', size: 6 },
     orre: { name: 'Orre Colosseum', ...OFF, level: 100, battle: 'double', size: 4, preview: true, pool: 'restricted', soulDew: false,
-      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true, turnTime: 60, battleTime: 20 },
+      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true, legal: true, turnTime: 60, battleTime: 20 },
     hoenn: { name: 'Hoenn Stadium', ...OFF, level: 100, battle: 'single', size: 3, preview: true, pool: 'restricted', soulDew: false,
-      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true, turnTime: 60, battleTime: 20 },
+      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true, legal: true, turnTime: 60, battleTime: 20 },
     gen3ou: { name: 'Gen 3 OU', ...OFF, level: 100, battle: 'single', size: 6, pool: 'ou', speciesClause: true, sleep: 'smogon',
-      freeze: true, hideHp: true, ohko: true, evasion: true, smogonBans: true, turnTime: 60, battleTime: 30 }
+      freeze: true, hideHp: true, ohko: true, evasion: true, smogonBans: true, legal: true, turnTime: 60, battleTime: 30 }
   };
   const FORMAT_IDS = Object.keys(FORMATS);
   const SETTINGS = ['level', 'battle', 'size', 'preview', 'pool', 'soulDew', 'speciesClause', 'itemClause', 'sleep', 'freeze',
-    'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans', 'turnTime', 'battleTime'];
+    'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans', 'legal', 'turnTime', 'battleTime'];
   // Changes with names of their own, as players have called them for years.
   const VARIANTS = [
     { name: 'Orre Unlimited', format: 'orre', changes: { pool: 'any', soulDew: true } },
@@ -113,6 +120,7 @@
     ohko: value => on(value, 'no one-hit KO moves', 'one-hit KO moves allowed'),
     evasion: value => on(value, 'no evasion moves or items', 'evasion moves and items allowed'),
     smogonBans: value => on(value, 'Smogon\'s OU bans', 'none of Smogon\'s OU bans'),
+    legal: value => on(value, 'only legal Pokémon', 'moves and items a Pokémon couldn\'t have allowed'),
     turnTime: value => value ? `${value}-second turn timer` : 'no turn timer',
     battleTime: value => value ? `${value}-minute battle timer` : 'no battle timer'
   };
@@ -139,7 +147,7 @@
       rules.preview = bool(input?.preview, base.preview);
       rules.pool = has(POOLS, input?.pool) ? input.pool : base.pool;
       rules.sleep = has(SLEEP, input?.sleep) ? input.sleep : base.sleep;
-      for (const key of ['soulDew', 'speciesClause', 'itemClause', 'freeze', 'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans'])
+      for (const key of ['soulDew', 'speciesClause', 'itemClause', 'freeze', 'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans', 'legal'])
         rules[key] = bool(input?.[key], base[key]);
     }
     for (const key of TIMERS) rules[key] = timer(key, input?.[key], base[key]);
@@ -194,7 +202,7 @@
     if (!rules.soulDew) out.push(DESCRIBE.soulDew(false));
     for (const key of ['speciesClause', 'itemClause']) if (rules[key]) out.push(DESCRIBE[key](true));
     if (rules.sleep !== 'off') out.push(DESCRIBE.sleep(rules.sleep));
-    for (const key of ['freeze', 'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans']) if (rules[key]) out.push(DESCRIBE[key](true));
+    for (const key of ['freeze', 'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans', 'legal']) if (rules[key]) out.push(DESCRIBE[key](true));
     return out;
   }
 
@@ -215,7 +223,7 @@
     if (!Array.isArray(wire) || wire[0] !== species) return { species, item: 0, ability: 0, moves: [] };
     const abilities = ABILITIES[species] || [];
     return { species, item: wire[5] || 0, ability: abilities[wire[4] === 1 && abilities[1] ? 1 : 0] || 0,
-      moves: [wire[7], wire[9], wire[11], wire[13]].filter(move => Number.isInteger(move) && move > 0) };
+      moves: [wire[7], wire[9], wire[11], wire[13]].filter(move => Number.isInteger(move) && move > 0), wire };
   }
 
   // Why a party can't play under these rules: [text], empty when it can. party: species; members: their wire members,
@@ -256,7 +264,42 @@
       if (rules.evasion && has(EVASION_ITEMS, each.item)) out.push(`${species(each.species)} holds ${itemName(each.item)}, which isn't allowed (no evasion items).`);
     }
     if (rules.smogonBans) out.push(...smogonProblems(team, species, itemName, moveName));
+    if (rules.legal) out.push(...legalityProblems(team, species, itemName, moveName));
     return [...new Set(out)];
+  }
+
+  // The items a Pokémon can hold: the third generation's balls, items and berries, as the game's item table has them
+  // (not its TMs or key items, nor the empty rows between). [first, last] by the game's numbers.
+  const HOLDABLE = [[1, 51], [63, 71], [73, 81], [83, 86], [93, 98], [103, 104], [106, 111], [133, 174], [179, 225], [254, 258]];
+  const holdable = item => HOLDABLE.some(([first, last]) => item >= first && item <= last);
+  const LAST_MOVE = 0x162, BALLS = 12, EV_MOST = 255, EV_TOTAL = 510, IV_MOST = 31, PP_UPS = 3;
+
+  // What makes a Pokémon one it couldn't be, from the member the room sends (src/story-party.js wireMember): its moves
+  // (each one it could know, and each once), held item, EVs, IVs, PP Ups, friendship and ball.
+  function legalityProblems(team, species, itemName, moveName) {
+    const out = [];
+    for (const each of team) {
+      const wire = each.wire;
+      if (!wire) continue;   // its species alone: the moves it learns by level
+      const name = species(each.species);
+      const moves = [wire[7], wire[9], wire[11], wire[13]].filter(move => move);
+      const seen = new Set();
+      for (const move of moves) {
+        if (!Number.isInteger(move) || move < 1 || move > LAST_MOVE) out.push(`${name} knows a move this game doesn't have as a Pokémon's own (#${move}).`);
+        else if (seen.has(move)) out.push(`${name} knows ${moveName(move)} twice.`);
+        else if (!learnsets.learns(each.species, move)) out.push(`${name} can't learn ${moveName(move)} in the third generation.`);
+        seen.add(move);
+      }
+      if (each.item && !holdable(each.item)) out.push(`${name} holds ${itemName(each.item)}, which a Pokémon can't hold.`);
+      const evs = wire.slice(21, 27), ivs = wire.slice(15, 21);
+      if (evs.some(ev => !(ev >= 0 && ev <= EV_MOST)) || evs.reduce((sum, ev) => sum + ev, 0) > EV_TOTAL)
+        out.push(`${name} has more EVs than a Pokémon can have (${EV_MOST} in a stat, ${EV_TOTAL} in all).`);
+      if (ivs.some(iv => !(iv >= 0 && iv <= IV_MOST))) out.push(`${name} has an IV above ${IV_MOST}.`);
+      if ([wire[8], wire[10], wire[12], wire[14]].some(ups => !(ups >= 0 && ups <= PP_UPS))) out.push(`${name} has more than ${PP_UPS} PP Ups on a move.`);
+      if (!(wire[6] >= 0 && wire[6] <= 255)) out.push(`${name}'s friendship is more than 255.`);
+      if (!(wire[3] >= 1 && wire[3] <= BALLS)) out.push(`${name} is in a ball the game doesn't have.`);
+    }
+    return out;
   }
 
   // Smogon's other [Gen 3] OU bans: Sand Veil, Soundproof, Quick Claw, Smeargle with Ingrain, Baton Pass with a
