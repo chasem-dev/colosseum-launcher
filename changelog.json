@@ -41,7 +41,8 @@
       "Online battles now have critical hits, and Latias and Latios get Soul Dew's boost, as in the original game's link battles. Before, neither happened online.",
       "Online battles can be double battles, and can play by the original game's Battle Mode clauses: sleep, freeze, self-KO (Selfdestruct or Explosion loses a tie) and no Perish Song or Destiny Bond from a last Pokémon, with the other player's HP shown as a bar only if the room asks.",
       "The randomizer can choose Generation 4 Pokémon for a new run when the launcher adds them. Runs started before play as they always have.",
-      "Fixed Burmy's model from Battle Revolution coming apart when it moved, with its head at the bottom and its leaves stretched into tall blades, and smaller mistakes in how Shieldon's, Purugly's and Hippopotas's models bend."
+      "Fixed Burmy's model from Battle Revolution coming apart when it moved, with its head at the bottom and its leaves stretched into tall blades, and smaller mistakes in how Shieldon's, Purugly's and Hippopotas's models bend.",
+      "Fixed the battle camera aiming at the ground under most Generation 4 Pokémon from Battle Revolution when a move hit them, which cut tall ones like Garchomp off at the head."
     ]
   },
   "releases": [
