@@ -88,7 +88,9 @@ test('what a pokemon.json gets wrong is said plainly', () => {
   wrong({ base: 'Umbreon', name: 'X', moves: [[1, 'Hyper Beam']] }, /move "Hyper Beam" isn't one the game has/);
   wrong({ base: 'Umbreon', name: 'X', moves: Array(21).fill([1, 'Bite']) }, /1 to 20/);
   wrong({ base: 'Umbreon', name: 'X', tms: ['TM51'] }, /"TM51" isn't a TM/);
-  wrong({ base: 'Umbreon', name: 'X', evolutions: [{ into: 'Raichu' }] }, /one of "level", "item", "friendship" or "trade"/);
+  wrong({ base: 'Umbreon', name: 'X', evolutions: [{ into: 'Raichu' }] }, /one of "level", "item", "friendship", "trade", "knowsMove" or "withPokemon"/);
+  wrong({ base: 'Umbreon', name: 'X', evolutions: [{ into: 'Raichu', item: 'Thunder Stone', gender: 'male' }] }, /"gender" goes with "level"/);
+  wrong({ base: 'Umbreon', name: 'X', evolutions: [{ into: 'Raichu', knowsMove: 'Splash' }] }, /"knowsMove": "Splash" isn't a move/);
   wrong({ base: 'Umbreon', name: 'X', evolutions: [{ into: 'Raichu', item: 'Rare Candy' }] }, /isn't an evolution item/);
   wrong({ base: 'Umbreon', name: 'X', gender: 'sometimes' }, /"gender"/);
 });
@@ -104,6 +106,55 @@ test('evolutions name the game\'s Pokémon or a pack\'s, by what the method need
   assert.deepEqual(evolution(2), [3, 0, 26]);
   assert.deepEqual(evolution(3), [6, 199, 26]);
   assert.deepEqual(evolution(4), [0, 0, 0]);
+});
+
+test('the port\'s evolutions: knowing a move, a Pokémon in the party, a level for one gender', () => {
+  const game = tables();
+  const target = value => game.species.find(each => each.name === value || each.national === value).id;
+  const bytes = evolution => { const b = packs.evolutionBytes(evolution, game, target); return [b[0], b.readUInt16BE(2), b.readUInt16BE(4)]; };
+  assert.deepEqual(bytes({ into: 'Raichu', knowsMove: 'Thunderbolt' }), [16, 85, 26]);
+  assert.deepEqual(bytes({ into: 'Raichu', knowsMove: 246 }), [16, 246, 26], 'by number too');
+  assert.deepEqual(bytes({ into: 'Raichu', withPokemon: 'Umbreon' }), [17, 197, 26]);
+  assert.deepEqual(bytes({ into: 'Raichu', level: 20, gender: 'male' }), [18, 20, 26]);
+  assert.deepEqual(bytes({ into: 'Raichu', level: 21, gender: 'female' }), [19, 21, 26]);
+  assert.deepEqual(bytes({ into: 'Raichu', level: 30 }), [4, 30, 26], 'the game\'s own level for both');
+});
+
+test('the game\'s own Pokémon get a generation\'s level-up moves, and its evolutions after their own', () => {
+  const game = tables();
+  // Pikachu evolves into Raichu by Thunder Stone on the disc (the game's 7, 96)
+  const pikachu = game.species[0].row;
+  pikachu[0x9c] = 7; pikachu.writeUInt16BE(96, 0x9e); pikachu.writeUInt16BE(26, 0xa0);
+  const built = { ownSpecies: [
+    { id: 25, national: 25, levelUp: [[1, 33], [5, 85]], evolutions: [{ into: 'generation:500', level: 30 }, { into: 'generation:469', knowsMove: 85 }] },
+    { id: 26, national: 26, levelUp: [[1, 33]], evolutions: [] },   // as the disc has it: left out
+    { id: 197, national: 197, levelUp: [[1, 44]], evolutions: [] }] };
+  const { rows, problems } = packs.ownRows(game, built, [{ id: 469 + 26 }]);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(rows.map(row => row.id), [25, 197]);
+  const evolution = (row, i) => [row.evolutions[i * 6], row.evolutions.readUInt16BE(i * 6 + 2), row.evolutions.readUInt16BE(i * 6 + 4)];
+  assert.deepEqual(evolution(rows[0], 0), [7, 96, 26], 'its own first');
+  assert.deepEqual(evolution(rows[0], 1), [16, 85, 495], 'then the generation\'s, into a Pokémon that was loaded (500 wasn\'t)');
+  assert.deepEqual(evolution(rows[0], 2), [0, 0, 0]);
+  assert.deepEqual([rows[0].moves[4], rows[0].moves.readUInt16BE(6), rows[0].moves.readUInt16BE(10)], [5, 85, 0]);
+  // A row with all five places taken keeps its own
+  const full = { ownSpecies: [{ id: 197, national: 197, levelUp: [[1, 33]], evolutions: [{ into: 'Raichu', level: 30 }] }] };
+  for (let i = 0; i < 5; i++) { game.species[2].row[0x9c + i * 6] = 4; game.species[2].row.writeUInt16BE(25, 0xa0 + i * 6); }
+  const again = packs.ownRows(game, full, []);
+  assert.equal(again.rows.length, 0);
+  assert.match(again.problems[0].message, /no room for another evolution/);
+});
+
+test('the game\'s own Pokémon\'s rows and the relearner go in a chunk of their own', () => {
+  const evolutions = Buffer.alloc(30, 1), moves = Buffer.alloc(80, 2);
+  const file = packs.compile({ pokemon: [], ownRows: [{ id: 193, evolutions, moves }], relearner: true });
+  assert.equal(file.readUInt32BE(8), 1, 'one chunk');
+  assert.equal(file.toString('latin1', 16, 20), 'ROWS');
+  assert.equal(file.readUInt32BE(20), 8 + 116);
+  assert.deepEqual([file.readUInt32BE(24), file.readUInt32BE(28), file.readUInt16BE(32)], [1, 1, 193]);
+  assert.ok(file.subarray(36, 66).equals(evolutions));
+  assert.ok(file.subarray(68, 148).equals(moves));
+  assert.equal(packs.compile({ pokemon: [] }).readUInt32BE(8), 0, 'nothing without them');
 });
 
 test('a Pokémon keeps its row, and new ones take the first that none has had', () => {

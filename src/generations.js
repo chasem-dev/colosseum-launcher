@@ -192,6 +192,54 @@ function rules(tables, data, moves) {
   return { generation: data.generation, features, categories, changed, species };
 }
 
+// A Pokémon's level-up moves, the ones Colosseum can play, by Colosseum's number: at most twenty, as a row holds (the
+// first ones it learns, as a Pokémon met at a level knows its latest four).
+const levelUpMoves = (entry, usable) =>
+  entry.levelUp.map(([level, move]) => [Math.max(1, level), usable(move)]).filter(([, move]) => move).slice(0, 20);
+
+const intoOf = number => number > 386 ? `generation:${number}` : number;
+
+// An evolution of a later generation's (Pokémon Platinum's, make.js) as pokemon.json says one Colosseum can make
+// (src/pokemon-packs.js), or null where it can't. Colosseum evolves by level, friendship, an item it has or a trade, and
+// the port adds knowing a move, a Pokémon in the party, and a level for one gender (host/evolutions.c). The game keeps
+// no time of day, so an evolution by friendship in the day or at night is by friendship; an item or a place the game
+// hasn't is a level, or no evolution (gen<N>-colosseum.json: Eevee's mossy and icy rocks).
+function evolutionOf(data, evolution, usable) {
+  const into = intoOf(evolution.into), gender = evolution.gender ? { gender: evolution.gender } : {};
+  if (evolution.other) return null;   // the third generation's, which the game's own Pokémon have as it has them
+  if (evolution.level) return { into, level: evolution.level, ...gender };
+  if (evolution.friendship) return { into, friendship: true };
+  if (evolution.knowsMove) { const move = usable(evolution.knowsMove); return move ? { into, knowsMove: move } : null; }
+  if (evolution.withPokemon) return { into, withPokemon: intoOf(evolution.withPokemon) };
+  if (evolution.trade === true) return { into, trade: true };
+  const item = evolution.item || evolution.heldItem || evolution.trade;
+  if (item) {
+    const level = data.colosseum.evolutionItems[item];
+    if (level === undefined) return evolution.item ? { into, item } : evolution.heldItem ? null : { into, trade: item };
+    return level ? { into, level, ...gender } : null;
+  }
+  if (evolution.place) { const level = data.colosseum.evolutionPlaces?.[evolution.place]; return level ? { into, level } : null; }
+  return null;
+}
+
+// The game's own Pokémon (1 to 386) with a later generation's Pokémon added: their level-up moves as that generation
+// has them, and their evolutions into its new Pokémon, which go after the game's own (Yanma into Yanmega by knowing
+// Ancient Power, Murkrow into Honchkrow). [{ id, national, levelUp, evolutions }], as src/pokemon-packs.js ownRows
+// writes them into the game's rows.
+function ownSpecies(tables, data, moves) {
+  const playable = new Set(moves.map(move => move.number));
+  const usable = n => n < FIRST_NEW_MOVE ? n : playable.has(n) ? colosseumMove(n) : null;
+  const out = [];
+  for (const each of tables.species || []) {
+    const entry = each.national >= 1 && each.national <= 386 ? data.species[each.national] : null;
+    if (!entry || !each.row) continue;
+    const evolutions = entry.evolutions.filter(evolution => evolution.into > 386)
+      .map(evolution => evolutionOf(data, evolution, usable)).filter(Boolean);
+    out.push({ id: each.id, national: each.national, levelUp: levelUpMoves(entry, usable), evolutions });
+  }
+  return out;
+}
+
 function stageOf(data, number) {
   const parents = new Map();
   for (const [n, entry] of Object.entries(data.species)) for (const evolution of entry.evolutions) parents.set(evolution.into, Number(n));
@@ -214,22 +262,8 @@ function speciesSpec(tables, data, number, moves, ownAbilities) {
     else if (ownAbilities && numberOf(name) >= data.newAbilities[0]) abilities.push(name);
   }
   if (!abilities.length) abilities.push(...entry.abilities.map(name => data.colosseum.abilities[name]).filter(Boolean));
-  const levelUp = entry.levelUp.map(([level, move]) => [Math.max(1, level), usable(move)]).filter(([, move]) => move);
-  // At most twenty, as a row holds: the first ones it learns, as a Pokémon met at a level knows its latest four
-  const moveList = levelUp.slice(0, 20);
-  const evolutions = [];
-  for (const evolution of entry.evolutions) {
-    const into = evolution.into > 386 ? `generation:${evolution.into}` : evolution.into;
-    if (evolution.level) evolutions.push({ into, level: evolution.level });
-    else if (evolution.friendship) evolutions.push({ into, friendship: evolution.friendship });
-    else if (evolution.trade === true) evolutions.push({ into, trade: true });
-    else {
-      const item = evolution.item || evolution.trade;
-      const level = data.colosseum.evolutionItems[item];
-      if (item && level === undefined) evolutions.push({ into, [evolution.item ? 'item' : 'trade']: item });
-      else evolutions.push({ into, level: level || 36 });
-    }
-  }
+  const moveList = levelUpMoves(entry, usable);
+  const evolutions = entry.evolutions.map(evolution => evolutionOf(data, evolution, usable)).filter(Boolean);
   const types = [...new Set(entry.types)];
   return {
     base: (STAND_INS[types[0]] || STAND_INS.Normal)[stageOf(data, number) - 1],
@@ -249,13 +283,13 @@ function speciesSpec(tables, data, number, moves, ownAbilities) {
 }
 
 // Everything the settings ask for, for the expansion file: { rules (or null), moves, species: [{ id, number, spec }],
-// notes }. tables: src/pokemon-packs.js readGameTables.
+// ownSpecies (ownSpecies), notes }. tables: src/pokemon-packs.js readGameTables.
 // A later generation's ability by the game's number: its own, but Tangled Feet's 77 is Air Lock's in Colosseum (which keeps
 // Ruby and Sapphire's numbers, Cacophony 76 and Air Lock 77), so it's 124 (host/gen4.c).
 const colosseumAbility = number => number === 77 ? 124 : number;
 
 function build(tables, settings) {
-  const chosen = normalize(settings), out = { rules: null, moves: [], abilities: [], species: [], notes: [] };
+  const chosen = normalize(settings), out = { rules: null, moves: [], abilities: [], species: [], ownSpecies: [], notes: [] };
   const generations = new Set([...chosen.generationPokemon, ...(chosen.battleRules > COLOSSEUM_RULES ? [chosen.battleRules] : [])]);
   const movesOf = new Map();
   for (const generation of [...generations].sort()) {
@@ -269,6 +303,8 @@ function build(tables, settings) {
     if (chosen.generationPokemon.includes(generation)) {
       for (let number = data.newSpecies[0]; number <= data.newSpecies[1]; number++)
         if (data.species[number]) out.species.push({ id: speciesId(number), number, generation, spec: speciesSpec(tables, data, number, moves, chosen.battleRules >= generation) });
+      // and the game's own Pokémon learn and evolve as in that generation (the latest chosen, when there are more)
+      out.ownSpecies = ownSpecies(tables, data, moves);
     }
   }
   if (chosen.battleRules > COLOSSEUM_RULES) out.rules = rules(tables, load(chosen.battleRules), out.moves);
@@ -276,4 +312,4 @@ function build(tables, settings) {
 }
 
 module.exports = { SAME_ABILITIES, colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build, moveCategories,
-  newMoves, rules, speciesSpec, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };
+  newMoves, rules, speciesSpec, ownSpecies, evolutionOf, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };
