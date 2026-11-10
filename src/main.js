@@ -335,7 +335,8 @@ async function allowGcAdapter() {
 
 // A GB-Link adapter (gblink.js), for the real-GBA switch under Settings → Game Boy Advance.
 let gblinkLogged = '';
-async function gblinkStatus() {
+// `always`: log it even when nothing changed (at Play, so every game log starts with what the launcher saw).
+async function gblinkStatus(always = false) {
   let status = { present: false };
   if (process.platform === 'linux') status = gblink.linuxStatus();
   else if (process.platform === 'win32') {
@@ -345,7 +346,7 @@ async function gblinkStatus() {
     : status.readable ? `GB-Link adapter: plugged in${status.port ? ` on ${status.port}` : ''}, the game can open it.`
     : status.fix === 'udev' ? `GB-Link adapter: plugged in on ${status.port}, but this user can't open it; it needs a udev rule.`
     : `GB-Link adapter: plugged in, but Windows has no working driver for it (${status.status || 'no serial port'}).`;
-  if (line !== gblinkLogged && (status.present || gblinkLogged)) log(line);
+  if (always || (line !== gblinkLogged && (status.present || gblinkLogged))) log(line);
   gblinkLogged = line;
   return status;
 }
@@ -1173,6 +1174,12 @@ async function play(installation = null, battle = null) {
   if (!port.hdVisualsInstalled(root, settings))
     throw new Error('HD visuals need to be set up. Return to the main screen to finish setup, or turn them off in Settings.');
   await ensureLanguage(settings);
+  // A real GBA on a GB-Link adapter: what the launcher sees of the adapter goes in the log before the game's own
+  // lines about it ([gba] 2: ...), so a log shows each step from USB to the GBA.
+  if (settings.gbaGbLink) {
+    log('Game Boy Advance: your own GBA on a GB-Link adapter (socket 2). The game finds the adapter itself.');
+    await gblinkStatus(true);
+  }
   // An online battle plays on no save: the memory card stays as it was.
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
