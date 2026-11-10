@@ -102,6 +102,15 @@ test("a generation's rules: categories by move, and the old moves it changed", (
   assert.ok(rules.changed.some(change => change.id === 19 && change.row.readUInt16BE(0x16) === 90), "Fly has generation 4's 90 power");
 });
 
+test('Acupressure is aimed, as Colosseum has no move for the user or its partner', () => {
+  const game = tables(), data = generations.load(4);
+  game.moveRows[70][3] = 5;   // the move it plays as here is the user's own, as Focus Energy is on the disc
+  const colosseum = { ...data.colosseum, moves: Object.fromEntries(Object.entries(data.colosseum.moves).map(([name, how]) => [name, how && { ...how, as: 'Strength' }])) };
+  const acupressure = generations.newMoves(game, { ...data, colosseum }).find(move => move.name === 'ACUPRESSURE');
+  assert.equal(acupressure.row[3], 0, 'a move a target is chosen for: the partner, or (aimed at a foe) the user');
+  assert.equal(acupressure.row.readUInt16BE(0x1a), 244);
+});
+
 test("Colosseum's own moves become Platinum's in every number and flag, but effects stay theirs", () => {
   const game = tables(), data = generations.load(4);
   game.moveRows[20][5] = 100;   // Bind traps, always
@@ -115,6 +124,10 @@ test("Colosseum's own moves become Platinum's in every number and flag, but effe
   assert.equal(row(148)[0x12], 0, 'Flash can be forgotten');
   assert.equal(row(127)[5], 20, "Waterfall's 20% flinch");
   assert.equal(row(127)[0x18], 127, 'the row is otherwise its own');
+  // Astonish, Extrasensory and Needle Arm share Stomp's effect in Colosseum, which doubles against Minimize: in
+  // Platinum they only flinch, as Bite does
+  for (const id of [310, 326, 302]) assert.equal(row(id).readUInt16BE(0x1a), 31, `move ${id} only flinches`);
+  assert.equal(row(23).readUInt16BE(0x1a), 0, "Stomp keeps its own effect (the made-up table's 0)");
   assert.equal(row(252)[6], 1, 'Fake Out makes contact');
   assert.equal(row(237)[2], 0, 'Hidden Power stays Normal in the table');
 });

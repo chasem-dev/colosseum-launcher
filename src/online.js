@@ -25,7 +25,9 @@ const formats = require('./formats');
 // 4: a room's rules may be Pokémon Platinum's battle rules (battleRules), which a launcher before 4 can't play.
 // 5: rooms have timers (turnTime, battleTime), whose battle clock both games share: a launcher before 5 would leave
 // its game without them, and the two games would end the battle at different turns.
-const PROTOCOL = 5;
+// 6: under Platinum's rules four moves' rows changed (Astonish, Extrasensory and Needle Arm only flinch; Acupressure is
+//    aimed), and both games must be given the same rows.
+const PROTOCOL = 6;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list

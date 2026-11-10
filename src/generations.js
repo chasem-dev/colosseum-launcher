@@ -143,6 +143,8 @@ function newMoves(tables, data) {
     const row = writeMove(Buffer.from(from), move, learned, tables, { power, chance: chanceFor(move, from, sameEffect) });
     // The effect the game plays: the template's, or one of the port's own (host/gen4.c's EFFECT_*), or another of the game's.
     if (how.effect !== undefined) row.writeUInt16BE(how.effect, MV.effect);
+    // Who it's aimed at, where no move of Colosseum's has its range (Acupressure: the user or its partner).
+    if (how.target !== undefined) row[MV.target] = how.target;
     out.push({ id: colosseumMove(number), number, name: move.name.toUpperCase().slice(0, 12), description: move.description,
       row, exact: Boolean(how.exact), note: how.note || '', as: how.as });
   }

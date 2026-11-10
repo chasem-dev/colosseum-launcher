@@ -13,7 +13,7 @@
     "Feint": { "as": "Quick Attack", "effect": 248, "exact": true },
     "Pluck": { "as": "Peck", "effect": 260, "exact": true },
     "Tailwind": { "as": "Mist", "effect": 226, "exact": true },
-    "Acupressure": { "as": "Focus Energy", "effect": 244, "exact": true },
+    "Acupressure": { "as": "Focus Energy", "effect": 244, "target": 0, "exact": true, "note": "Aimed at your partner it raises your partner's stat; aimed at a foe, your own (Colosseum has no way to aim at yourself or your partner)." },
     "Metal Burst": { "as": "Counter", "effect": 249, "exact": true },
     "U-turn": { "as": "Fury Cutter", "effect": 252, "exact": true },
     "Close Combat": { "as": "Superpower", "effect": 221, "exact": true },
@@ -119,6 +119,9 @@
     "Acid": { "effect": 72, "note": "A chance to lower Sp. Def (the game's Psychic), not Defense." },
     "Crunch": { "effect": 69, "note": "A chance to lower Defense (the game's Iron Tail), not Sp. Def." },
     "Waterfall": { "effect": 31, "note": "A chance to flinch (the game's Bite)." },
+    "Astonish": { "effect": 31, "note": "A chance to flinch only (the game's Bite): in Colosseum it also hits a Pokémon that used Minimize twice as hard, as Stomp does." },
+    "Extrasensory": { "effect": 31, "note": "A chance to flinch only (the game's Bite), not Stomp's double damage against Minimize." },
+    "Needle Arm": { "effect": 31, "note": "A chance to flinch only (the game's Bite), not Stomp's double damage against Minimize." },
     "Volt Tackle": { "effect": 256, "note": "Recoil, and a chance to paralyze (host/gen4.c)." }
   },
   "abilities": {
