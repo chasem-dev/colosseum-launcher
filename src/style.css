@@ -692,6 +692,8 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .randomizer-checks { flex: none !important; display: flex !important; gap: 14px; }
 .randomizer-checks label { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; }
 .randomizer-checks input { accent-color: #841d74; }
+.randomizer-checks label.disabled { opacity: .45; }
+.randomizer-options > .row-note { margin: -4px 0 0; padding-bottom: 12px; color: #826f7f; font-size: 11px; line-height: 1.45; }
 .dark .randomizer-checks input { accent-color: #ffc75a; }
 /* Online */
 .online-count { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #816d7a; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }

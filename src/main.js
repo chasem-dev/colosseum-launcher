@@ -1101,7 +1101,7 @@ async function play(installation = null, battle = null) {
   } else if (battle.rules?.battleRules > generations.COLOSSEUM_RULES) {
     packsFile = prepareBattleRules(rom, cacheFolder, battle.rules.battleRules);
   }
-  const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
+  const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory(), laterGenerations: onlineFeatures(root).randomizerGenerations }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
     ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
@@ -1286,10 +1286,12 @@ function onlineFeatures(root) {
       const bytes = fs.readFileSync(file);
       onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story: bytes.includes('online: story member'),
         // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
-        rules: bytes.includes('battle, rules: ') };
+        rules: bytes.includes('battle, rules: '),
+        // the randomizer's fourth generation (host/randomizer.c)
+        randomizerGenerations: bytes.includes('randomizer: later generations') };
     }
     return onlineBinary;
-  } catch (_) { return { online: false, story: false, rules: false }; }
+  } catch (_) { return { online: false, story: false, rules: false, randomizerGenerations: false }; }
 }
 const gameHasOnline = root => onlineFeatures(root).online;
 
@@ -1595,6 +1597,7 @@ function state() {
     crashReports: crashReports.summary(crashReports.directory()), directPlayFailure,
     // The run on the memory card, and whether the game on disk can play one.
     randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c')),
+    randomizerGenerations: repoReady && onlineFeatures(config.repo).randomizerGenerations,
     usage: usageCount, online: onlineState(),
     gba: { ...gbaLink.status(config.gba), backupFolder: gbaBackupFolder() }
   };
@@ -1789,7 +1792,9 @@ function registerHandlers() {
     try { raw = fs.readFileSync(spoilerFile(), 'utf8'); } catch (_) { /* written when the game opens the run */ }
     if (randomizer.spoilerSeed(raw) !== run.seed) throw new Error('Open your save in the game once first: the spoiler log is written when it loads.');
     const readable = path.join(app.getPath('userData'), 'Randomizer spoilers.txt');
-    fs.writeFileSync(readable, randomizer.spoilerText(raw, pokedexData.list(port.validateRom(config.rom))));
+    // the disc's Pokémon, and a later generation's that a run can have (not a pack's own, which it never chooses)
+    const list = pokedexList(port.validateRom(config.rom));
+    fs.writeFileSync(readable, randomizer.spoilerText(raw, [...list.species, ...list.packs.filter(entry => entry.pack.id.startsWith('generation-'))]));
     await shell.openPath(readable);
   });
   ipcMain.handle('online-save', (_event, value) => {

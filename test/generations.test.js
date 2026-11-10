@@ -129,6 +129,8 @@ test('a new Pokémon: its own numbers, a stand-in of its type and stage, moves i
   assert.deepEqual(spec.abilities, ['Overgrow']);
   const turtwig = generations.speciesSpec(game, data, 387, []);
   assert.deepEqual(turtwig.evolutions, [{ into: 'generation:388', level: 18 }]);
+  // none of its own is none at all, not its stand-in's (Zigzagoon's Linoone at 20, for Arceus)
+  assert.deepEqual(generations.speciesSpec(game, data, 493, []).evolutions, []);
 });
 
 test('Battle Revolution models are made by the game\'s own pbr2pkx, with the build tools\' Python', () => {
