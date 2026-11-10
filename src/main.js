@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, net, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, net, screen, protocol } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -37,6 +37,8 @@ const formats = require('./formats');
 const storyParty = require('./story-party');
 const pokedexNames = require('./pokedex');
 const pokedexData = pokedexNames.create();
+const texturePackLookup = require('./texture-pack-lookup');
+const { pathToFileURL } = require('node:url');
 const battleData = require('./battle-data').create();
 const teamSets = require('./team-sets');
 const pokemonPacks = require('./pokemon-packs');
@@ -70,6 +72,8 @@ if (portableRoot) {
   app.setPath('userData', portableRoot);
   app.setPath('sessionData', path.join(portableRoot, 'Electron'));
 }
+// The Pokédex's HD sprites (pokedexList): registered before the app is ready, as Electron requires.
+protocol.registerSchemesAsPrivileged([{ scheme: 'colo-texture', privileges: { standard: true, secure: true } }]);
 const activityLog = createActivityLog();
 const partialOutput = new Map();
 const sessionLog = createSessionLog(() => app.getPath('userData'), error =>
@@ -1013,10 +1017,56 @@ function prepareBattleRules(rom, folder, battleRules) {
   return file;
 }
 
+// The HD textures the Pokédex draws with: the folders the game would read, the player's custom textures and then
+// the HD pack once it's turned on and downloaded. Indexed again when the folders change and each time the list is read.
+let pokedexTextures = { key: null, index: new Map() };
+function pokedexTextureIndex(fresh = false) {
+  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo)) };
+  const folders = port.texturePackFolders(settings, config.repo, customTextureDirectory()), key = folders.join('\n');
+  if (fresh || key !== pokedexTextures.key) pokedexTextures = { key, index: texturePackLookup.indexFolders(folders) };
+  return pokedexTextures.index;
+}
+
+// A model with its textures' HD images (PNG bytes, as `image`) where the folders have them. The disc's stay too,
+// for an image the renderer can't read.
+function withHdTextures(model) {
+  const index = pokedexTextureIndex();
+  for (const texture of model.textures) {
+    const found = texturePackLookup.findReplacement(index, texture.disc);
+    delete texture.disc;
+    if (found) try { texture.image = fs.readFileSync(found.file); } catch (_) {}
+  }
+  return model;
+}
+
+// A disc Pokémon's sprite with an HD image: the page loads it from colo-texture://sprite/<National Pokédex number>, so
+// only the sprites on screen are read, and the browser decodes them. Each load looks the image up again, and gets the
+// disc's sprite once the HD textures are off.
+const TEXTURE_SCHEME = 'colo-texture';
+function withHdSprites(rom, species) {
+  const index = pokedexTextureIndex(true);
+  if (!index.size) return species;
+  return species.map(entry => texturePackLookup.findReplacement(index, pokedexData.spriteTexture(rom, entry.national))
+    ? { ...entry, sprite: `${TEXTURE_SCHEME}://sprite/${entry.national}` } : entry);
+}
+
+function hdSpriteResponse(request) {
+  const missing = () => new Response(null, { status: 404 });
+  try {
+    const url = new URL(request.url), national = Number(url.pathname.slice(1));
+    if (url.hostname !== 'sprite' || !Number.isInteger(national)) return missing();
+    const rom = port.validateRom(config.rom), entry = pokedexData.list(rom).find(item => item.national === national);
+    const found = entry && texturePackLookup.findReplacement(pokedexTextureIndex(), pokedexData.spriteTexture(rom, national));
+    if (found) return net.fetch(pathToFileURL(found.file).toString());
+    if (!entry?.sprite) return missing();
+    return new Response(Buffer.from(entry.sprite.slice(entry.sprite.indexOf(',') + 1), 'base64'), { headers: { 'Content-Type': 'image/png' } });
+  } catch (_) { return missing(); }
+}
+
 // The Pokédex's list: the disc's Pokémon, and the packs' after the ones they're based on.
 let pokedexPacks = new Map();   // key -> the pack Pokémon, for its model
 function pokedexList(rom) {
-  const species = pokedexData.list(rom);
+  const species = withHdSprites(rom, pokedexData.list(rom));
   let packs = [], problems = [];
   try {
     {
@@ -1813,7 +1863,7 @@ function registerHandlers() {
   ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story }));
   ipcMain.handle('pokedex-model', (_event, key, form) => {
     const look = pokedexLook(key, String(form));
-    return look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form));
+    return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form)));
   });
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));
@@ -2106,6 +2156,7 @@ if (ownsInstance) app.whenReady().then(async () => {
   if (process.env.APPIMAGE && startedFromSteam()) steam.endOnSigterm();
   loadConfig();
   registerHandlers();
+  protocol.handle(TEXTURE_SCHEME, hdSpriteResponse);
   if (playOnStart && await playDirectly()) return app.quit();
   createWindow();
   // Only with the window: a launcher update installs on quit, which `--play` does as the game closes.
