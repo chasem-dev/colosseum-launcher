@@ -1,6 +1,11 @@
 {
   "beta": {
     "launcher": [
+      "Online: a room of any format, Casual too, can play by Pokémon Platinum's battle rules. Choose Platinum's under Rules when you create the room, and both players battle by them; the room list says so.",
+      "Fixed Generation 4 rules taking away an ability whose name Colosseum runs together, such as Rhydon's and Manectric's Lightning Rod.",
+      "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves and TMs, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on, with who made them.",
+      "Later generations, under Settings → Gameplay: play by Pokémon Platinum's battle rules, where Metronome can call Generation 4's moves too, and add the 107 Generation 4 Pokémon and their moves to your game (with their own abilities under Platinum's rules) and the Pokédex.",
+      "Battle Revolution models: make the Generation 4 Pokémon's models and icons from your own Pokémon Battle Revolution disc, under Settings → Gameplay, with how many are made shown as it goes. No Blender needed.",
       "Save backups now keep your PC's boxes 4 to 10 with your save, and exporting a save for Dolphin tells you when Pokémon in those boxes stay behind, as Dolphin's game has only 3 boxes.",
       "Show shiny Shadow Pokémon and Shiny starters: switches for the game's new shiny options, both on to start with. Find them under Gameplay.",
       "Language: play in French, German, Spanish or Italian, with the European release's text, menus, battle screens and colosseum title cards. Choose it under Settings → Gameplay; it downloads the first time you play with it. A fan translation works too: put its folder in the languages folder (Open languages folder) and it shows in the list.",
@@ -13,6 +18,8 @@
       "Online formats: create a room as Orre Colosseum (doubles, bring 6 pick 4), Hoenn Stadium (singles, pick 3) or Gen 3 OU (Smogon's 6-on-6), with their clauses and bans, or keep Casual, the rooms as they were. Customise changes any rule, and the room list shows a named variant such as Orre Limited, or Orre Colosseum* (custom) with what changed. Games makes a room a best of 3 or 5 with the same party for the set, and with team preview both players see both parties and pick before each game. A room your party can't play says why. Choose them under Create room on the Online tab."
     ],
     "game": [
+      "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",
+      "Generation 4 battle rules as Pokémon Platinum plays them: its damage, critical hits, accuracy and turn order, moves physical or special by themselves, Waterfall's chance to flinch, Volt Tackle's to paralyze, Acid lowering Sp. Def and Crunch Defense, the game's Pokémon with the abilities Platinum gives them (Scizor's Technician, Breloom's Poison Heal), Generation 4's moves after the game's own, each doing what it does in Platinum, Generation 4's held items such as Life Orb, Focus Sash, Choice Scarf and Light Clay, Berries eaten as soon as HP drops far enough, and room for far more than 25 new Pokémon.",
       "Fixed a number showing instead of the move's name when a Pokémon forgets a move in battle to learn a new one, such as \"Umbreon forgot 25\" for Taunt.",
       "Fixed the sandstorm, and the strong sunlight after Sunny Day, stopping short of the sides in widescreen: they now cover the whole screen, with the sandstorm's clouds at their usual size.",
       "Fixed the PDA leaving black bars, or the room behind it, at the sides in widescreen: its green background and scanlines now fill the screen.",

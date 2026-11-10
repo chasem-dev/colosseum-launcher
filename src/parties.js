@@ -53,6 +53,8 @@ function normalize(input) {
     level: LEVELS.includes(input?.level) ? input.level : LEVELS[0],
     size: SIZES.includes(input?.size) ? input.size : SIZES[1],
     listed: input?.listed !== false,
+    // whose battle rules the room plays by: Colosseum's (3) or Pokémon Platinum's (4), with any format
+    battleRules: formats.BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : formats.BATTLE_RULES[0],
     // the room's format (src/formats.js), its changes for each format the player has changed, and how many games
     format: formats.FORMAT_IDS.includes(input?.format) ? input.format : 'casual',
     custom: cleanCustom(input?.custom),
@@ -71,9 +73,11 @@ function cleanCustom(input) {
 }
 
 // The rules of a room the player makes: Casual's level and size, or a format with their changes to it.
+// Either plays by the battle rules the player chose.
 function roomRules(online) {
-  if (online.format === 'casual') return formats.normalize({ format: 'casual', level: online.level, size: online.size });
-  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format });
+  const battleRules = online.battleRules;
+  if (online.format === 'casual') return formats.normalize({ format: 'casual', level: online.level, size: online.size, battleRules });
+  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format, battleRules });
 }
 
 // The chosen party of the player's own, when it is ready to battle with (not the Story party).

@@ -94,6 +94,7 @@
                 <option value="casual">Casual</option><option value="orre">Orre Colosseum (doubles)</option>
                 <option value="hoenn">Hoenn Stadium (singles)</option><option value="gen3ou">Gen 3 OU (6 on 6)</option></select></label>
               <label class="online-field"><span>Games</span><select id="online-best-of"><option value="1">One battle</option><option value="3">Best of 3</option><option value="5">Best of 5</option></select></label>
+              <label class="online-field"><span>Rules</span><select id="online-rules"><option value="3">Colosseum's</option><option value="4">Platinum's (Generation 4)</option></select></label>
               <label class="online-field online-casual"><span>Level</span><select id="online-level"><option value="50">Level 50</option><option value="100">Level 100</option></select></label>
               <label class="online-field online-casual"><span>Battle</span><select id="online-size"><option value="6">6 Pokémon each</option><option value="3">3 Pokémon each</option></select></label>
               <div id="online-format-summary" class="online-format-summary" hidden>
@@ -114,7 +115,9 @@
         </div>
       </section>
       <section id="page-pokedex" class="page sheet pokedex-page" aria-labelledby="pokedex-title" hidden>
-        <div class="modal-head"><div><h1 id="pokedex-title">Pokédex</h1><p id="pokedex-summary">Every Pokémon on your disc, in 3D.</p></div></div>
+        <div class="modal-head"><div><h1 id="pokedex-title">Pokédex</h1><p id="pokedex-summary">Every Pokémon on your disc, in 3D.</p>
+          <div id="pokedex-pack-problems" class="pokedex-pack-problems" role="status" hidden><strong>Some of your Pokémon packs couldn't be loaded:</strong><ul id="pokedex-pack-problem-list"></ul></div></div>
+          <div class="pokedex-pack-actions"><button class="subtle" id="pokedex-open-packs" title="Add your own Pokémon: each pack is a folder here">Open Pokémon packs folder</button><button class="subtle" id="pokedex-reload" title="Read the packs folder again">Reload</button></div></div>
         <div class="pokedex-body">
           <div class="pokedex-browse">
             <input id="pokedex-search" class="pokedex-search" type="search" placeholder="Search by name or number" aria-label="Search Pokémon by name or number">
@@ -217,6 +220,12 @@
                 <label class="switch"><span><strong>No legendaries</strong><small>Leaves legendary and mythical Pokémon out.</small></span><input id="randomizerNoLegendaries" type="checkbox"><i></i></label>
               </div>
               <div class="field randomizer-save"><span>Your save<small id="randomizer-save-note"></small></span><button id="randomizer-spoilers" class="subtle" type="button" hidden>Show spoilers</button></div>
+            </div>
+            <h2 class="group-title">Later generations</h2>
+            <div class="settings-group">
+              <label class="field"><span>Battle rules<small>Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types' Sp. Def; and moves Diamond and Pearl changed play as they did there. An online battle plays by its room's rules, chosen under Rules on the Online page.</small></span><select id="battleRules"><option value="3">Colosseum (Gen 3)</option><option value="4">Diamond and Pearl (Gen 4)</option></select></label>
+              <label class="switch"><span><strong>Generation 4 Pokémon</strong><small>Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. Nothing in the game hands them out yet. A Pokémon Colosseum has stands in for each one's looks and cry.</small></span><input id="generation4Pokemon" type="checkbox"><i></i></label>
+              <div class="path-row"><div><strong>Battle Revolution models</strong><span class="small-path" id="pbr-note"></span></div><div class="actions"><button class="subtle" id="choose-pbr-disc">Choose disc</button><button class="subtle" id="make-pbr-models">Make models</button></div></div>
             </div>
           </section>
 

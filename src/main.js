@@ -35,9 +35,13 @@ const presence = require('./presence');
 const parties = require('./parties');
 const formats = require('./formats');
 const storyParty = require('./story-party');
-const pokedexData = require('./pokedex').create();
+const pokedexNames = require('./pokedex');
+const pokedexData = pokedexNames.create();
 const battleData = require('./battle-data').create();
 const teamSets = require('./team-sets');
+const pokemonPacks = require('./pokemon-packs');
+const generations = require('./generations');
+const hsdModel = require('./hsd-model');
 const randomizer = require('./randomizer');
 const languagePacks = require('./language-packs');
 const { retrying, httpError } = require('./retry');
@@ -196,6 +200,8 @@ function loadConfig() {
   config = {
     repo: typeof saved.repo === 'string' ? saved.repo : defaultRepo(),
     rom: typeof saved.rom === 'string' ? saved.rom : '',
+    // The player's Pokémon Battle Revolution disc file, for its models (makePbrModels)
+    pbrDisc: typeof saved.pbrDisc === 'string' ? saved.pbrDisc : '',
     settings: port.moveToMetal(port.normalizeSettings(saved.settings || {}), saved.movedToMetal),
     // Only once Metal is on offer: a Mac still on a Rosetta game moves when its game turns native.
     movedToMetal: Boolean(saved.movedToMetal) || port.platformInfo().renderers[0] === 'metal',
@@ -931,6 +937,118 @@ function bindingsEnvironment(settings) {
 
 function customTextureDirectory() { return port.customTextureDirectory(app.getPath('userData')); }
 
+// --- Pokémon packs (src/pokemon-packs.js): read from their folder for each play and for the Pokédex.
+function pokemonPacksDirectory() { return pokemonPacks.packsDirectory(app.getPath('userData')); }
+
+let packTables = null;   // { rom, tables }: what the disc has, read once for each disc
+// The packs in their folder, and the later generations' Pokémon, moves and rules the settings ask for.
+function readPokemonPacks(rom, settings = config.settings) {
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const { tables } = packTables;
+  const packs = fs.existsSync(pokemonPacksDirectory())
+    ? pokemonPacks.loadPacks(pokemonPacksDirectory(), tables, pokemonPacks.readRegistry(currentSaveDirectory()))
+    : { pokemon: [], problems: [], registry: { ids: {} }, registryChanged: false, missing: [] };
+  const built = generations.build(tables, settings), fromGenerations = pokemonPacks.generationPokemon(tables, built, { modelsDirectory: pbrModels() });
+  return { tables, ...packs, built, generationPokemon: fromGenerations.pokemon,
+    problems: [...packs.problems, ...fromGenerations.problems] };
+}
+
+const packLabel = problem => `${problem.pack}${problem.entry ? `/${problem.entry}` : ''}`;
+
+// --- Battle Revolution models (the game's tools/pbr2pkx): the player's own Battle Revolution disc, made into models and
+// icons for the later generations' Pokémon, which then look as they do there instead of as a stand-in.
+function pbrWork() { return path.join(app.getPath('userData'), 'battle-revolution'); }
+function pbrModels() { return path.join(pbrWork(), 'models'); }
+// The National Pokédex numbers a model is wanted for: the Pokémon of each generation imported
+function pbrWanted(settings = config.settings) {
+  const numbers = [];
+  for (const generation of settings.generationPokemon || []) {
+    const [first, last] = generations.load(generation).newSpecies;
+    for (let n = first; n <= last; n++) numbers.push(n);
+  }
+  return numbers;
+}
+function pbrState() {
+  const wanted = pbrWanted(), made = wanted.filter(n => fs.existsSync(path.join(pbrModels(), String(n), 'model.pkx'))).length;
+  return { disc: config.pbrDisc || null, wanted: wanted.length, made,
+    supported: Boolean(config.repo && fs.existsSync(port.pbrModelsScript(config.repo))) };
+}
+async function makePbrModels() {
+  const root = requireRepo(), wanted = pbrWanted();
+  if (!config.pbrDisc || !fs.existsSync(config.pbrDisc)) throw new Error('Choose your Pokémon Battle Revolution disc file first.');
+  if (!wanted.length) throw new Error('Turn on a later generation\'s Pokémon first: their models are what this makes.');
+  if (!fs.existsSync(port.pbrModelsScript(root))) throw new Error('This version of the game can\'t make Battle Revolution models yet. Update it from the Play page.');
+  await ensureBuildTools();
+  const cmd = port.pbrModelsCommand(root, config.pbrDisc, pbrWork(), wanted, process.platform, toolEnv());
+  await launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Make Battle Revolution models');
+  const { made } = pbrState();
+  log(`Battle Revolution models: ${made} of ${wanted.length} made. They show in the Pokédex, and in your next game.`);
+  return state();
+}
+
+// The file of packs for the game to load, or null when there are none. Each Pokémon keeps its
+// row of the species table from then on (pokemon-packs.json, beside the saves).
+function preparePokemonPacks(rom, folder) {
+  const loaded = readPokemonPacks(rom);
+  for (const problem of loaded.problems) log(`Pokémon pack ${packLabel(problem)}: ${problem.message}`);
+  for (const name of loaded.missing) log(`Pokémon pack ${name} isn't in the packs folder: Pokémon of it in your saves stay hidden until it's back.`);
+  const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules } = loaded.built;
+  if (!pokemon.length && !moves.length && !rules) return null;
+  if (loaded.registryChanged) pokemonPacks.writeRegistry(currentSaveDirectory(), loaded.registry);
+  const file = path.join(folder, 'pokemon-packs.bin');
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules }));
+  if (loaded.pokemon.length) log(`Pokémon packs: ${loaded.pokemon.map(each => `${pokedexNames.displayName(each.name)}${each.form ? ` (${each.form})` : ''} from ${each.key}`).join(', ')}.`);
+  for (const generation of config.settings.generationPokemon) log(`Generation ${generation} Pokémon: ${loaded.generationPokemon.filter(each => each.generation === generation).length} Pokémon and ${moves.length} new moves.`);
+  if (rules) log(`Battle rules: generation ${rules.generation}.`);
+  return file;
+}
+
+// An online room's battle rules for its game: the generation's rules and moves alone, no Pokémon of packs or generations.
+function prepareBattleRules(rom, folder, battleRules) {
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const { moves, rules } = generations.build(packTables.tables, { battleRules, generationPokemon: [] });
+  const file = path.join(folder, 'online-rules.bin');
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon: [], moves, rules }));
+  log(`Battle rules: generation ${battleRules}, the room's.`);
+  return file;
+}
+
+// The Pokédex's list: the disc's Pokémon, and the packs' after the ones they're based on.
+let pokedexPacks = new Map();   // key -> the pack Pokémon, for its model
+function pokedexList(rom) {
+  const species = pokedexData.list(rom);
+  let packs = [], problems = [];
+  try {
+    {
+      const loaded = readPokemonPacks(rom);
+      problems = loaded.problems.map(problem => `${packLabel(problem)}: ${problem.message}`);
+      const all = [...loaded.pokemon, ...loaded.generationPokemon];
+      const entries = pokemonPacks.pokedexEntries(all, loaded.tables);
+      pokedexPacks = new Map();
+      packs = entries.map((entry, i) => {
+        const each = all[i], base = species.find(item => item.national === each.base.national);
+        pokedexPacks.set(entry.pack.key, { base: each.base.national, files: { model: each.assets.model, modelShiny: each.assets.modelShiny } });
+        return { ...entry, key: `pack:${entry.pack.key}`,
+          sprite: each.images.body ? `data:image/png;base64,${each.images.body.toString('base64')}` : base?.sprite || null,
+          forms: each.assets.model ? [{ id: 'model', label: 'Normal' }, ...(each.assets.modelShiny ? [{ id: 'modelShiny', label: 'Shiny' }] : [])] : base?.forms || [] };
+      });
+    }
+  } catch (error) { problems = [error.message]; }
+  return { species, packs, problems };
+}
+
+// Where a Pokédex entry's look is: a model file of its pack's, or a model on the disc (its base's, for a pack Pokémon
+// without one). key is a pack Pokémon's "pack:<pack>/<folder>", or a disc Pokémon's National Pokédex number.
+function pokedexLook(key, form) {
+  const name = String(key);
+  if (!name.startsWith('pack:')) return { national: Number(name) };
+  const entry = pokedexPacks.get(name.slice('pack:'.length));
+  if (!entry) throw new Error('That Pokémon isn\'t in your packs any more.');
+  if (form !== 'model' && form !== 'modelShiny') return { national: entry.base };
+  if (!entry.files[form]) throw new Error('That Pokémon has no such model.');
+  return { pkx: entry.files[form] };
+}
+
 // Language packs, in the launcher's own folder: every game version uses them (language-packs.js).
 function languageFolder() { return languagePacks.folder(app.getPath('userData')); }
 
@@ -974,6 +1092,15 @@ async function play(installation = null, battle = null) {
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
   fs.mkdirSync(cacheFolder, { recursive: true });
+  // An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules are both
+  // games' (the room's own, not either player's settings).
+  let packsFile = null;
+  if (!battle) {
+    try { packsFile = preparePokemonPacks(rom, cacheFolder); }
+    catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); }
+  } else if (battle.rules?.battleRules > generations.COLOSSEUM_RULES) {
+    packsFile = prepareBattleRules(rom, cacheFolder, battle.rules.battleRules);
+  }
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory() }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
     ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
@@ -981,7 +1108,8 @@ async function play(installation = null, battle = null) {
     COLO_RANDOMIZER_LOG: spoilerFile(),
     SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
     ...(battle ? { COLO_ONLINE: String(battle.port), COLO_SKIP_MOVIES: '1', COLO_NOCARD: '1' } : {}),
-    ...(config.settings.discordPresence ? { COLO_PRESENCE: '1' } : {}) };
+    ...(config.settings.discordPresence ? { COLO_PRESENCE: '1' } : {}),
+    ...(packsFile ? { COLO_POKEMON_PACKS: packsFile } : {}) };
   const recordedTools = game.toolRoot(root);
   const env = recordedTools ? buildTools.environmentAtRoot(recordedTools, playEnv) : toolEnv(playEnv);
   const cmd = port.gameRunCommand(root, rom, process.platform, env);
@@ -1183,7 +1311,7 @@ function readStory() {
 function storyState() {
   const { party, error } = readStory();
   return { error, supported: binaryReady() && onlineFeatures(config.repo).story,
-    trainer: party?.trainer || null, leftOut: party?.leftOut || 0,
+    trainer: party?.trainer || null, leftOut: party?.leftOut || 0, packsLeftOut: party?.packsLeftOut || 0,
     members: (party?.members || []).map(member => ({ species: member.species, nickname: member.nickname, level: member.level, shiny: member.shiny,
       // all the team builder needs to copy it into a party of the player's own
       set: { species: member.species, nickname: member.nickname, item: member.item, ability: member.ability, nature: member.rnd % 25,
@@ -1198,7 +1326,8 @@ function storyBlocked(size) {
   if (error) return `Your save can't be read: ${error}`;
   if (!party) return 'Your Story party is the one in your save. Play and save the game first.';
   const count = party.members.length;
-  const shadow = party.leftOut ? ` Shadow Pokémon stay home until they're purified.` : '';
+  const shadow = (party.leftOut ? ` Shadow Pokémon stay home until they're purified.` : '') +
+    (party.packsLeftOut ? ' Pokémon from Pokémon packs stay home: the other player\'s game doesn\'t have them.' : '');
   if (count < size) return count < Math.min(...parties.SIZES)
     ? `Your Story party needs at least ${Math.min(...parties.SIZES)} Pokémon that can battle.${shadow}`
     : `Your Story party has ${count} Pokémon that can battle, so it can only take ${parties.SIZES.filter(each => each <= count).join(' or ')} each.${shadow}`;
@@ -1447,6 +1576,7 @@ function state() {
     romReady: Boolean(config.rom) && !romError, romError,
     hdVisualsReady: repoReady && port.hdVisualsInstalled(config.repo, config.settings),
     texturesInstalled: repoReady && port.texturePackInstalled(config.repo),
+    pbr: pbrState(),
     texturePack: { size: port.TEXTURE_PACK.size, unpacked: port.TEXTURE_PACK.unpacked },
     languages: languagePacks.choices(languageFolder()),
     // Whether the game on disk reads language packs.
@@ -1673,11 +1803,21 @@ function registerHandlers() {
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('online-pick', (_event, order) => pickPokemon(Array.isArray(order) ? order.map(Number) : []));
-  ipcMain.handle('pokedex', () => pokedexData.list(port.validateRom(config.rom)));
+  ipcMain.handle('pokedex', () => pokedexList(port.validateRom(config.rom)));
   // gameTakesSets: false when the installed game is from before sets, and battles with its species only
   ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story }));
-  ipcMain.handle('pokedex-model', (_event, national, form) => pokedexData.model(port.validateRom(config.rom), Number(national), String(form)));
-  ipcMain.handle('pokedex-clip', (_event, national, form, index) => pokedexData.clip(port.validateRom(config.rom), Number(national), String(form), Number(index)));
+  ipcMain.handle('pokedex-model', (_event, key, form) => {
+    const look = pokedexLook(key, String(form));
+    return look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form));
+  });
+  ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
+    const look = pokedexLook(key, String(form));
+    return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom), look.national, String(form), Number(index));
+  });
+  ipcMain.handle('open-pokemon-packs', () => {
+    fs.mkdirSync(pokemonPacksDirectory(), { recursive: true });
+    return shell.openPath(pokemonPacksDirectory());
+  });
   ipcMain.handle('check-tools', async () => { await checkTools(true); return state(); });
   ipcMain.handle('copy-mac-command', (_event, index) => {
     if (process.platform !== 'darwin') throw new Error('This help is for macOS.');
@@ -1708,6 +1848,18 @@ function registerHandlers() {
     });
     if (chosen.canceled) return state();
     config.rom = port.validateRom(chosen.filePaths[0]);
+    saveConfig();
+    return state();
+  });
+  ipcMain.handle('choose-pbr-disc', async () => {
+    if (operation || active) throw new Error('Finish the current task before changing game files.');
+    const chosen = await dialog.showOpenDialog(window, {
+      title: 'Choose a file from your own Pokémon Battle Revolution disc',
+      properties: ['openFile'],
+      filters: [{ name: 'Wii disc files', extensions: ['rvz', 'iso', 'wbfs', 'ciso', 'gcz', 'wia'] }, { name: 'All files', extensions: ['*'] }]
+    });
+    if (chosen.canceled) return state();
+    config.pbrDisc = chosen.filePaths[0];
     saveConfig();
     return state();
   });
@@ -1803,6 +1955,7 @@ function registerHandlers() {
   });
   const actions = { 'install-port': ['Download port source', installPort],
     'update-port': ['Update game', updatePort], 'install-textures': ['Install HD textures', () => installTextures()], 'build': ['Build game', () => build(true)],
+    'make-pbr-models': ['Make Battle Revolution models', makePbrModels],
     'setup-game': ['Build game', setupGame], 'prepare-game': ['Prepare game', prepareGame], 'play': [PLAY_LABEL, playInstalled],
     'launch-game': ['Prepare game', () => launchGame()], 'update-and-play': ['Prepare game', () => launchGame(true)],
     'play-previous': [PLAY_LABEL, () => {

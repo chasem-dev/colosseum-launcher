@@ -66,6 +66,17 @@ function activityFromLine(line) {
   }
   if (/^Installed \d+ textures/.test(value))
     return { detail: 'HD textures installed', percent: 100 };
+  // Battle Revolution models (the game's tools/pbr2pkx/make_models.py)
+  if (/^Downloading the model tools/.test(value)) return { detail: 'Downloading the model tools', percent: null };
+  if (/^Preparing the model tools/.test(value)) return { detail: 'Preparing the model tools', percent: null };
+  if (value === 'Reading your Battle Revolution disc') return { detail: 'Reading your Battle Revolution disc', percent: null };
+  if (/^Making models for \d+ Pokémon$/.test(value)) return { detail: 'Making Battle Revolution models', percent: 0 };
+  const pbr = value.match(/^Made (\d+) of (\d+) Pokémon$/);
+  if (pbr) {
+    const done = Number(pbr[1]), total = Number(pbr[2]);
+    if (!total || done > total) return null;
+    return { detail: `Making Battle Revolution models · ${done} of ${total} Pokémon`, percent: Math.floor(done * 100 / total) };
+  }
   if (/^-- (?:Configuring|Generating)/.test(value))
     return { detail: 'Getting your game ready', percent: null };
   if (/^Cloning into /.test(value))

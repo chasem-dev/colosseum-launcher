@@ -5,6 +5,7 @@ const path = require('node:path');
 const bindings = require('./bindings');
 const presets = require('./presets');
 const randomizer = require('./randomizer');
+const generations = require('./generations');
 const languagePacks = require('./language-packs');
 const { normalizeChannel } = require('./update-channel');
 const { prependWindowsPath } = require('./windows-path');
@@ -116,6 +117,15 @@ function battleSpeedSetting(value) {
   return Number.isFinite(speed) ? Math.min(5, Math.max(1, Math.round(speed * 10) / 10)) : 1.5;
 }
 
+function generationSettings(input) {
+  const listed = Array.isArray(input.generationPokemon) ? input.generationPokemon : [];
+  const switched = generations.available().map(each => each.generation).filter(n => input[`generation${n}Pokemon`] !== undefined);
+  const chosen = switched.length ? switched.filter(n => Boolean(input[`generation${n}Pokemon`])) : listed;
+  const settings = generations.normalize({ battleRules: input.battleRules, generationPokemon: chosen });
+  for (const { generation } of generations.available()) settings[`generation${generation}Pokemon`] = settings.generationPokemon.includes(generation);
+  return settings;
+}
+
 function normalizeSettings(input = {}, platform = process.platform, arch = gameArch()) {
   const info = platformInfo(platform, arch);
   const settings = {
@@ -189,7 +199,10 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     gbaAutoPower: input.gbaAutoPower !== false,
     gbaVolume: numberSetting(input.gbaVolume, 100, 0, 100),
     // What a new save randomizes (randomizer.js): a save keeps the seed it starts with.
-    ...randomizer.normalize(input)
+    ...randomizer.normalize(input),
+    // Later generations (generations.js): whose battle rules, and whose Pokémon are added. generation<N>Pokemon is the
+    // Settings page's switch for one of them.
+    ...generationSettings(input)
   };
   // The graphics preset chosen (src/presets.js), while the picture settings still match it; else Custom.
   settings.graphicsPreset = presets.reconcile({ ...settings, graphicsPreset: input.graphicsPreset });
@@ -411,6 +424,15 @@ function textureCommand(root, platform = process.platform, environment = process
   return { command: path.join(msys, 'mingw64', 'bin', 'python.exe'), args, cwd: root, env: msysEnvironment(msys, environment) };
 }
 
+// Battle Revolution models (the game's tools/pbr2pkx, src/pbr-models.js): its driver, run by the build tools' Python.
+function pbrModelsScript(root) { return path.join(root, 'tools', 'pbr2pkx', 'make_models.py'); }
+function pbrModelsCommand(root, disc, work, numbers, platform = process.platform, environment = process.env) {
+  const args = [pbrModelsScript(root), disc, work, ...numbers.map(String)];
+  if (platform !== 'win32') return { command: 'python3', args, cwd: path.dirname(args[0]), env: environment };
+  const { msys } = msysBash(environment);
+  return { command: path.join(msys, 'mingw64', 'bin', 'python.exe'), args, cwd: path.dirname(args[0]), env: msysEnvironment(msys, environment) };
+}
+
 // The system's libdrm_amdgpu, for the game to load before anything else on Linux. The game's graphics
 // drivers are the system's, and a newer Mesa needs this library from the same system: RADV 26.2 on a
 // Steam Deck calls amdgpu_va_manager_query_sw_info, which the build tools' older copy (2.4.129) lacks.
@@ -474,4 +496,4 @@ function gameRuntimeFolders(environment = process.env) {
 module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
-  buildCommand, textureCommand, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
+  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };

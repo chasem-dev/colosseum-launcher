@@ -6,7 +6,7 @@ const { baseVersion, compareVersions } = require('./changelog');
 
 // The Windows portable build keeps everything in this folder beside its .exe.
 const FOLDER = 'Colosseum-Launcher-Portable';
-const PATH_KEYS = ['repo', 'rom', 'installRoot', 'saveDirectory'];
+const PATH_KEYS = ['repo', 'rom', 'pbrDisc', 'installRoot', 'saveDirectory'];
 
 // electron-builder's portable stub runs the app from a temporary copy and
 // passes the folder the .exe was opened from.

@@ -307,3 +307,10 @@ test('the bridge holds lines for the game, then passes both ways', async () => {
   socket.destroy();
   bridge.close();
 });
+
+test("a room's rules carry its battle rules, Colosseum's unless Platinum's are chosen", () => {
+  const parties = require('../src/parties');
+  assert.equal(parties.normalize({}).battleRules, 3);
+  assert.equal(parties.normalize({ battleRules: 4 }).battleRules, 4);
+  assert.equal(parties.normalize({ battleRules: 7 }).battleRules, 3);
+});

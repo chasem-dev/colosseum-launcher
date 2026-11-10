@@ -13,6 +13,8 @@ const FILTERS = [
   { id: 'available', label: 'Obtainable', matches: entry => !entry.status.locked },
   { id: 'battle', label: 'Battle only', matches: entry => entry.status.kind === 'battle' },
   { id: 'hidden', label: 'Hidden on disc', matches: entry => entry.status.kind === 'hidden' },
+  { id: 'packs', label: 'Packs', matches: entry => entry.status.kind === 'pack', onlyWhenAny: true },
+  { id: 'generations', label: 'Later generations', matches: entry => entry.status.kind === 'generation', onlyWhenAny: true },
 ];
 // Clips this short are held poses the game blends into, not motions to watch.
 const SHORTEST_MOTION = 20;
@@ -21,9 +23,10 @@ const VIEW = { yaw: -0.45, pitch: 0.12 }, FOV = 30;
 // player last did something, then holds still until they come back to it.
 const IDLE_MS = 15000;
 
-let species = null, loading = null, visible = false, filter = 'all', selected = null, form = null, viewer = null;
+let species = null, packProblems = [], loading = null, visible = false, filter = 'all', selected = null, form = null, viewer = null;
 // The newest choice: a slower answer to an older one is dropped.
 let request = 0;
+// Each entry's button, by its key: a disc Pokémon's National Pokédex number, or a pack Pokémon's "pack:<pack>/<folder>".
 const entries = new Map();
 
 const message = error => String(error?.message || error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -273,14 +276,14 @@ function applyFilter() {
   let shown = 0;
   for (const entry of species) {
     const show = matches(entry, search);
-    entries.get(entry.national).hidden = !show;
+    entries.get(entry.key).hidden = !show;
     if (show) shown++;
   }
   $('pokedex-empty').hidden = shown > 0;
 }
 
 function renderFilters() {
-  $('pokedex-filters').replaceChildren(...FILTERS.map(item => {
+  $('pokedex-filters').replaceChildren(...FILTERS.filter(item => !item.onlyWhenAny || species.some(item.matches)).map(item => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'pokedex-filter';
@@ -315,7 +318,7 @@ function renderEntry(entry) {
   const label = document.createElement('span');
   label.className = 'pokedex-entry-label';
   const small = document.createElement('small');
-  small.textContent = number(entry.national);
+  small.textContent = entry.pack && entry.status.kind === 'pack' ? `${number(entry.national)} · ${entry.pack.name}` : number(entry.national);
   const name = document.createElement('span');
   name.textContent = entry.name;
   label.append(small, name);
@@ -326,13 +329,18 @@ function renderEntry(entry) {
     button.append(lock);
   }
   button.addEventListener('click', () => select(entry));
-  entries.set(entry.national, button);
+  entries.set(entry.key, button);
   return button;
 }
 
 function renderList() {
-  const available = species.filter(entry => !entry.status.locked).length;
-  $('pokedex-summary').textContent = `${species.length} Pokémon on your disc. ${available} can be obtained in the game; the rest are locked away.`;
+  const disc = species.filter(entry => !entry.pack), available = disc.filter(entry => !entry.status.locked).length;
+  const packs = species.filter(entry => entry.status.kind === 'pack').length, later = species.filter(entry => entry.status.kind === 'generation').length;
+  $('pokedex-summary').textContent = `${disc.length} Pokémon on your disc. ${available} can be obtained in the game; the rest are locked away.` +
+    (later ? ` ${later} more from later generations.` : '') +
+    (packs ? ` ${packs} from your Pokémon packs.` : '');
+  $('pokedex-pack-problems').hidden = !packProblems.length;
+  $('pokedex-pack-problem-list').replaceChildren(...packProblems.map(text => Object.assign(document.createElement('li'), { textContent: text })));
   renderFilters();
   $('pokedex-list').replaceChildren(...species.map(renderEntry));
   applyFilter();
@@ -366,14 +374,14 @@ function renderInfo(entry) {
   $('pokedex-height').textContent = entry.height;
   $('pokedex-weight').textContent = entry.weight;
   $('pokedex-abilities').textContent = entry.abilities.join(', ') || '—';
-  const next = entry.evolutions.map(national => species.find(item => item.national === national)).filter(Boolean);
+  const next = entry.evolutions.map(key => entries.has(key) ? species.find(item => item.key === key) : null).filter(Boolean);
   $('pokedex-evolves-label').hidden = $('pokedex-evolves').hidden = !next.length;
   $('pokedex-evolves').replaceChildren(...next.map(target => {
     const link = document.createElement('button');
     link.type = 'button';
     link.className = 'pokedex-evolution';
     link.textContent = target.name;
-    link.addEventListener('click', () => { select(target); entries.get(target.national).scrollIntoView({ block: 'nearest' }); });
+    link.addEventListener('click', () => { select(target); entries.get(target.key).scrollIntoView({ block: 'nearest' }); });
     return link;
   }));
 }
@@ -404,8 +412,8 @@ async function showModel(entry) {
   setStatus(`Reading ${entry.name} from your disc…`, { busy: true });
   $('pokedex-stage').classList.remove('ready');
   try {
-    const model = await window.colo.pokedexModel(entry.national, form), motion = openingMotion(model.animations);
-    const clip = motion >= 0 ? await window.colo.pokedexClip(entry.national, form, motion) : null;
+    const model = await window.colo.pokedexModel(entry.key, form), motion = openingMotion(model.animations);
+    const clip = motion >= 0 ? await window.colo.pokedexClip(entry.key, form, motion) : null;
     if (mine !== request || !visible || !startViewer()) return;
     renderMotions(model.animations, motion);
     viewer.setModel(model, clip);
@@ -419,17 +427,32 @@ async function showModel(entry) {
 function select(entry) {
   selected = entry;
   form = entry.forms[0]?.id;
-  for (const [national, button] of entries) button.classList.toggle('selected', national === entry.national);
+  for (const [key, button] of entries) button.classList.toggle('selected', key === entry.key);
   renderInfo(entry);
   renderForms(entry);
   if (form) showModel(entry);
   else setStatus(`${entry.name} has no model on this disc.`);
 }
 
+// One list: the disc's Pokémon by number, each pack Pokémon after the one it's based on, and those numbered past the
+// disc's (a later generation's) after them in their order. Evolutions name entries by key.
+function combine(disc, packs) {
+  const list = [], numbers = new Set(disc.map(entry => entry.national));
+  const pack = entry => ({ ...entry, evolutions: entry.evolutions.map(into => typeof into === 'number' ? String(into) : `pack:${into}`) });
+  for (const entry of disc) {
+    list.push({ ...entry, key: String(entry.national), evolutions: entry.evolutions.map(String) });
+    for (const each of packs) if (each.national === entry.national) list.push(pack(each));
+  }
+  for (const each of packs.filter(entry => !numbers.has(entry.national)).sort((a, b) => a.national - b.national)) list.push(pack(each));
+  return list;
+}
+
 async function load() {
   setStatus('Reading your disc…', { busy: true });
   try {
-    species = await window.colo.pokedex();
+    const list = await window.colo.pokedex();
+    species = combine(list.species, list.packs);
+    packProblems = list.problems;
     renderList();
     if (visible) select(species[0]);
   } catch (error) {
@@ -445,11 +468,19 @@ $('pokedex-form').addEventListener('change', event => {
 $('pokedex-motion').addEventListener('change', async event => {
   const mine = ++request;
   try {
-    const clip = await window.colo.pokedexClip(selected.national, form, Number(event.target.value));
+    const clip = await window.colo.pokedexClip(selected.key, form, Number(event.target.value));
     if (mine === request) viewer?.setClip(clip);
   } catch (error) {
     if (mine === request) setStatus(message(error), { retry: true });
   }
+});
+$('pokedex-open-packs').addEventListener('click', () => window.colo.openPokemonPacks().catch(error => setStatus(message(error))));
+$('pokedex-reload').addEventListener('click', () => {
+  if (loading) return;
+  stopViewer();
+  species = null;
+  selected = null;
+  loading = load();
 });
 $('pokedex-retry').addEventListener('click', () => {
   stopViewer();

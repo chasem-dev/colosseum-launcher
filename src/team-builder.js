@@ -33,7 +33,8 @@
     loading ||= (async () => {
       const [dex, battle] = await Promise.allSettled([species ? Promise.resolve(species) : window.colo.pokedex(), window.colo.battleData()]);
       if (dex.status === 'fulfilled') {
-        species = dex.value;
+        // the disc's Pokémon (the Pokédex's list has its Pokémon packs' too, which online battles have none of)
+        species = Array.isArray(dex.value) ? dex.value : dex.value.species;
         byId = new Map(species.map(entry => [entry.id, entry]));
       }
       if (battle.status === 'fulfilled') {

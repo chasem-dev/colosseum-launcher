@@ -20,6 +20,10 @@
   const SIZES = { single: [3, 6], double: [4, 6] };
   const POOLS = ['any', 'restricted', 'legends', 'ou'];
   const SLEEP = ['off', 'stadium', 'smogon'];
+  // Whose battle rules both games play by, whatever the format: Colosseum's own (3), or Pokémon Platinum's (4, the
+  // launcher's src/generations.js). Not a change to a format: any format plays by either.
+  const BATTLE_RULES = [3, 4];
+  const PLATINUM_RULES = 'Pokémon Platinum\'s battle rules';
 
   // Box legendaries, mythical Pokémon, and the other legendaries (the game's numbers, which are the National Pokédex's
   // up to Celebi).
@@ -125,6 +129,7 @@
       for (const key of ['soulDew', 'speciesClause', 'itemClause', 'freeze', 'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans'])
         rules[key] = bool(input?.[key], base[key]);
     }
+    rules.battleRules = has(BATTLE_RULES, input?.battleRules) ? input.battleRules : BATTLE_RULES[0];
     rules.stage = Number.isInteger(input?.stage) && input.stage >= 0 ? input.stage : 0;
     return rules;
   }
@@ -137,9 +142,14 @@
     return SETTINGS.filter(key => rules[key] !== base[key]);
   }
 
-  // How the room list names the rules: { name, custom, changes: [text] }. A Casual room is its level and size.
+  // How the room list names the rules: { name, custom, changes: [text], summary }. A Casual room is its level and
+  // size. Pokémon Platinum's battle rules follow the summary, as they aren't a change to the format.
   function describe(input) {
-    const rules = normalize(input);
+    const rules = normalize(input), described = describeFormat(rules);
+    return rules.battleRules === 4 ? { ...described, summary: `${described.summary} · ${PLATINUM_RULES}` } : described;
+  }
+
+  function describeFormat(rules) {
     const base = FORMATS[rules.format];
     if (rules.format === 'casual') return { name: base.name, custom: false, changes: [], summary: `Level ${rules.level}, ${rules.size} Pokémon each` };
     const changed = changes(rules);
@@ -153,8 +163,10 @@
   // A format's rules, for the page to list: what it plays and the rules that apply, [text].
   function rulesText(input) {
     const rules = normalize(input);
-    if (rules.format === 'casual') return [`Level ${rules.level}`, `${rules.size} Pokémon each`, 'no clauses'];
-    const out = ['level', 'battle', 'size'].map(key => DESCRIBE[key](rules[key], rules));
+    const out = rules.format === 'casual' ? [`Level ${rules.level}`, `${rules.size} Pokémon each`, 'no clauses']
+      : ['level', 'battle', 'size'].map(key => DESCRIBE[key](rules[key], rules));
+    if (rules.battleRules === 4) out.push(PLATINUM_RULES);
+    if (rules.format === 'casual') return out;
     if (!rules.preview && rules.size === 6) out.push(DESCRIBE.preview(false));
     if (rules.pool !== 'any') out.push(DESCRIBE.pool(rules.pool));
     if (!rules.soulDew) out.push(DESCRIBE.soulDew(false));
@@ -262,7 +274,7 @@
   // How many games win a best-of set.
   const toWin = games => Math.floor(bestOf(games) / 2) + 1;
 
-  const api = { LEVELS, BEST_OF, SIZES, POOLS, SLEEP, FORMATS, FORMAT_IDS, SETTINGS, VARIANTS, RESTRICTED, MYTHICAL, LEGENDARY, UBERS,
+  const api = { LEVELS, BEST_OF, SIZES, POOLS, SLEEP, BATTLE_RULES, FORMATS, FORMAT_IDS, SETTINGS, VARIANTS, RESTRICTED, MYTHICAL, LEGENDARY, UBERS,
     normalize, bestOf, changes, describe, rulesText, rulesLine, member, problems, validPick, toWin };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.coloFormats = api;

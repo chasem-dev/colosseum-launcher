@@ -55,13 +55,15 @@
     card.append(name, badge, team);
     const note = !story.supported ? 'Update the game from the Play page to battle with your Story party.'
       : story.error ? `Your save can't be read: ${story.error}`
-      : !count && !story.leftOut ? 'Play and save the game, and the party you travel with shows here.'
+      : !count && !story.leftOut && !story.packsLeftOut ? 'Play and save the game, and the party you travel with shows here.'
       : count < 3 ? `${count} Pokémon can battle: you need at least 3.`
       : `${story.trainer ? `${story.trainer}'s team, ` : ''}with their moves, natures and held items, at the room's level.`;
     const detail = Object.assign(document.createElement('small'), { className: usable ? 'story-note' : '', textContent: note });
     card.append(detail);
     if (story.leftOut)
       card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `${story.leftOut === 1 ? 'A Shadow Pokémon stays' : `${story.leftOut} Shadow Pokémon stay`} home until purified.` }));
+    if (story.packsLeftOut)
+      card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `${story.packsLeftOut === 1 ? 'A Pokémon from a Pokémon pack stays' : `${story.packsLeftOut} Pokémon from Pokémon packs stay`} home: the other player's game doesn't have them.` }));
     if (count && setup.parties.length < MAX_PARTIES) {
       const copy = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button story-copy', textContent: 'Copy to a new party' });
       copy.title = 'Start a party of your own from these Pokémon, to change their moves, items and spreads';
@@ -186,8 +188,8 @@
 
   // --- Formats: a room's format, and a host's changes to it
   const currentRules = () => setup.format === 'casual'
-    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size })
-    : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format });
+    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size, battleRules: setup.battleRules })
+    : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format, battleRules: setup.battleRules });
 
   // A change to the chosen format: what differs from its own settings is kept.
   function changeRule(key, value) {
@@ -396,6 +398,7 @@
     if (document.activeElement !== $('online-trainer')) $('online-trainer').value = setup.trainer;
     $('online-level').value = String(setup.level);
     $('online-size').value = String(setup.size);
+    $('online-rules').value = String(setup.battleRules || 3);
     $('online-listed').checked = setup.listed;
     renderParties();
     renderFormat();
@@ -419,7 +422,7 @@
   }
 
   $('party-new').addEventListener('click', () => openEditor(null));
-  for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number]])
+  for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number], ['online-rules', 'battleRules', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
   $('online-format').addEventListener('change', event => { setup.format = event.target.value; customOpen = false; save(); });

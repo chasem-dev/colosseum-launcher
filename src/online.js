@@ -22,7 +22,8 @@ const formats = require('./formats');
 
 // 2: a party can be a Story party, its Pokémon sent whole as `members`, and shorter than six.
 // 3: rooms have formats (src/formats.js), team preview with picks, and best-of sets.
-const PROTOCOL = 3;
+// 4: a room's rules may be Pokémon Platinum's battle rules (battleRules), which a launcher before 4 can't play.
+const PROTOCOL = 4;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list

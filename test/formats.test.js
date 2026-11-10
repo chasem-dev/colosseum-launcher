@@ -121,3 +121,19 @@ test('a short party, and picks', () => {
   assert.equal(formats.toWin(5), 3);
   assert.equal(formats.bestOf(7), 1);
 });
+
+test('any format plays by Colosseum\'s or Pokémon Platinum\'s battle rules, without becoming custom', () => {
+  assert.equal(formats.normalize({}).battleRules, 3);
+  assert.equal(formats.normalize({ format: 'orre', battleRules: 4 }).battleRules, 4);
+  assert.equal(formats.normalize({ format: 'casual', battleRules: 5 }).battleRules, 3);
+  assert.deepEqual(formats.changes(formats.normalize({ format: 'orre', battleRules: 4 })), []);
+  const orre = formats.describe({ format: 'orre', battleRules: 4 });
+  assert.equal(orre.name, 'Orre Colosseum');
+  assert.equal(orre.custom, false);
+  assert.equal(orre.summary, 'Orre Colosseum · Pokémon Platinum\'s battle rules');
+  assert.equal(formats.describe({ format: 'casual', level: 100, size: 3, battleRules: 4 }).summary,
+    'Level 100, 3 Pokémon each · Pokémon Platinum\'s battle rules');
+  assert.equal(formats.describe({ format: 'casual' }).summary, 'Level 50, 6 Pokémon each');
+  assert.ok(formats.rulesText({ format: 'hoenn', battleRules: 4 }).includes('Pokémon Platinum\'s battle rules'));
+  assert.ok(formats.rulesText({ format: 'casual', battleRules: 4 }).includes('Pokémon Platinum\'s battle rules'));
+});
