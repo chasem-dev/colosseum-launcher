@@ -1099,7 +1099,8 @@ function renderPbr(data) {
     || (!pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
       : !pbr.wanted ? 'Turn on Generation 4 Pokémon above, then make their models from your own Pokémon Battle Revolution disc. No Blender needed.'
         : !pbr.disc ? `Their models and icons, made from your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS). ${pbr.made} of ${pbr.wanted} made.`
-          : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
+          : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make models to make ${pbr.outdated === 1 ? 'it' : 'them'} again, which only takes a moment.`
+            : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
   $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
   $('choose-pbr-disc').disabled = Boolean(data.active);
 }

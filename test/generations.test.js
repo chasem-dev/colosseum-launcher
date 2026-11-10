@@ -142,6 +142,23 @@ test('Battle Revolution models are made by the game\'s own pbr2pkx, with the bui
   assert.equal(cmd.cwd, tools);
 });
 
+test('Battle Revolution models a newer converter changed count as outdated until they are made again', () => {
+  const fs = require('fs'), os = require('os'), path = require('path'), port = require('../src/port');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pbr-outdated-')), models = path.join(root, 'models');
+  try {
+    // A game whose converter has no remade.json: nothing is outdated
+    assert.deepEqual([...port.pbrOutdated(root, models, [410, 412])], []);
+    fs.mkdirSync(path.join(root, 'tools', 'pbr2pkx'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'tools', 'pbr2pkx', 'remade.json'), JSON.stringify({ version: 3, remade: { 2: [410, 412], 3: [387] } }));
+    for (const [number, stamp] of [[387, '2\n'], [410, null], [412, '2\n'], [413, null]]) {
+      fs.mkdirSync(path.join(models, String(number)), { recursive: true });
+      if (stamp) fs.writeFileSync(path.join(models, String(number), 'models-version.txt'), stamp);
+    }
+    // 410: made by the first converter (no stamp), which version 2 changed; 387: made by 2, which 3 changed
+    assert.deepEqual([...port.pbrOutdated(root, models, [387, 410, 412, 413])].sort(), [387, 410]);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("an ability Ruby writes as one word stays a Pokémon's under Generation 4's rules", () => {
   const data = generations.load(4);
   const row = Buffer.alloc(0x40); row[0x32] = 31; row[0x33] = 69;   // Rhydon: Lightning Rod, Rock Head

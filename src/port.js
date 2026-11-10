@@ -426,6 +426,21 @@ function textureCommand(root, platform = process.platform, environment = process
 
 // Battle Revolution models (the game's tools/pbr2pkx, src/pbr-models.js): its driver, run by the build tools' Python.
 function pbrModelsScript(root) { return path.join(root, 'tools', 'pbr2pkx', 'make_models.py'); }
+// The Battle Revolution models a newer converter changed since they were made: the game's tools/pbr2pkx/remade.json lists
+// each converter version's Pokémon, and each Pokémon's models-version.txt says which version made its models (1 where
+// it's missing). Make models makes these again (make_pack.py --keep). A game without remade.json has none.
+function pbrOutdated(root, models, numbers) {
+  let remade;
+  try { remade = JSON.parse(fs.readFileSync(path.join(root, 'tools', 'pbr2pkx', 'remade.json'), 'utf8')).remade; } catch { return new Set(); }
+  if (!remade || typeof remade !== 'object') return new Set();
+  const outdated = new Set();
+  for (const number of numbers) {
+    let madeBy = 1;
+    try { madeBy = parseInt(fs.readFileSync(path.join(models, String(number), 'models-version.txt'), 'utf8'), 10) || 1; } catch { /* the first converter wrote none */ }
+    if (Object.entries(remade).some(([version, changed]) => Number(version) > madeBy && Array.isArray(changed) && changed.includes(number))) outdated.add(number);
+  }
+  return outdated;
+}
 function pbrModelsCommand(root, disc, work, numbers, platform = process.platform, environment = process.env) {
   const args = [pbrModelsScript(root), disc, work, ...numbers.map(String)];
   if (platform !== 'win32') return { command: 'python3', args, cwd: path.dirname(args[0]), env: environment };
@@ -496,4 +511,4 @@ function gameRuntimeFolders(environment = process.env) {
 module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
-  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
+  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
