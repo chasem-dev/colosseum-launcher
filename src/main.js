@@ -1862,7 +1862,10 @@ function registerHandlers() {
   ipcMain.handle('online-pick', (_event, order) => pickPokemon(Array.isArray(order) ? order.map(Number) : []));
   ipcMain.handle('pokedex', () => pokedexList(port.validateRom(config.rom)));
   // gameTakesSets: false when the installed game is from before sets, and battles with its species only
-  ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story }));
+  // categories: each later generation's own physical or special for a move, as its battle rules make it
+  ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story,
+    categories: Object.fromEntries(generations.available().filter(each => each.generation > generations.COLOSSEUM_RULES)
+      .map(each => [each.generation, generations.moveCategories(each.generation)])) }));
   ipcMain.handle('pokedex-model', (_event, key, form) => {
     const look = pokedexLook(key, String(form));
     return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form)));
