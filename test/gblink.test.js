@@ -31,14 +31,16 @@ function linuxTree({ vendor = '2fe3', product = '000a', allowed = false } = {}) 
 }
 
 const asRoot = process.getuid?.() === 0;
+// The tree has sysfs's names (pci0000:00, 1-4:1.0) and symlinks, which a Windows folder can't hold; linuxStatus runs only on Linux.
+const noSysfs = process.platform === 'win32';
 
-test('Linux: no adapter plugged in', () => {
+test('Linux: no adapter plugged in', { skip: noSysfs }, () => {
   const tree = linuxTree({ vendor: '2e8a', product: '0003' });
   try { assert.deepEqual(gblink.linuxStatus(tree), { present: false }); }
   finally { tree.done(); }
 });
 
-test('Linux: the adapter\'s port, past other USB serial devices', () => {
+test('Linux: the adapter\'s port, past other USB serial devices', { skip: noSysfs }, () => {
   const tree = linuxTree({ allowed: true });
   try {
     const status = gblink.linuxStatus(tree);
@@ -49,7 +51,7 @@ test('Linux: the adapter\'s port, past other USB serial devices', () => {
   } finally { tree.done(); }
 });
 
-test('Linux: a port this user may not open needs the udev rule', { skip: asRoot }, () => {
+test('Linux: a port this user may not open needs the udev rule', { skip: asRoot || noSysfs }, () => {
   const tree = linuxTree();
   try {
     const status = gblink.linuxStatus(tree);
