@@ -175,6 +175,25 @@ test('the shiny settings are on unless turned off, and on leaves them to the gam
   }
 });
 
+test('quick moves and quick status effects are off unless chosen, and off leaves them to the game', () => {
+  const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
+  const saved = [process.env.COLO_QUICK_MOVES, process.env.COLO_FAST_STATUS];
+  delete process.env.COLO_QUICK_MOVES;
+  delete process.env.COLO_FAST_STATUS;
+  try {
+    assert.equal(port.normalizeSettings({}).quickMoves, false);
+    assert.equal(port.normalizeSettings({}).quickStatus, false);
+    assert.equal(env({}).COLO_QUICK_MOVES, undefined);
+    assert.equal(env({}).COLO_FAST_STATUS, undefined);
+    assert.equal(env({ quickMoves: true }).COLO_QUICK_MOVES, '1');
+    assert.equal(env({ quickMoves: true }).COLO_FAST_STATUS, undefined);
+    assert.equal(env({ quickStatus: true }).COLO_FAST_STATUS, '1');
+  } finally {
+    if (saved[0] !== undefined) process.env.COLO_QUICK_MOVES = saved[0];
+    if (saved[1] !== undefined) process.env.COLO_FAST_STATUS = saved[1];
+  }
+});
+
 test('HD models are on unless turned off, and on leaves it to the game', () => {
   const env = hdModels => port.buildEnvironment(port.normalizeSettings({ hdModels }), 'disc', '/port').COLO_HD_MODELS;
   const saved = process.env.COLO_HD_MODELS;
