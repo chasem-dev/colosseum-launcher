@@ -24,7 +24,9 @@
       "Fixed Generation 4 Pokémon that don't evolve evolving as the Pokémon standing in for their looks does, such as Arceus into Linoone at level 20.",
       "Pokédex: with HD textures on and downloaded, the 3D models and the Pokémon's pictures use them, as the game does, so faces, eyes and markings are sharp. Custom textures you've added show there too, and the team builder's pictures get the HD ones as well.",
       "Fixed Generation 4 Pokémon's faces from Battle Revolution sitting small inside a grey ring in the battle and menu frames, with the scene showing through the corners: they now fill the frame as the game's own faces do.",
-      "Battle Revolution models: when a fix changes models you've already made, Settings → Gameplay says how many, and Make models makes only those again."
+      "Battle Revolution models: when a fix changes models you've already made, Settings → Gameplay says how many, and Make models makes only those again.",
+      "Generation 4 rules: Astonish, Extrasensory and Needle Arm no longer do double damage to a Pokémon that used Minimize, as in Platinum.",
+      "Online battles: both players need this update of the launcher, as it changes Generation 4's move data. Joining a room from another version of the launcher says so."
     ],
     "game": [
       "Online battles can have Battle Mode's choice and battle timers, shown on screen as in Battle Mode, with both games keeping the battle's time alike so the battle ends on the same turn for both. A battle that runs out of time with both sides even is a draw.",
@@ -47,7 +49,16 @@
       "Online battles can be double battles, and can play by the original game's Battle Mode clauses: sleep, freeze, self-KO (Selfdestruct or Explosion loses a tie) and no Perish Song or Destiny Bond from a last Pokémon, with the other player's HP shown as a bar only if the room asks.",
       "The randomizer can choose Generation 4 Pokémon for a new run when the launcher adds them. Runs started before play as they always have.",
       "Fixed Burmy's model from Battle Revolution coming apart when it moved, with its head at the bottom and its leaves stretched into tall blades, and smaller mistakes in how Shieldon's, Purugly's and Hippopotas's models bend.",
-      "Fixed the battle camera aiming at the ground under most Generation 4 Pokémon from Battle Revolution when a move hit them, which cut tall ones like Garchomp off at the head."
+      "Fixed the battle camera aiming at the ground under most Generation 4 Pokémon from Battle Revolution when a move hit them, which cut tall ones like Garchomp off at the head.",
+      "Fixed the game closing when Heal Block or Captivate was used in a double battle under Generation 4 rules.",
+      "Generation 4 rules in double battles: Surf, Discharge and Lava Plume now hit both foes and your partner, and Earthquake, Magnitude, Selfdestruct and Explosion do three quarters of their damage when they hit more than one Pokémon, as in Platinum. Acupressure can be aimed at your partner; aimed at a foe, it raises your own stat.",
+      "Fixed held items under Generation 4 rules: Leftovers healed after every move instead of once a turn, and a move that hits several times, or several Pokémon, stopped doing damage once its target's Berry or Leftovers went off.",
+      "Fixed more held items under Generation 4 rules: Life Orb and Shell Bell acted after every hit instead of once a move, the Metronome item and Zoom Lens did nothing, and Berries are now also eaten as a Pokémon comes out and after poison or burn damage at the end of a turn.",
+      "Fixed moves being stopped by an immunity that Generation 4 lifts: Ground moves now hit a Pokémon that used Roost, is under Gravity or holds an Iron Ball, Psychic moves hit a Dark type after Miracle Eye, Scrappy's Normal and Fighting moves hit Ghosts, Normalize makes every move act as Normal, and Mold Breaker gets past Levitate, Wonder Guard and Soundproof.",
+      "Fixed Generation 4 moves that didn't match Platinum: Copycat always failed, Rapid Spin left Stealth Rock and Toxic Spikes, Baton Pass dropped Magnet Rise, Aqua Ring, Power Trick, Gastro Acid, Heal Block and Embargo, and Take Down and Submission cost a quarter of the user's own HP.",
+      "More Generation 4 moves now match Platinum: Grass Knot and Low Kick go by weight in kilograms, Healing Wish and Lunar Dance heal after the entry hazards, Payback is doubled against a Pokémon that just switched in, confusion damage varies, and Fling, Pluck, Bug Bite, Last Resort, Trump Card, Worry Seed, Psych Up, Camouflage, Secret Power and Razor Wind have smaller fixes.",
+      "Fixed Generation 4 abilities that didn't match Platinum: Tangled Feet did nothing, Magic Guard didn't stop recoil, full paralysis or a missed Jump Kick's crash, Slow Start lasted a turn too long for a Pokémon that started the battle, and Leaf Guard didn't stop Yawn in the sun.",
+      "More Generation 4 abilities now match Platinum: Will-O-Wisp sets off Flash Fire, Lightning Rod and Storm Drain draw Hidden Power, Pressure makes weather and other field moves cost extra PP, and Anticipation, Forewarn, Download and Trace have smaller fixes."
     ]
   },
   "releases": [
