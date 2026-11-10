@@ -262,7 +262,7 @@ function texturePackFolders(settings, root, customTextures) {
 
 // What the game reads when it starts, as run.sh and run.cmd set it up. `customTextures` is the custom
 // textures folder, for playing (texturePackFolders).
-function buildEnvironment(settings, disc, root, { customTextures = null } = {}) {
+function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false } = {}) {
   if (!root) throw new Error('The port folder is required to configure texture packs.');
   const env = {
     ...process.env,
@@ -298,7 +298,7 @@ function buildEnvironment(settings, disc, root, { customTextures = null } = {}) 
     SMS_GX_SHADER_WARMUP: settings.shaderWarmup === false ? '0' : '1'
   };
   if (settings.skipMovies) env.COLO_SKIP_MOVIES = '1';
-  const run = randomizer.environmentValue(settings);
+  const run = randomizer.environmentValue(settings, { laterGenerations });
   if (run) env.COLO_RANDOMIZER = run;
   if (settings.hdModels === false) env.COLO_HD_MODELS = '0';
   // Unset is on in the game, as it is in a game built before these settings.

@@ -137,3 +137,18 @@ test('spoilers name the Pokémon and leave the teams out', () => {
   assert.equal(randomizer.spoilerSeed(raw), 'C0FFEE11');
   assert.equal(randomizer.spoilerSeed(null), null);
 });
+
+test('a run has Generation 4 Pokémon when they are added and the game knows them, and is chosen to start with', () => {
+  // the settings as the launcher keeps them: the randomizer's, with the generations whose Pokémon are added
+  const gen4 = extra => ({ ...on(extra), generationPokemon: [4] });
+  assert.equal(randomizer.normalize({}).randomizerGen4, true);
+  assert.equal(randomizer.environmentValue(gen4(), { laterGenerations: true }), 'C0FFEE11:19:15');
+  assert.equal(randomizer.environmentValue(gen4({ randomizerGen4: false }), { laterGenerations: true }), 'C0FFEE11:19:7');
+  // without the Pokémon, or with a game from before, the run is the game's own three: the same run it always was
+  assert.equal(randomizer.environmentValue(on(), { laterGenerations: true }), 'C0FFEE11:19:7');
+  assert.equal(randomizer.environmentValue(gen4()), 'C0FFEE11:19:7');
+  // only the fourth, without its Pokémon: the game's own three rather than none
+  const only4 = { randomizerGen1: false, randomizerGen2: false, randomizerGen3: false };
+  assert.equal(randomizer.environmentValue(gen4(only4), { laterGenerations: true }), 'C0FFEE11:19:8');
+  assert.equal(randomizer.environmentValue(on(only4), { laterGenerations: true }), 'C0FFEE11:19:7');
+});

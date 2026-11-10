@@ -10,7 +10,9 @@ const { newestPlain } = require('./gci-save');
 // What can change, as the game's stamp holds it.
 const OPTIONS = { randomizerStarters: 1, randomizerShadow: 2, randomizerTrainers: 4, randomizerGifts: 8, randomizerSimilar: 16, randomizerNoLegendaries: 32 };
 const PARTS = 15;
-const GENERATIONS = { randomizerGen1: 1, randomizerGen2: 2, randomizerGen3: 4 };
+const GENERATIONS = { randomizerGen1: 1, randomizerGen2: 2, randomizerGen3: 4, randomizerGen4: 8 };
+const GAME_GENERATIONS = 7;   // the game's own: the first three
+const GEN4 = 8;
 
 // The stamp, in a save's unscrambled slot: its place in the body, past where the body starts.
 const STAMP = 8 + 0x1df80;
@@ -28,15 +30,17 @@ function normalizeSeed(input) {
   return /^[0-9A-F]{1,8}$/.test(seed) ? seed.padStart(8, '0') : '';
 }
 
-// The settings as they are kept: on, a seed once it's on, and at least one generation, as a run needs one.
+// The settings as they are kept: on, a seed once it's on, and at least one generation, as a run needs one. The fourth
+// counts only with Generation 4 Pokémon added (environmentValue), and is chosen to start with, as the first three are.
 function normalize(input = {}) {
   const settings = { randomizer: Boolean(input.randomizer), randomizerSeed: normalizeSeed(input.randomizerSeed),
     randomizerStarters: input.randomizerStarters !== false, randomizerShadow: input.randomizerShadow !== false,
     randomizerTrainers: Boolean(input.randomizerTrainers), randomizerGifts: Boolean(input.randomizerGifts),
     randomizerSimilar: input.randomizerSimilar !== false, randomizerNoLegendaries: Boolean(input.randomizerNoLegendaries),
-    randomizerGen1: input.randomizerGen1 !== false, randomizerGen2: input.randomizerGen2 !== false, randomizerGen3: input.randomizerGen3 !== false };
-  if (!settings.randomizerGen1 && !settings.randomizerGen2 && !settings.randomizerGen3)
-    settings.randomizerGen1 = settings.randomizerGen2 = settings.randomizerGen3 = true;
+    randomizerGen1: input.randomizerGen1 !== false, randomizerGen2: input.randomizerGen2 !== false, randomizerGen3: input.randomizerGen3 !== false,
+    randomizerGen4: input.randomizerGen4 !== false };
+  if (!settings.randomizerGen1 && !settings.randomizerGen2 && !settings.randomizerGen3 && !settings.randomizerGen4)
+    settings.randomizerGen1 = settings.randomizerGen2 = settings.randomizerGen3 = settings.randomizerGen4 = true;
   if (settings.randomizer && !settings.randomizerSeed) settings.randomizerSeed = newSeed();
   return settings;
 }
@@ -45,11 +49,20 @@ function flags(settings, table) {
   return Object.entries(table).reduce((bits, [key, bit]) => (settings[key] ? bits | bit : bits), 0);
 }
 
-// COLO_RANDOMIZER for these settings, or null when a new save should be the normal game.
-function environmentValue(settings) {
+// Whether a run would have the fourth generation: it's chosen, its Pokémon are added (settings.generationPokemon), and
+// the game knows it (laterGenerations: a game before it would stamp the save with it and ignore it, and the run would
+// change once the game updates).
+const hasGen4 = (settings, laterGenerations) => Boolean(settings.randomizerGen4 && laterGenerations
+  && Array.isArray(settings.generationPokemon) && settings.generationPokemon.includes(4));
+
+// COLO_RANDOMIZER for these settings, or null when a new save should be the normal game. A run of only the fourth
+// generation without its Pokémon is a run of the game's own three.
+function environmentValue(settings, { laterGenerations = false } = {}) {
   const options = flags(settings, OPTIONS);
   if (!settings.randomizer || !settings.randomizerSeed || !(options & PARTS)) return null;
-  return `${settings.randomizerSeed}:${options}:${flags(settings, GENERATIONS)}`;
+  let generations = flags(settings, GENERATIONS) & (hasGen4(settings, laterGenerations) ? GAME_GENERATIONS | GEN4 : GAME_GENERATIONS);
+  if (!generations) generations = GAME_GENERATIONS;
+  return `${settings.randomizerSeed}:${options}:${generations}`;
 }
 
 // The run a save's unscrambled slot holds, or null for the normal game.
@@ -103,4 +116,4 @@ function spoilerText(raw, species) {
 
 function spoilerSeed(raw) { return (String(raw).match(/^seed ([0-9A-F]{8})/) || [])[1] || null; }
 
-module.exports = { OPTIONS, GENERATIONS, SPOILER_FILE, newSeed, normalizeSeed, normalize, environmentValue, runOf, readSave, createSaveReader, spoilerText, spoilerSeed };
+module.exports = { OPTIONS, GENERATIONS, SPOILER_FILE, hasGen4, newSeed, normalizeSeed, normalize, environmentValue, runOf, readSave, createSaveReader, spoilerText, spoilerSeed };

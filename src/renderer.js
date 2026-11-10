@@ -795,7 +795,7 @@ function refresh(data) {
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
 const SELECTS = ['battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
-const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'shinyShadow', 'shinyStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'shinyShadow', 'shinyStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 // The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
 // removed from the folder stays listed, as the game plays in English without it.
@@ -1111,7 +1111,15 @@ function renderRandomizer(data) {
   $('randomizer-spoilers').hidden = !run;
   $('randomizer-spoilers').disabled = Boolean(data.active);
   $('randomizer-reroll').disabled = Boolean(data.active);
+  // The fourth generation's Pokémon are the randomizer's to choose only once they're added, by a game that knows them
+  const settings = data.config.settings, gen4Pokemon = Boolean(settings.generation4Pokemon), gen4Game = data.randomizerGenerations !== false;
+  $('randomizerGen4').disabled = !gen4Pokemon || !gen4Game;
+  $('randomizer-gen4').classList.toggle('disabled', !gen4Pokemon || !gen4Game);
+  $('randomizer-gen4-note').hidden = !settings.randomizerGen4 || (gen4Pokemon && gen4Game);
+  $('randomizer-gen4-note').textContent = !gen4Pokemon ? 'Gen 4 counts once you turn on Generation 4 Pokémon, under Later generations.'
+    : 'Update your game to have Gen 4 Pokémon in a randomized run.';
   $('randomizer-save-note').textContent = !ready ? 'Update your game to use the randomizer. This version of the game plays every save as normal.'
+    : run && (run.generations & 8) && !gen4Pokemon ? `A randomized run with Gen 4 Pokémon, seed ${run.seed}. Turn on Generation 4 Pokémon, under Later generations, to play it as it was made.`
     : run ? `A randomized run, seed ${run.seed}. It keeps this seed whatever is set here; a New Game uses the settings above.`
       : exists ? 'The normal game. It stays that way: settings here start with your next New Game.'
         : 'No save yet. A New Game uses the settings above.';

@@ -232,7 +232,8 @@ function speciesSpec(tables, data, number, moves, ownAbilities) {
     ...(abilities.length ? { abilities: abilities.slice(0, 2) } : {}),
     moves: moveList.length ? moveList : [[1, 33]],
     tmMoves: entry.tm.map(usable).filter(Boolean),
-    ...(evolutions.length ? { evolutions } : {})
+    // always, even none: without, the row keeps its stand-in's (Arceus evolved into Linoone)
+    evolutions
   };
 }
 
