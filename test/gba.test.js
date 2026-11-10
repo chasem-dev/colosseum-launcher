@@ -149,6 +149,23 @@ test('the game gets a GBA for each usable save, and the Game Pak and BIOS only i
   assert.equal(gba.status({ sockets: { 2: { save: path.join(dir, 'gone.sav') } } }).ready, false);
 });
 
+test('with the GB-Link switch on, socket 2 is the player\'s own GBA, and the other sockets keep their saves', t => {
+  const dir = folder();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const save = path.join(dir, 'my.sav'), other = path.join(dir, 'other.sav');
+  fs.writeFileSync(save, gen3Bytes());
+  fs.writeFileSync(other, gen3Bytes());
+  assert.equal(port.normalizeSettings({}, 'linux').gbaGbLink, false);
+  const settings = port.normalizeSettings({ gbaGbLink: true }, 'linux');
+  assert.equal(settings.gbaGbLink, true);
+  assert.deepEqual(gba.environment({ bios: '', sockets: {} }, settings), { COLO_GBA2_GBLINK: 'auto', COLO_GBA_POWER: 'auto', COLO_GBA_VOLUME: '100' });
+  const env = gba.environment({ bios: '', sockets: { 2: { save }, 3: { save: other } } }, settings);
+  assert.equal(env.COLO_GBA2_GBLINK, 'auto');
+  assert.equal(env.COLO_GBA2_SAVE, undefined);
+  assert.equal(env.COLO_GBA3_SAVE, other);
+  assert.equal(port.normalizeSettings({ gbaGbLink: 'yes' }, 'linux').gbaGbLink, false);
+});
+
 test('saved GBA settings keep sockets 2 to 4 with a save, and older ones get the save beside their Game Pak', () => {
   assert.deepEqual(gba.normalize({ bios: '/b.bin', sockets: { 1: { save: '/a.sav' }, 2: { rom: '/r.gba', save: 3 }, 3: { save: '/s.sav' }, 5: { save: '/x.sav' }, 4: { rom: '' } } }),
     { bios: '/b.bin', sockets: { 2: { save: path.join('/', 'r.sav'), rom: '/r.gba' }, 3: { save: '/s.sav', rom: '' } } });

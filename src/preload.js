@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('colo', {
   gcAdapterStatus: () => ipcRenderer.invoke('gc-adapter-status'),
   allowGcAdapter: () => ipcRenderer.invoke('gc-adapter-allow'),
   copyGcAdapterCommand: () => ipcRenderer.invoke('gc-adapter-copy-command'),
+  gblinkStatus: () => ipcRenderer.invoke('gblink-status'),
+  allowGblink: () => ipcRenderer.invoke('gblink-allow'),
+  copyGblinkCommand: () => ipcRenderer.invoke('gblink-copy-command'),
   importDolphinSave: files => {
     const filePaths = files ? Array.from(files, file => webUtils.getPathForFile(file)) : null;
     if (filePaths?.some(filePath => !filePath)) throw new Error('Drop .gci files from your computer.');

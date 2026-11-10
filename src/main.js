@@ -15,6 +15,7 @@ const game = require('./game-version');
 const updateChannel = require('./update-channel');
 const gameSource = require('./game-source');
 const gcAdapter = require('./gc-adapter');
+const gblink = require('./gblink');
 const gbaLink = require('./gba');
 const gen3Save = require('./gen3-save');
 const appImageUpdate = require('./appimage-update');
@@ -330,6 +331,38 @@ async function allowGcAdapter() {
   log(`GameCube adapter: installed ${gcAdapter.RULES_FILE}.`);
   await new Promise(resolve => setTimeout(resolve, 1500)); // for udev to apply it
   return { ok: true, status: await gcAdapterStatus() };
+}
+
+// A GB-Link adapter (gblink.js), for the real-GBA switch under Settings → Game Boy Advance.
+let gblinkLogged = '';
+async function gblinkStatus() {
+  let status = { present: false };
+  if (process.platform === 'linux') status = gblink.linuxStatus();
+  else if (process.platform === 'win32') {
+    status = gblink.windowsStatus(await commandOutput('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', gblink.WINDOWS_QUERY]));
+  } else if (process.platform === 'darwin') status = gblink.macStatus(await commandOutput('ioreg', ['-p', 'IOUSB', '-l', '-w0']));
+  const line = !status.present ? 'GB-Link adapter: none plugged in.'
+    : status.readable ? `GB-Link adapter: plugged in${status.port ? ` on ${status.port}` : ''}, the game can open it.`
+    : status.fix === 'udev' ? `GB-Link adapter: plugged in on ${status.port}, but this user can't open it; it needs a udev rule.`
+    : `GB-Link adapter: plugged in, but Windows has no working driver for it (${status.status || 'no serial port'}).`;
+  if (line !== gblinkLogged && (status.present || gblinkLogged)) log(line);
+  gblinkLogged = line;
+  return status;
+}
+
+async function allowGblink() {
+  if (process.platform !== 'linux') return { ok: false, status: await gblinkStatus() };
+  const { command, args } = gblink.allowCommand();
+  const error = await new Promise(resolve => execFile(command, args, { timeout: 120000 }, resolve));
+  if (error) {
+    const reason = error.code === 'ENOENT' ? 'pkexec is not installed'
+      : error.code === 126 ? 'the password prompt was closed' : error.code === 127 ? 'the password was not accepted' : error.message.split('\n')[0];
+    log(`GB-Link adapter: the udev rule was not installed (${reason}).`);
+    return { ok: false, reason, status: await gblinkStatus() };
+  }
+  log(`GB-Link adapter: installed ${gblink.RULES_FILE}.`);
+  await new Promise(resolve => setTimeout(resolve, 1500)); // for udev to apply it
+  return { ok: true, status: await gblinkStatus() };
 }
 
 // Add to Steam (steam.js). Steam reads non-Steam games only when it starts and
@@ -2037,6 +2070,9 @@ function registerHandlers() {
   ipcMain.handle('gc-adapter-status', () => gcAdapterStatus());
   ipcMain.handle('gc-adapter-allow', () => allowGcAdapter());
   ipcMain.handle('gc-adapter-copy-command', () => clipboard.writeText(gcAdapter.terminalCommand()));
+  ipcMain.handle('gblink-status', () => gblinkStatus());
+  ipcMain.handle('gblink-allow', () => allowGblink());
+  ipcMain.handle('gblink-copy-command', () => clipboard.writeText(gblink.terminalCommand()));
   ipcMain.handle('import-dolphin-save', (_event, files) => exclusive('Import Dolphin save', async () => {
     if (files == null) {
       const chosen = await dialog.showOpenDialog(window, { title: 'Import Dolphin save',

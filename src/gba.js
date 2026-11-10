@@ -96,10 +96,14 @@ function status(gba) {
 
 // The game's environment for its GBAs (host/gba.c): each socket's save (a virtual GBA answers from it),
 // and its Game Pak when one is chosen (then the GBA runs in the game), with the BIOS if there is one.
+// With settings.gbaGbLink, socket 2 is the player's own GBA on a GB-Link adapter (src/gblink.js), which the
+// game finds itself; its save then stays on the Game Pak.
 function environment(gba, settings, backupFolder) {
   const config = normalize(gba);
   const env = {};
+  if (settings.gbaGbLink) env.COLO_GBA2_GBLINK = 'auto';
   for (const [socket, entry] of Object.entries(config.sockets)) {
+    if (settings.gbaGbLink && socket === '2') continue;
     if (!fs.existsSync(entry.save) && !entry.rom) continue;
     env[`COLO_GBA${socket}_SAVE`] = entry.save;
     if (entry.rom && !checkGamePak(entry.rom).error) env[`COLO_GBA${socket}`] = entry.rom;

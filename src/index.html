@@ -307,6 +307,11 @@
             <p class="helper" id="gba-status" aria-live="polite"></p>
             <div class="settings-group" id="gba-save"></div>
             <div class="settings-group" id="gba-found" hidden></div>
+            <h2 class="group-title">Your own GBA</h2>
+            <div class="settings-group">
+              <label class="switch"><span><strong>Use my GBA on a GB-Link adapter</strong><small>Link your Game Boy Advance and its Game Pak instead of a save, through a GB-Link USB adapter and a Game Boy Color link cable. The adapter needs firmware with its GameCube mode. Turn the GBA on yourself when the game asks; trades and prizes are saved on the Game Pak.</small></span><input id="gbaGbLink" type="checkbox"><i></i></label>
+              <section id="gblink-note" class="controls-note" aria-label="GB-Link adapter" aria-live="polite" hidden><p id="gblink-text"></p><div class="actions" id="gblink-actions" hidden><button id="gblink-allow">Allow access</button><button class="subtle" id="gblink-copy">Copy terminal command</button><button class="subtle" id="gblink-check">Check again</button></div><p class="helper" id="gblink-helper"></p></section>
+            </div>
             <h2 class="group-title">Playing</h2>
             <div class="settings-group">
               <label class="switch"><span><strong>Turn the GBA on and off for me</strong><small>When the game asks you to turn the GBA on, or off, it does. Turn this off to switch it yourself.</small></span><input id="gbaAutoPower" type="checkbox"><i></i></label>

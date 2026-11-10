@@ -198,6 +198,8 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     // would rather; and its sound, in percent.
     gbaAutoPower: input.gbaAutoPower !== false,
     gbaVolume: numberSetting(input.gbaVolume, 100, 0, 100),
+    // The player's own GBA on socket 2, through a GB-Link USB adapter (src/gblink.js) instead of the save.
+    gbaGbLink: input.gbaGbLink === true,
     // What a new save randomizes (randomizer.js): a save keeps the seed it starts with.
     ...randomizer.normalize(input),
     // Later generations (generations.js): whose battle rules, and whose Pokémon are added. generation<N>Pokemon is the
