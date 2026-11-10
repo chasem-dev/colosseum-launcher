@@ -66,6 +66,7 @@ function showSettingsTab(name) {
   }
   $('settings-panes').scrollTop = 0;
   if (name === 'controls') { renderBindings(); loadGcAdapter(); }
+  if (name === 'gba') loadGblink();
   if (name === 'launcher') loadUpdateChannels();
 }
 for (const tab of settingsTabs) $(`tab-${tab}`).addEventListener('click', () => showSettingsTab(tab));
@@ -215,7 +216,9 @@ function renderGba(data) {
   if (!gba.sockets['2']) lookForGbaSaves(gba);
   const usable = Object.entries(gba.sockets).filter(([, entry]) => !entry.save.error && !entry.rom?.error);
   const problem = usable.map(([, entry]) => entry.save.problem).find(Boolean);
-  $('gba-status').textContent = !gba.ready
+  $('gba-status').textContent = $('gbaGbLink').checked
+    ? 'Ready: when the game asks for a Game Boy Advance, it links with your own GBA on the GB-Link adapter. The save below is used again when you turn that off.'
+    : !gba.ready
     ? (Object.keys(gba.sockets).length ? 'This save can\'t be used: choose another.' : 'Choose your save to link a GBA. Until then the game sees no GBA, as with no cable.')
     : problem ? `The game will see your GBA, but won't link yet. ${problem}`
       : usable.some(([, entry]) => entry.rom) ? 'Ready: when the game asks for a Game Boy Advance, it starts with your Game Pak and save.'
@@ -405,6 +408,43 @@ $('gc-adapter-allow').addEventListener('click', async () => {
 $('gc-adapter-copy').addEventListener('click', async () => {
   await window.colo.copyGcAdapterCommand();
   $('gc-adapter-helper').textContent = 'Copied. Paste it into a terminal, then unplug the adapter, plug it in again and choose Check again.';
+});
+
+// A GB-Link adapter (src/gblink.js), shown while the real-GBA switch is on: whether one is plugged in, and on
+// Linux whether the game may open its serial port (Allow access installs a udev rule).
+function renderGblink(status, message = '') {
+  const on = $('gbaGbLink').checked;
+  $('gblink-note').hidden = !on;
+  if (!on) return;
+  $('gblink-text').textContent = !status?.present ? 'No GB-Link adapter is plugged in. Plug it in, with the GBA on the cable\'s other end, then choose Check again.'
+    : status.readable ? `Plugged in${status.port ? ` (${status.port})` : ''}. When the game asks for a Game Boy Advance, turn yours on with its Pokémon Game Pak in.`
+    : status.fix === 'udev' ? 'Plugged in, but Linux doesn\'t let the game open it yet. Allow access adds a udev rule for it, which asks for your password.'
+    : 'Plugged in, but Windows has no working driver for it. Unplug it and plug it in again.';
+  $('gblink-actions').hidden = Boolean(status?.readable);
+  $('gblink-allow').hidden = status?.fix !== 'udev';
+  $('gblink-copy').hidden = status?.fix !== 'udev';
+  $('gblink-helper').textContent = message;
+}
+async function loadGblink(message) {
+  if (!$('gbaGbLink').checked) return renderGblink(null);
+  try { renderGblink(await window.colo.gblinkStatus(), message); }
+  catch (error) { renderGblink({ present: true, readable: false }, error.message || String(error)); }
+}
+$('gbaGbLink').addEventListener('change', () => { loadGblink(); renderGba({ gba: lastGba, active: gbaBusy }); });
+$('gblink-check').addEventListener('click', () => loadGblink());
+$('gblink-allow').addEventListener('click', async () => {
+  $('gblink-allow').disabled = true;
+  try {
+    const result = await window.colo.allowGblink();
+    renderGblink(result.status, result.ok
+      ? (result.status.readable ? 'Access allowed.' : 'The rule is installed. Unplug the adapter and plug it in again, then choose Check again.')
+      : `Not changed: ${result.reason}. Copy the terminal command and run it in a terminal instead.`);
+  } catch (error) { $('gblink-helper').textContent = error.message || String(error); }
+  finally { $('gblink-allow').disabled = false; }
+});
+$('gblink-copy').addEventListener('click', async () => {
+  await window.colo.copyGblinkCommand();
+  $('gblink-helper').textContent = 'Copied. Paste it into a terminal, then unplug the adapter, plug it in again and choose Check again.';
 });
 
 $('reset-bindings').addEventListener('click', () => {
@@ -796,7 +836,7 @@ function refresh(data) {
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
 const SELECTS = ['battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
-const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'shinyShadow', 'shinyStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'shinyShadow', 'shinyStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'gbaGbLink', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 // The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
 // removed from the folder stays listed, as the game plays in English without it.
