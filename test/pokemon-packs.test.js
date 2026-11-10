@@ -158,6 +158,23 @@ test('a sprite is the disc\'s header and an RGBA8 image; a face holds the shiny 
   assert.deepEqual([...encoded.subarray(32, 36)], [1, 2, 5, 6]);
 });
 
+test('a Battle Revolution face fills its square: no ring, no see-through corners, the first frame of two', () => {
+  // Its icon: a red picture inside a grey ring, see-through outside; a second frame, blue, beside it.
+  const rgba = Buffer.alloc(96 * 48 * 4);
+  for (let y = 0; y < 48; y++) for (let x = 0; x < 96; x++) {
+    const distance = Math.hypot((x % 48) - 23.5, y - 23.5), o = (y * 96 + x) * 4;
+    const color = distance > 24.5 ? [0, 0, 0, 0] : distance > 22.5 ? [168, 168, 168, 255] : x < 48 ? [200, 0, 0, 255] : [0, 0, 200, 255];
+    rgba.set(color, o);
+  }
+  const face = packs.battleRevolutionFace(pokedex.png(96, 48, rgba));
+  assert.equal(face.width, 42);
+  assert.equal(face.height, 42);
+  for (let i = 0; i < 42 * 42; i++) assert.deepEqual([...face.rgba.subarray(i * 4, i * 4 + 4)], [200, 0, 0, 255], `pixel ${i}`);
+  // Anything else stays as it is
+  const plain = pokedex.png(4, 8, Buffer.alloc(128, 9));
+  assert.deepEqual(packs.battleRevolutionFace(plain), packs.decodePng(plain));
+});
+
 function writePack(root, pack, entries, about) {
   fs.mkdirSync(path.join(root, pack), { recursive: true });
   if (about) fs.writeFileSync(path.join(root, pack, 'pack.json'), about);
