@@ -243,12 +243,39 @@ function encodeRgba8(image) {
 // A body sprite is one 64x64 image. A face is 42x42, and its texture holds two, the normal
 // face above the shiny one (the game crops the one it shows): a face without a shiny one of
 // its own has the normal face in both.
-function spriteFile(kind, header, png, shinyPng = null) {
+// `read`: the PNG to an image (decodePng, or battleRevolutionFace for a converted Pokémon's face).
+function spriteFile(kind, header, png, shinyPng = null, read = decodePng) {
   const [width, height] = SPRITE_SIZE[kind];
-  const image = resize(decodePng(png), width, height);
+  const image = resize(read(png), width, height);
   if (kind === 'body') return Buffer.concat([header, encodeRgba8(image)]);
-  const shiny = shinyPng ? resize(decodePng(shinyPng), width, height) : image;
+  const shiny = shinyPng ? resize(read(shinyPng), width, height) : image;
   return Buffer.concat([header, encodeRgba8({ width, height: height * 2, rgba: Buffer.concat([image.rgba, shiny.rgba]) })]);
+}
+
+// A face from Battle Revolution's menu icons as Colosseum's are. Its icon is a round picture inside a grey ring, with
+// see-through corners: 48x48, or two frames side by side for a few Pokémon (the first is used). Colosseum's faces
+// fill their whole square and the game draws its frame over them, so the ring would show inside that frame, and the
+// scene behind through the corners. This takes the middle 40 pixels of the icon (FACE_CROP), inside the ring, at the
+// face's own 42, and fills the corners outside the circle from the circle's edge.
+const FACE_CROP = 40 / 48, FACE_RADIUS = 21 / 48;   // of the icon's size; the picture ends at 22, the ring is 23 to 24
+function battleRevolutionFace(png) {
+  const icon = decodePng(png), size = icon.height;
+  if (icon.width < size) return icon;   // not one of its icons: as it is
+  const [width, height] = SPRITE_SIZE.face, out = Buffer.alloc(width * height * 4);
+  const middle = size / 2 - 0.5, radius = FACE_RADIUS * size, scale = FACE_CROP * size / width;
+  const at = (x, y, c) => icon.rgba[(Math.min(size - 1, Math.max(0, y)) * icon.width + Math.min(size - 1, Math.max(0, x))) * 4 + c];
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    let sx = middle + (x + 0.5 - width / 2) * scale, sy = middle + (y + 0.5 - height / 2) * scale;
+    const distance = Math.hypot(sx - middle, sy - middle);
+    if (distance > radius) { sx = middle + (sx - middle) * radius / distance; sy = middle + (sy - middle) * radius / distance; }
+    const x0 = Math.floor(sx), y0 = Math.floor(sy), fx = sx - x0, fy = sy - y0, o = (y * width + x) * 4;
+    for (let c = 0; c < 3; c++) {
+      out[o + c] = Math.round(at(x0, y0, c) * (1 - fx) * (1 - fy) + at(x0 + 1, y0, c) * fx * (1 - fy)
+        + at(x0, y0 + 1, c) * (1 - fx) * fy + at(x0 + 1, y0 + 1, c) * fx * fy);
+    }
+    out[o + 3] = 255;
+  }
+  return { width, height, rgba: out };
 }
 
 // --- Reading a pack -------------------------------------------------------------------------
@@ -549,7 +576,7 @@ function ownLooks(folder, tables) {
     assets: { model, modelShiny: file(FILES.modelShiny) || undefined,
       body: body ? sprite(() => spriteFile('body', tables.headers.body, body)) : undefined,
       bodyShiny: bodyShiny ? sprite(() => spriteFile('body', tables.headers.body, bodyShiny)) : undefined,
-      face: face ? sprite(() => spriteFile('face', tables.headers.face, face, faceShiny)) : undefined },
+      face: face ? sprite(() => spriteFile('face', tables.headers.face, face, faceShiny, battleRevolutionFace)) : undefined },
     images: { body, bodyShiny, face }, converted: true
   };
 }
@@ -621,6 +648,6 @@ function pokedexEntries(pokemon, tables) {
 }
 
 module.exports = { FIRST_ID, LAST_ID, FIRST_PAST_GAP, REGISTRY_FILE, FILES, packsDirectory, readGameTables, readRegistry, writeRegistry, assignIds,
-  decodePng, resize, encodeRgba8, spriteFile, buildRow, loadPacks, compile, generationPokemon, pokedexEntries,
+  decodePng, resize, encodeRgba8, spriteFile, battleRevolutionFace, buildRow, loadPacks, compile, generationPokemon, pokedexEntries,
   // A species the original game hasn't: a pack's, or a later generation's
   isPackSpecies: id => (id >= FIRST_ID && id <= LAST_ID) || id >= 413 };
