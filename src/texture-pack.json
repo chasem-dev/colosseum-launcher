@@ -1,8 +1,8 @@
 {
-  "version": "2026.11.09",
+  "version": "2026.11.09.3",
   "folder": "colo-upscale-4x",
-  "url": "https://github.com/chasem-dev/pokemon-colosseum-extras/releases/download/texture-pack-2026.11.09/colosseum-texture-pack-4x-2026-11-09.zip",
-  "sha256": "730febd59bb7d0b03fb77a54a93337fc715d911ccb714fddfa74b1431653b71e",
-  "size": 1971488775,
-  "unpacked": 1969923977
+  "url": "https://github.com/chasem-dev/pokemon-colosseum-extras/releases/download/texture-pack-2026.11.09.3/colosseum-texture-pack-4x-2026-11-09-3.zip",
+  "sha256": "7279d4c081be68303d8dd5cb6f445ff649a005f9f9ed1be56569c771f14affc3",
+  "size": 1830563694,
+  "unpacked": 1828997161
 }
