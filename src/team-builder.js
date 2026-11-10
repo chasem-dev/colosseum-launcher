@@ -25,6 +25,8 @@
   let moveById = new Map(), itemById = new Map();
   // The party open in the editor, the slot shown, and what the editor's showing: a set or the Pokédex.
   let editing = null, current = 0, view = 'set', replacing = null, level = 50, onDone = null, dragFrom = null;
+  // The battle rules the Online page has chosen: a later generation's make a move physical or special by itself.
+  let battleRules = 3;
   // The list under a move or item field while it's chosen from.
   let list = null;
 
@@ -60,6 +62,10 @@
     image.loading = 'lazy';
     return image;
   }
+
+  // Physical, Special or Status: the move's own under a later generation's rules (Hidden Power is special there),
+  // else by its type, Hidden Power by the type the IVs give it.
+  const categoryOf = (move, hidden) => data?.categories?.[battleRules]?.[move.id] || (hidden ? T.category(hidden.type) : move.category);
 
   const speciesName = id => byId.get(id)?.name || `#${id}`;
   const displayName = set => set.nickname || speciesName(set.species);
@@ -282,7 +288,7 @@
       wrap.classList.toggle('odd', Boolean(move) && !learned.has(move.id));
       if (!move) { facts.replaceChildren(); return; }
       const hidden = move.id === T.HIDDEN_POWER ? T.hiddenPower(set.ivs) : null;
-      const category = hidden ? T.category(hidden.type) : move.category;
+      const category = categoryOf(move, hidden);
       facts.replaceChildren(typeChip(hidden?.type || move.type), el('span', { className: `tb-category ${category.toLowerCase()}`, textContent: category }),
         el('span', { textContent: `${hidden ? hidden.power : move.power > 1 ? move.power : '—'} pow` }),
         el('span', { textContent: `${move.accuracy ? `${move.accuracy}%` : '—'} acc` }),
@@ -488,7 +494,7 @@
   }
 
   function moveRow(move, how, hidden) {
-    const category = hidden ? T.category(hidden.type) : move.category;
+    const category = categoryOf(move, hidden);
     return { value: move.id, title: move.doc, cells: [el('span', { className: 'tb-list-name', textContent: move.name }), typeChip(hidden?.type || move.type),
       el('span', { className: `tb-category ${category.toLowerCase()}`, textContent: category }),
       el('span', { className: 'tb-list-num', textContent: hidden ? hidden.power : move.power > 1 ? move.power : '—' }),
@@ -501,7 +507,7 @@
   function openMoves(input, set, slot, show, text) {
     const query = key(text);
     const learned = learnset(set.species), hidden = T.hiddenPower(set.ivs);
-    const matches = move => !query || key(move.name).includes(query) || key(move.type) === query || key(move.category) === query;
+    const matches = move => !query || key(move.name).includes(query) || key(move.type) === query || key(categoryOf(move, move.id === T.HIDDEN_POWER ? hidden : null)) === query;
     const taken = new Set(set.moves.filter((_, i) => i !== slot));
     const own = [...learned].map(([id, how]) => [moveById.get(id), how]).filter(([move]) => move && matches(move) && !taken.has(move.id));
     own.sort((a, b) => a[0].name.localeCompare(b[0].name));
@@ -578,7 +584,8 @@
   }
 
   // party: { id, name, members, sets } or null for a new one. done(party) is called once it closes with Pokémon in it.
-  async function open(party, { name, level: roomLevel = 50, done, remove, from = null }) {
+  async function open(party, { name, level: roomLevel = 50, battleRules: rules = 3, done, remove, from = null }) {
+    battleRules = Number(rules) || 3;
     const sets = from || (party ? party.sets.map(set => JSON.parse(JSON.stringify(set))) : []);
     editing = { id: party?.id || null, name: party?.name || name, sets };
     onDone = done;

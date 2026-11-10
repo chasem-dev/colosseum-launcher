@@ -74,6 +74,15 @@ function normalize(input = {}) {
   return { battleRules: rules, generationPokemon: pokemon };
 }
 
+// Physical, Special or Status for each of Colosseum's own moves by its id, as a generation's rules make it (the split
+// gives each its own; without it the game goes by the move's type, so this is empty). What the team builder shows.
+function moveCategories(generation) {
+  const data = load(generation), out = {};
+  if (!data.mechanics.physicalSpecialSplit) return out;
+  for (let id = 1; id < FIRST_NEW_MOVE; id++) if (data.moves[id]) out[id] = data.moves[id].category;
+  return out;
+}
+
 const colosseumMove = number => number >= FIRST_NEW_MOVE ? number + MOVE_OFFSET : number;
 const speciesId = national => national + SPECIES_OFFSET;
 const isGenerationSpecies = id => id >= 387 + SPECIES_OFFSET && id < 1100;
@@ -264,5 +273,5 @@ function build(tables, settings) {
   return out;
 }
 
-module.exports = { SAME_ABILITIES, colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build,
+module.exports = { SAME_ABILITIES, colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build, moveCategories,
   newMoves, rules, speciesSpec, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };

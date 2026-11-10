@@ -166,3 +166,13 @@ test("an ability Ruby writes as one word stays a Pokémon's under Generation 4's
   const out = generations.rules(tables, data, []);
   assert.equal(out.species.some(each => each.id === 112), false, 'Rhydon keeps both, so it needs no change');
 });
+
+test("the team builder's categories under generation 4's rules are each move's own", () => {
+  const categories = generations.moveCategories(4);
+  assert.equal(categories[7], 'Physical', 'Fire Punch, a Fire move');
+  assert.equal(categories[247], 'Special', 'Shadow Ball, a Ghost move');
+  assert.equal(categories[237], 'Special', 'Hidden Power, whatever its type');
+  assert.equal(categories[68], 'Physical', 'Counter');
+  assert.equal(categories[14], 'Status', 'Swords Dance');
+  assert.equal(Object.keys(categories).length, generations.FIRST_NEW_MOVE - 1, 'moves 1 to 354, the numbers Colosseum shares with later games');
+});

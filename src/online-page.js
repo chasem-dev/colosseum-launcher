@@ -134,7 +134,7 @@
   }
 
   function openEditor(party, from = null, name = null) {
-    builder().open(party, { name: name || `Party ${setup.parties.length + 1}`, level: setup.level, from, done: keepParty,
+    builder().open(party, { name: name || `Party ${setup.parties.length + 1}`, level: setup.level, battleRules: setup.battleRules, from, done: keepParty,
       remove: () => { setup.parties = setup.parties.filter(item => item.id !== party.id); save(); } });
   }
 

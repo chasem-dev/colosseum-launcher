@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Team builder: with Platinum's rules chosen under Rules on the Online page, each move shows as physical or special by itself, as it battles, not by its type: Shadow Ball is special and Hidden Power always special.",
       "Online: a room of any format, Casual too, can play by Pokémon Platinum's battle rules. Choose Platinum's under Rules when you create the room, and both players battle by them; the room list says so.",
       "Fixed Generation 4 rules taking away an ability whose name Colosseum runs together, such as Rhydon's and Manectric's Lightning Rod.",
       "Pokémon packs: add Pokémon of your own making, new ones or forms of the game's, with their own name, stats, types, moves and TMs, evolutions, model and sprites. Press Open Pokémon packs folder in the Pokédex, where they show after the Pokémon they're based on, with who made them.",
