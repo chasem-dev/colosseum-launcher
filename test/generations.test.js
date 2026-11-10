@@ -146,6 +146,50 @@ test('a new Pokémon: its own numbers, a stand-in of its type and stage, moves i
   assert.deepEqual(generations.speciesSpec(game, data, 493, []).evolutions, []);
 });
 
+test('level-up moves and evolutions are Pokémon Platinum\'s', () => {
+  const data = generations.load(4);
+  assert.deepEqual(data.species[7].levelUp.filter(([level]) => level >= 34), [[34, 334], [37, 240], [40, 56]], 'Squirtle: Iron Defense, Rain Dance, Hydro Pump');
+  assert.ok(data.species[2].levelUp.some(([level, move]) => level === 3 && move === 45), 'Ivysaur learns Growl again at 3');
+  assert.deepEqual(data.species[193].evolutions, [{ into: 469, knowsMove: 246 }]);
+  assert.deepEqual(data.species[412].evolutions, [{ into: 413, level: 20, gender: 'female' }, { into: 414, level: 20, gender: 'male' }]);
+  assert.ok(Object.values(data.species).every(entry => entry.levelUp.length <= 20), 'each fits a row');
+});
+
+test('a later generation\'s evolutions as Colosseum can make them', () => {
+  const data = generations.load(4), usable = n => n < 355 ? n : n + 3;
+  const of = number => data.species[number].evolutions.map(evolution => generations.evolutionOf(data, evolution, usable));
+  assert.deepEqual(of(193), [{ into: 'generation:469', knowsMove: 246 }], 'Yanma knowing Ancient Power');
+  assert.deepEqual(of(190), [{ into: 'generation:424', knowsMove: 458 + 3 }], 'Aipom knowing Double Hit, a new move');
+  assert.deepEqual(of(221), [{ into: 'generation:473', knowsMove: 246 }]);
+  assert.deepEqual(of(198), [{ into: 'generation:430', level: 35 }], 'Murkrow: no Dusk Stone in the game');
+  assert.deepEqual(of(281).slice(-1), [{ into: 'generation:475', level: 35, gender: 'male' }], 'Kirlia: Dawn Stone, male only');
+  assert.deepEqual(of(361).slice(-1), [{ into: 'generation:478', level: 35, gender: 'female' }]);
+  assert.deepEqual(of(412), [{ into: 'generation:413', level: 20, gender: 'female' }, { into: 'generation:414', level: 20, gender: 'male' }]);
+  assert.deepEqual(of(415), [{ into: 'generation:416', level: 21, gender: 'female' }], 'only a female Combee becomes Vespiquen');
+  assert.deepEqual(of(447), [{ into: 'generation:448', friendship: true }], 'Riolu: no time of day in the game');
+  assert.deepEqual(of(440), [{ into: 113, level: 25 }], 'Happiny holding an Oval Stone');
+  assert.deepEqual(of(458), [{ into: 226, withPokemon: 223 }], 'Mantyke with a Remoraid');
+  assert.deepEqual(of(439), [{ into: 122, knowsMove: 102 }], 'Mime Jr. knowing Mimic');
+  assert.deepEqual(of(82), [{ into: 'generation:462', level: 40 }], 'Magneton: no magnetic field');
+  assert.deepEqual(of(133).slice(0, 2), [null, null], 'no mossy or icy rock for Eevee');
+  assert.deepEqual(of(112), [{ into: 'generation:464', level: 45 }], 'Rhydon: traded holding a Protector');
+});
+
+test('the game\'s own Pokémon learn and evolve as generation 4 has them when its Pokémon are added', () => {
+  const game = tables(), data = generations.load(4);
+  game.species = [{ id: 193, national: 193, name: 'Yanma', row: Buffer.alloc(0x11c) }, { id: 412, national: 412, name: 'Egg', row: Buffer.alloc(0x11c) }];
+  // each move a new one plays as, made up as one of the game's
+  Object.values(data.colosseum.moves).filter(Boolean).forEach((how, i) => { if (!game.moves.has(key(how.as))) game.moves.set(key(how.as), 1 + i % 300); });
+  const moves = generations.newMoves(game, data);
+  const [yanma] = generations.ownSpecies(game, data, moves);
+  assert.equal(yanma.id, 193);
+  assert.ok(yanma.levelUp.some(([level, move]) => level === 33 && move === 246), 'Ancient Power at 33');
+  assert.deepEqual(yanma.evolutions, [{ into: 'generation:469', knowsMove: 246 }]);
+  assert.equal(generations.ownSpecies(game, data, moves).length, 1, 'only the game\'s first 386');
+  assert.deepEqual(generations.build(game, { generationPokemon: [4] }).ownSpecies.map(each => each.id), [193]);
+  assert.deepEqual(generations.build(game, { battleRules: 4 }).ownSpecies, [], 'not with the rules alone');
+});
+
 test('Battle Revolution models are made by the game\'s own pbr2pkx, with the build tools\' Python', () => {
   const port = require('../src/port');
   const cmd = port.pbrModelsCommand('/game', '/discs/pbr.rvz', '/data/battle-revolution', [387, 388], 'linux', {});

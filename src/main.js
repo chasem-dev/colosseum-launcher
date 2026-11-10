@@ -953,8 +953,10 @@ function readPokemonPacks(rom, settings = config.settings) {
     ? pokemonPacks.loadPacks(pokemonPacksDirectory(), tables, pokemonPacks.readRegistry(currentSaveDirectory()))
     : { pokemon: [], problems: [], registry: { ids: {} }, registryChanged: false, missing: [] };
   const built = generations.build(tables, settings), fromGenerations = pokemonPacks.generationPokemon(tables, built, { modelsDirectory: pbrModels() });
-  return { tables, ...packs, built, generationPokemon: fromGenerations.pokemon,
-    problems: [...packs.problems, ...fromGenerations.problems] };
+  // the game's own Pokémon as the generation has them: its level-up moves, and evolutions into its Pokémon
+  const own = pokemonPacks.ownRows(tables, built, fromGenerations.pokemon);
+  return { tables, ...packs, built, generationPokemon: fromGenerations.pokemon, ownRows: own.rows,
+    problems: [...packs.problems, ...fromGenerations.problems, ...own.problems] };
 }
 
 const packLabel = problem => `${problem.pack}${problem.entry ? `/${problem.entry}` : ''}`;
@@ -999,11 +1001,13 @@ function preparePokemonPacks(rom, folder) {
   const loaded = readPokemonPacks(rom);
   for (const problem of loaded.problems) log(`Pokémon pack ${packLabel(problem)}: ${problem.message}`);
   for (const name of loaded.missing) log(`Pokémon pack ${name} isn't in the packs folder: Pokémon of it in your saves stay hidden until it's back.`);
-  const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules } = loaded.built;
-  if (!pokemon.length && !moves.length && !rules) return null;
+  const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules } = loaded.built, { ownRows } = loaded;
+  // With a later generation's Pokémon, the Move Deleter also makes a Pokémon remember a move, as that generation's games do
+  const relearner = loaded.generationPokemon.length > 0;
+  if (!pokemon.length && !moves.length && !rules && !ownRows.length) return null;
   if (loaded.registryChanged) pokemonPacks.writeRegistry(currentSaveDirectory(), loaded.registry);
   const file = path.join(folder, 'pokemon-packs.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules }));
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules, ownRows, relearner }));
   if (loaded.pokemon.length) log(`Pokémon packs: ${loaded.pokemon.map(each => `${pokedexNames.displayName(each.name)}${each.form ? ` (${each.form})` : ''} from ${each.key}`).join(', ')}.`);
   for (const generation of config.settings.generationPokemon) log(`Generation ${generation} Pokémon: ${loaded.generationPokemon.filter(each => each.generation === generation).length} Pokémon and ${moves.length} new moves.`);
   if (rules) log(`Battle rules: generation ${rules.generation}.`);
@@ -1069,7 +1073,7 @@ function hdSpriteResponse(request) {
 // The Pokédex's list: the disc's Pokémon, and the packs' after the ones they're based on.
 let pokedexPacks = new Map();   // key -> the pack Pokémon, for its model
 function pokedexList(rom) {
-  const species = withHdSprites(rom, pokedexData.list(rom));
+  let species = withHdSprites(rom, pokedexData.list(rom));
   let packs = [], problems = [];
   try {
     {
@@ -1085,6 +1089,19 @@ function pokedexList(rom) {
           sprite: each.images.body ? `data:image/png;base64,${each.images.body.toString('base64')}` : base?.sprite || null,
           forms: each.assets.model ? [{ id: 'model', label: 'Normal' }, ...(each.assets.modelShiny ? [{ id: 'modelShiny', label: 'Shiny' }] : [])] : base?.forms || [] };
       });
+      // The game's own Pokémon's evolutions into a later generation's (Yanma into Yanmega), and how those can be had
+      species = species.map(entry => ({ ...entry }));
+      for (const row of loaded.ownRows) {
+        const from = species.find(entry => entry.national === loaded.tables.species.find(each => each.id === row.id)?.national);
+        if (!from) continue;
+        for (let i = 0; i < 5; i++) {
+          const into = all.find(each => each.id === row.evolutions.readUInt16BE(i * 6 + 4));
+          const target = into && packs.find(entry => entry.key === `pack:${into.key}`);
+          if (!row.evolutions[i * 6] || !target || from.evolutions.includes(target.key)) continue;
+          from.evolutions = [...from.evolutions, target.key];
+          if (['shadow', 'gift', 'evolve'].includes(from.status?.kind)) target.status = { ...target.status, note: `${target.status.note} Evolve ${from.name} to get it.` };
+        }
+      }
     }
   } catch (error) { problems = [error.message]; }
   return { species, packs, problems };

@@ -84,7 +84,7 @@ without a model, a cry or sprites of its own looks and sounds like its base.
 | `moves` | The moves it learns by level, up to 20, as `[level, "Move"]`, the move by name or number. Replaces its base's list. |
 | `tms` | The TMs and HMs it can learn, such as `"TM06"` or `"HM01"`. Replaces its base's. |
 | `tmMoves` | Moves it can learn from a TM or HM in any game, by name or number: it can learn those this game's TMs and HMs teach, and the rest are let go. Replaces its base's, unless `tms` is there too. |
-| `evolutions` | Up to 5, replacing its base's. Each has `into`, and one of these: `"level": 30`; `"item": "Moon Stone"`; `"friendship": true`, `"day"` or `"night"`; `"trade": true`, or the item it holds while traded. |
+| `evolutions` | Up to 5, replacing its base's. Each has `into`, and one of these: `"level": 30`, with `"gender": "male"` or `"female"` for one gender only; `"item": "Moon Stone"`; `"friendship": true` (`"day"` and `"night"` never happen, as the game keeps no time of day); `"trade": true`, or the item it holds while traded; `"knowsMove": "Ancient Power"`, levelling up while knowing that move; `"withPokemon": "Remoraid"`, levelling up with that Pokémon in the party. |
 
 Moves and abilities are numbered alike in every game from Ruby and Sapphire on, so a number from another game's data
 works as long as this game has the move or ability.

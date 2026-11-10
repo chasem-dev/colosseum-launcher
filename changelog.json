@@ -28,7 +28,10 @@
       "Generation 4 rules: Astonish, Extrasensory and Needle Arm no longer do double damage to a Pokémon that used Minimize, as in Platinum.",
       "Online battles: both players need this update of the launcher, as it changes Generation 4's move data. Joining a room from another version of the launcher says so.",
       "Pokédex: Battle Revolution models show and hide parts as they move, such as Honchkrow folding its wings, as they do in battle.",
-      "When a fix changes your Battle Revolution models, a warning above Play says so, and its Make models button makes them again."
+      "When a fix changes your Battle Revolution models, a warning above Play says so, and its Make models button makes them again.",
+      "Generation 4 Pokémon, under Settings → Gameplay: the game's own Pokémon now learn their moves and evolve as in Pokémon Platinum, so Yanma, Aipom and Piloswine can become Yanmega, Ambipom and Mamoswine, and Murkrow, Misdreavus, Sneasel, Gligar and the rest reach their Generation 4 forms by level where the game has no stone or trade item for them. The Pokédex shows those evolutions.",
+      "Fixed Generation 4 Pokémon evolving by the wrong rules: a male Combee no longer becomes Vespiquen, Burmy becomes Wormadam or Mothim by its gender, Riolu, Budew and Chingling evolve by friendship, and Bonsly and Mime Jr. evolve by knowing Mimic, Mantyke with a Remoraid in the party and Happiny at level 25, instead of all at level 36.",
+      "Generation 4 Pokémon learn the moves Pokémon Platinum teaches them by level, not ones from HeartGold and SoulSilver."
     ],
     "game": [
       "Online battles can have Battle Mode's choice and battle timers, shown on screen as in Battle Mode, with both games keeping the battle's time alike so the battle ends on the same turn for both. A battle that runs out of time with both sides even is a draw.",
@@ -62,7 +65,9 @@
       "Fixed Generation 4 abilities that didn't match Platinum: Tangled Feet did nothing, Magic Guard didn't stop recoil, full paralysis or a missed Jump Kick's crash, Slow Start lasted a turn too long for a Pokémon that started the battle, and Leaf Guard didn't stop Yawn in the sun.",
       "More Generation 4 abilities now match Platinum: Will-O-Wisp sets off Flash Fire, Lightning Rod and Storm Drain draw Hidden Power, Pressure makes weather and other field moves cost extra PP, and Anticipation, Forewarn, Download and Trace have smaller fixes.",
       "Fixed Generation 4 Pokémon models from Battle Revolution: Glameow's tail and Buneary's ears no longer stretch, Bonsly's feet, Spiritomb's spirits and Purugly's tail stay where they belong, Honchkrow, the Starly line, Darkrai, Rotom and Shaymin show the right one of their two wings, bodies, hands or flowers, Froslass and Munchlax have their eyes, and see-through wings and petals are see-through. Press Make models under Settings → Gameplay to make them again.",
-      "Fixed the game failing to build on computers with pandoc, markdown or kramdown installed, as many Macs have, with \"cannot create target README\" in the activity log."
+      "Fixed the game failing to build on computers with pandoc, markdown or kramdown installed, as many Macs have, with \"cannot create target README\" in the activity log.",
+      "With Generation 4 Pokémon, a Pokémon evolves by knowing a move (Yanma, Aipom, Piloswine, Tangela, Lickitung), with another Pokémon in the party (Mantyke) or by level for one gender (Kirlia into Gallade, Snorunt into Froslass, Burmy, Combee), as in Pokémon Platinum.",
+      "With Generation 4 Pokémon, the Move Deleter in Mt. Battle's Pokémon Center can also make a Pokémon remember a move it learns by level up to its level, so a Shadow Pokémon caught past the level it learns a move at can still evolve by knowing it."
     ]
   },
   "releases": [

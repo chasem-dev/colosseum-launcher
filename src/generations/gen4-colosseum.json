@@ -1,5 +1,5 @@
 {
-  "about": "How Colosseum plays generation 4's moves, abilities and evolution items, which it doesn't have. Written by hand; gen4.json is Showdown's and Pokémon Platinum's data. A new move plays as a move Colosseum has (`as`): its effect, its animation and its battle messages, with the new move's own type, power, accuracy, PP, priority, targets, effect chance and flags, as gen4.json has them from Pokémon Platinum. `exact` says whether that effect is the move's own. A move left at null has nothing close, and is left out of every learnset. An ability Colosseum lacks becomes another a Pokémon has, else the one named here. An evolution by an item Colosseum lacks becomes one by level.",
+  "about": "How Colosseum plays generation 4's moves, abilities and evolution items, which it doesn't have. Written by hand; gen4.json is Showdown's and Pokémon Platinum's data. A new move plays as a move Colosseum has (`as`): its effect, its animation and its battle messages, with the new move's own type, power, accuracy, PP, priority, targets, effect chance and flags, as gen4.json has them from Pokémon Platinum. `exact` says whether that effect is the move's own. A move left at null has nothing close, and is left out of every learnset. An ability Colosseum lacks becomes another a Pokémon has, else the one named here. An evolution by an item Colosseum lacks becomes one by level (evolutionItems), and so does one at a place (evolutionPlaces); 0 is none: Eevee's five evolutions fill its row, and a level would come before its stones.",
   "moves": {
     "Roost": { "as": "Recover", "effect": 232, "exact": true },
     "Gravity": { "as": "Imprison", "effect": 227, "exact": true },
@@ -141,5 +141,6 @@
   "evolutionItems": {
     "Dusk Stone": 35, "Dawn Stone": 35, "Shiny Stone": 35, "Oval Stone": 25, "Razor Claw": 35, "Razor Fang": 35,
     "Electirizer": 40, "Magmarizer": 40, "Protector": 45, "Reaper Cloth": 40, "Dubious Disc": 40
-  }
+  },
+  "evolutionPlaces": { "magnetic field": 40, "moss rock": 0, "ice rock": 0 }
 }

@@ -40,7 +40,11 @@ const TM_COUNT = 50, HM_COUNT = 8, EVOLUTIONS = 5, LEVEL_MOVES = 20;
 const MOVES = { offset: 0x11c7c4, count: 358, size: 0x38, name: 0x20 };
 const STATS = ['hp', 'attack', 'defense', 'spAttack', 'spDefense', 'speed'];
 const GROWTH = ['mediumFast', 'erratic', 'fluctuating', 'mediumSlow', 'fast', 'slow'];
-const EVOLVE = { friendship: 1, friendshipDay: 2, friendshipNight: 3, level: 4, trade: 5, tradeItem: 6, item: 7 };
+// How a Pokémon evolves: the game's own ways (2 and 3 are by friendship in the day or at night, which the game never
+// makes, as it keeps no time of day), then the port's (host/evolutions.c): knowing a move (its number), another Pokémon
+// in the party (its species), and a level for one gender.
+const EVOLVE = { friendship: 1, friendshipDay: 2, friendshipNight: 3, level: 4, trade: 5, tradeItem: 6, item: 7,
+  knowsMove: 16, withPokemon: 17, levelMale: 18, levelFemale: 19 };
 // Items that make a Pokémon evolve, by the game's numbers for them.
 const EVOLUTION_ITEMS = { 'sun stone': 93, 'moon stone': 94, 'fire stone': 95, 'thunder stone': 96, 'thunderstone': 96, 'water stone': 97,
   'leaf stone': 98, "king's rock": 187, 'deep sea tooth': 192, 'deepseatooth': 192, 'deep sea scale': 193, 'deepseascale': 193,
@@ -308,6 +312,49 @@ function named(map, value, what) {
   return id;
 }
 
+// One evolution of a pokemon.json, as the 6 bytes of a row's: its way, what that needs, and what it evolves into
+// (`target` finds it). "level" (with "gender": "male" or "female" for one), "item", "friendship" (true, "day" or
+// "night"), "trade" (true, or the item it holds), "knowsMove" (a move it knows as it levels up, by name or number) or
+// "withPokemon" (one in the party as it levels up).
+function evolutionBytes(evolution, tables, target) {
+  if (!isObject(evolution) || evolution.into === undefined) throw new Error('each evolution needs "into": what it evolves into');
+  const methods = ['level', 'item', 'friendship', 'trade', 'knowsMove', 'withPokemon'].filter(method => evolution[method] !== undefined);
+  if (methods.length !== 1) throw new Error('each evolution needs one of "level", "item", "friendship", "trade", "knowsMove" or "withPokemon"');
+  if (evolution.gender !== undefined && (methods[0] !== 'level' || !['male', 'female'].includes(evolution.gender)))
+    throw new Error('"gender" goes with "level", and is "male" or "female"');
+  let method, condition = 0;
+  if (methods[0] === 'level') {
+    method = { male: EVOLVE.levelMale, female: EVOLVE.levelFemale }[evolution.gender] || EVOLVE.level;
+    condition = integer(evolution.level, 1, 100, 'an evolution\'s level');
+  } else if (methods[0] === 'item') {
+    method = EVOLVE.item;
+    condition = EVOLUTION_ITEMS[key(evolution.item)];
+    if (!condition) throw new Error(`"${evolution.item}" isn't an evolution item: use ${Object.keys(EVOLUTION_ITEMS).filter((k, at, all) => all.findIndex(o => EVOLUTION_ITEMS[o] === EVOLUTION_ITEMS[k]) === at).join(', ')}`);
+  } else if (methods[0] === 'friendship') {
+    if (![true, 'day', 'night'].includes(evolution.friendship)) throw new Error('"friendship" must be true, "day" or "night"');
+    method = { true: EVOLVE.friendship, day: EVOLVE.friendshipDay, night: EVOLVE.friendshipNight }[evolution.friendship];
+  } else if (methods[0] === 'knowsMove') {
+    method = EVOLVE.knowsMove;
+    condition = typeof evolution.knowsMove === 'string' ? tables.moves.get(key(evolution.knowsMove)) : evolution.knowsMove;
+    if (!Number.isInteger(condition) || condition < 1 || condition > 0xffff) throw new Error(`"knowsMove": "${evolution.knowsMove}" isn't a move`);
+  } else if (methods[0] === 'withPokemon') {
+    method = EVOLVE.withPokemon;
+    condition = target(evolution.withPokemon);
+  } else {
+    if (evolution.trade === true) method = EVOLVE.trade;
+    else {
+      method = EVOLVE.tradeItem;
+      condition = EVOLUTION_ITEMS[key(evolution.trade)];
+      if (!condition) throw new Error('"trade" must be true, or the item it holds while traded');
+    }
+  }
+  const out = Buffer.alloc(6);
+  out[0] = method;
+  out.writeUInt16BE(condition, 2);
+  out.writeUInt16BE(target(evolution.into), 4);
+  return out;
+}
+
 // One pokemon.json, applied to a copy of its base's row. `target` finds an evolution's
 // species: a Pokémon of a pack (by its folder, or pack/folder) or of the game.
 function buildRow(spec, tables, target) {
@@ -403,31 +450,7 @@ function buildRow(spec, tables, target) {
   if (spec.evolutions !== undefined) {
     if (!Array.isArray(spec.evolutions) || spec.evolutions.length > EVOLUTIONS) throw new Error(`"evolutions" must list up to ${EVOLUTIONS} evolutions`);
     row.fill(0, ROW.evolutions, ROW.evolutions + EVOLUTIONS * 6);
-    spec.evolutions.forEach((evolution, i) => {
-      if (!isObject(evolution) || evolution.into === undefined) throw new Error('each evolution needs "into": what it evolves into');
-      const methods = ['level', 'item', 'friendship', 'trade'].filter(method => evolution[method] !== undefined);
-      if (methods.length !== 1) throw new Error('each evolution needs one of "level", "item", "friendship" or "trade"');
-      let method, condition = 0;
-      if (methods[0] === 'level') { method = EVOLVE.level; condition = integer(evolution.level, 1, 100, 'an evolution\'s level'); }
-      else if (methods[0] === 'item') {
-        method = EVOLVE.item;
-        condition = EVOLUTION_ITEMS[key(evolution.item)];
-        if (!condition) throw new Error(`"${evolution.item}" isn't an evolution item: use ${Object.keys(EVOLUTION_ITEMS).filter((k, at, all) => all.findIndex(o => EVOLUTION_ITEMS[o] === EVOLUTION_ITEMS[k]) === at).join(', ')}`);
-      } else if (methods[0] === 'friendship') {
-        if (![true, 'day', 'night'].includes(evolution.friendship)) throw new Error('"friendship" must be true, "day" or "night"');
-        method = { true: EVOLVE.friendship, day: EVOLVE.friendshipDay, night: EVOLVE.friendshipNight }[evolution.friendship];
-      } else {
-        if (evolution.trade === true) method = EVOLVE.trade;
-        else {
-          method = EVOLVE.tradeItem;
-          condition = EVOLUTION_ITEMS[key(evolution.trade)];
-          if (!condition) throw new Error('"trade" must be true, or the item it holds while traded');
-        }
-      }
-      row[ROW.evolutions + i * 6] = method;
-      row.writeUInt16BE(condition, ROW.evolutions + i * 6 + 2);
-      row.writeUInt16BE(target(evolution.into), ROW.evolutions + i * 6 + 4);
-    });
+    spec.evolutions.forEach((evolution, i) => evolutionBytes(evolution, tables, target).copy(row, ROW.evolutions + i * 6));
   }
   return { row, base, name, form, description: typeof spec.description === 'string' ? spec.description.slice(0, 500) : '' };
 }
@@ -515,11 +538,12 @@ function loadPacks(dir, tables, registry) {
 
 // --- The game's file ------------------------------------------------------------------------
 
-// The game's file (host/pokemonpacks.c): chunks of Pokémon (SPEC), new moves (MOVE) and battle rules (MECH, host/
-// mechanics.c). `contents` is { pokemon, moves, rules } (src/generations.js build makes the last two), or just the
-// Pokémon.
+// The game's file (host/pokemonpacks.c): chunks of Pokémon (SPEC), new moves (MOVE), battle rules (MECH, host/
+// mechanics.c) and the game's own Pokémon as a later generation has them (ROWS, host/evolutions.c). `contents` is
+// { pokemon, moves, rules, ownRows, relearner } (src/generations.js build makes moves and rules, ownRows its
+// ownSpecies), or just the Pokémon. `relearner` has the Move Deleter offer to make a Pokémon remember a move too.
 function compile(contents) {
-  const { pokemon = [], moves = [], rules = null } = Array.isArray(contents) ? { pokemon: contents } : contents;
+  const { pokemon = [], moves = [], rules = null, ownRows: own = [], relearner = false } = Array.isArray(contents) ? { pokemon: contents } : contents;
   const padded = buffer => Buffer.concat([buffer, Buffer.alloc((4 - buffer.length % 4) % 4)]);
   const utf16 = text => { const out = Buffer.alloc(text.length * 2); [...text].forEach((c, i) => out.writeUInt16BE(c.charCodeAt(0), i * 2)); return out; };
   const u32 = value => { const out = Buffer.alloc(4); out.writeUInt32BE(value >>> 0, 0); return out; };
@@ -559,6 +583,18 @@ function compile(contents) {
     species.forEach((each, i) => { list.writeUInt16BE(each.id, 4 + i * 4); list[6 + i * 4] = each.abilities[0]; list[7 + i * 4] = each.abilities[1]; });
     parts.push(list);
     chunk('MECH', parts);
+  }
+  if (own.length || relearner) {
+    // u32 count, u32 flags (1: the relearner), then each: u16 species, u16 0, its 5 evolutions, u16 0, its 20 level-up moves
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(own.length, 0); head.writeUInt32BE(relearner ? 1 : 0, 4);
+    const parts = [head];
+    for (const each of own) {
+      const id = Buffer.alloc(4), gap = Buffer.alloc(2);
+      id.writeUInt16BE(each.id, 0);
+      parts.push(id, each.evolutions, gap, each.moves);
+    }
+    chunk('ROWS', parts);
   }
   const header = Buffer.alloc(16);
   header.writeUInt32BE(MAGIC, 0); header.writeUInt32BE(VERSION, 4); header.writeUInt32BE(chunks.length / 3, 8);
@@ -609,6 +645,42 @@ function generationPokemon(tables, built, { modelsDirectory = null } = {}) {
   return { pokemon, problems };
 }
 
+// The game's own Pokémon as a later generation has them (src/generations.js ownSpecies), as the parts of their rows the
+// game's file changes: [{ id, evolutions (5 of 6 bytes), moves (20 of 4) }], only those that differ from the disc. The
+// generation's evolutions go in the row's free places after the game's own, and only into Pokémon that were loaded
+// (`pokemon`, generationPokemon's).
+function ownRows(tables, built, pokemon) {
+  const generationsLib = require('./generations');
+  const loaded = new Set(pokemon.map(each => each.id));
+  const target = value => {
+    const match = /^generation:(\d+)$/.exec(String(value));
+    if (!match) return findSpecies(tables, value, 'evolution "into"').id;
+    const id = generationsLib.speciesId(Number(match[1]));
+    if (!loaded.has(id)) throw new Error('not loaded');
+    return id;
+  };
+  const rows = [], problems = [];
+  for (const own of built.ownSpecies || []) {
+    const species = tables.species.find(each => each.id === own.id);
+    if (!species?.row) continue;
+    const evolutions = Buffer.from(species.row.subarray(ROW.evolutions, ROW.evolutions + EVOLUTIONS * 6));
+    for (const evolution of own.evolutions) {
+      let bytes;
+      try { bytes = evolutionBytes(evolution, tables, target); } catch { continue; }
+      let free = 0;
+      while (free < EVOLUTIONS && evolutions[free * 6]) free++;
+      if (free === EVOLUTIONS) { problems.push({ pack: 'generation', entry: species.name, message: 'has no room for another evolution, so one is left out' }); continue; }
+      bytes.copy(evolutions, free * 6);
+    }
+    const moves = Buffer.alloc(LEVEL_MOVES * 4);
+    own.levelUp.slice(0, LEVEL_MOVES).forEach(([level, move], i) => { moves[i * 4] = level; moves.writeUInt16BE(move, i * 4 + 2); });
+    if (evolutions.equals(species.row.subarray(ROW.evolutions, ROW.evolutions + EVOLUTIONS * 6))
+      && moves.equals(species.row.subarray(ROW.moves, ROW.moves + LEVEL_MOVES * 4))) continue;
+    rows.push({ id: own.id, evolutions, moves });
+  }
+  return { rows, problems };
+}
+
 // A later generation's ability (77 on, which the game has under that generation's rules) by its name there
 function laterAbility(id) {
   if (id <= ABILITY_COUNT) return undefined;
@@ -648,6 +720,6 @@ function pokedexEntries(pokemon, tables) {
 }
 
 module.exports = { FIRST_ID, LAST_ID, FIRST_PAST_GAP, REGISTRY_FILE, FILES, packsDirectory, readGameTables, readRegistry, writeRegistry, assignIds,
-  decodePng, resize, encodeRgba8, spriteFile, battleRevolutionFace, buildRow, loadPacks, compile, generationPokemon, pokedexEntries,
+  decodePng, resize, encodeRgba8, spriteFile, battleRevolutionFace, buildRow, evolutionBytes, loadPacks, compile, generationPokemon, ownRows, pokedexEntries,
   // A species the original game hasn't: a pack's, or a later generation's
   isPackSpecies: id => (id >= FIRST_ID && id <= LAST_ID) || id >= 413 };
