@@ -19,6 +19,7 @@ const gbaLink = require('./gba');
 const gen3Save = require('./gen3-save');
 const appImageUpdate = require('./appimage-update');
 const bindings = require('./bindings');
+const prompts = require('./prompts');
 const portable = require('./portable');
 const changelog = require('./changelog');
 const { cleanOutputLine, createActivityReader } = require('./progress');
@@ -939,6 +940,9 @@ function bindingsEnvironment(settings) {
   return { COLO_BINDINGS: file };
 }
 
+// The button prompt pictures the renderer drew (src/prompts.js), one PNG per style.
+function promptDirectory() { return path.join(app.getPath('userData'), 'prompts'); }
+
 function customTextureDirectory() { return port.customTextureDirectory(app.getPath('userData')); }
 
 // --- Pokémon packs (src/pokemon-packs.js): read from their folder for each play and for the Pokédex.
@@ -1157,6 +1161,7 @@ async function play(installation = null, battle = null) {
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory(), laterGenerations: onlineFeatures(root).randomizerGenerations }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
     ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
+    SMS_BUTTON_PROMPT_DIR: promptDirectory(),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
     COLO_RANDOMIZER_LOG: spoilerFile(),
     SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
@@ -1892,6 +1897,15 @@ function registerHandlers() {
     const commands = toolsStatus().commands.split('\n').filter(Boolean);
     if (!Number.isInteger(index) || !commands[index]) throw new Error('Check your Mac tools again.');
     clipboard.writeText(commands[index]);
+  });
+  // The button prompt strips the renderer drew (src/prompts.js), one PNG per style.
+  ipcMain.handle('save-prompts', (_event, images) => {
+    const dir = promptDirectory();
+    fs.mkdirSync(dir, { recursive: true });
+    for (const style of prompts.DRAWN) {
+      const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(images?.[style] || '');
+      if (match) fs.writeFileSync(path.join(dir, `${style}.png`), Buffer.from(match[1], 'base64'));
+    }
   });
   ipcMain.handle('save-settings', async (_event, input) => {
     if (operation || active) throw new Error('Finish the current task before changing settings.');

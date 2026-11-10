@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const bindings = require('./bindings');
+const prompts = require('./prompts');
 const presets = require('./presets');
 const randomizer = require('./randomizer');
 const generations = require('./generations');
@@ -151,6 +152,9 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     quickMoves: Boolean(input.quickMoves),
     // Status conditions and stat changes show over the move that caused them, and the battle moves on; off unless chosen.
     quickStatus: Boolean(input.quickStatus),
+    // How Quick moves shows each move's button (src/prompts.js): as the controller or keyboard in use (auto), or one style.
+    buttonPrompts: prompts.normalizeStyle(input.buttonPrompts),
+    promptPad: prompts.normalizePad(input.promptPad),
     // A Shadow Pokémon looks in battle as it will once snagged; Espeon and Umbreon can be shiny. Both on unless turned off.
     shinyShadow: input.shinyShadow !== false,
     shinyStarters: input.shinyStarters !== false,
@@ -312,6 +316,9 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   if (settings.quickMoves) env.COLO_QUICK_MOVES = '1';
   if (settings.quickStatus) env.COLO_FAST_STATUS = '1';
+  // The pictures themselves are the launcher's (main.js: SMS_BUTTON_PROMPT_DIR).
+  env.SMS_BUTTON_PROMPTS = prompts.normalizeStyle(settings.buttonPrompts);
+  env.SMS_BUTTON_PROMPT_PAD = prompts.normalizePad(settings.promptPad);
   // Unset is the default; any other value would name a glyph file.
   if (settings.hdText !== 'on') env.COLO_HD_TEXT = settings.hdText === 'off' ? '0' : 'upscaled';
   if (/^\d+x\d+$/.test(settings.exclusiveResolution || '')) env.SMS_FULLSCREEN_MODE = settings.exclusiveResolution;
