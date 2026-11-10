@@ -136,8 +136,9 @@ function decodeStandalone(file) {
   if (file.length < 0x80) return null;
   const width = file.readUInt16BE(0), height = file.readUInt16BE(2), format = STANDALONE[file[0x0b]];
   if (format === undefined || !width || !height) return null;
-  const rgba = decode(format, width, height, file.subarray(0x80));
-  return rgba && { width, height, rgba };
+  const data = file.subarray(0x80), rgba = decode(format, width, height, data);
+  // `disc`: the texture as the disc has it, for finding its HD replacement (texture-pack-lookup.js).
+  return rgba && { width, height, rgba, disc: { data, format, width, height } };
 }
 
 module.exports = { decode, decodeStandalone, textureSize };

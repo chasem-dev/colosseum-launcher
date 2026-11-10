@@ -207,16 +207,18 @@ function png(width, height, rgba) {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
 }
 
+// A Pokémon's body sprite: { url, disc } (the texture as the disc has it), or null.
 function spritesOf(disc) {
   const sprites = new Map();
   for (const entry of fsys.entries(disc.file('poke_body.fsys'))) sprites.set(entry.id, entry).set(entry.name, entry);
   return (id, name) => {
     const sprite = sprites.get(id) || sprites.get(name), image = sprite ? gx.decodeStandalone(sprite.data()) : null;
-    return image ? `data:image/png;base64,${png(image.width, image.height, image.rgba).toString('base64')}` : null;
+    return image ? { url: `data:image/png;base64,${png(image.width, image.height, image.rgba).toString('base64')}`, disc: image.disc } : null;
   };
 }
 
-function readPokedex(rom) {
+// The disc's Pokémon. `discSprites`, when given, gets each one's sprite texture by National Pokédex number.
+function readPokedex(rom, discSprites = null) {
   const disc = new Disc(rom);
   try {
     const rel = fsys.entries(disc.file('common.fsys')).find(entry => entry.name === 'common_rel');
@@ -228,7 +230,9 @@ function readPokedex(rom) {
     for (const entry of species) {
       const at = table + entry.model * MODEL_TABLE.size + MODEL_TABLE.id;
       entry.forms = formsOf(entry, files.get(dol.readUInt32BE(at)), disc);
-      entry.sprite = sprite(entry.sprites[0], entry.national === NATIONAL_UNOWN ? UNOWN_SPRITE : null);
+      const image = sprite(entry.sprites[0], entry.national === NATIONAL_UNOWN ? UNOWN_SPRITE : null);
+      entry.sprite = image?.url || null;
+      if (image) discSprites?.set(entry.national, image.disc);
       delete entry.sprites;
       delete entry.model;
       entry.evolutions = entry.evolutions.map(id => species.find(other => other.id === id)?.national).filter(Boolean);
@@ -242,7 +246,10 @@ function readPokedex(rom) {
 function create() {
   let list = null, shown = null;
   const read = rom => {
-    if (list?.rom !== rom) list = { rom, species: readPokedex(rom) };
+    if (list?.rom !== rom) {
+      const sprites = new Map();
+      list = { rom, species: readPokedex(rom, sprites), sprites };
+    }
     return list.species;
   };
   const pkxOf = (rom, national, form) => {
@@ -256,6 +263,8 @@ function create() {
   };
   return {
     list: read,
+    // A Pokémon's sprite as the disc has it, for its HD replacement.
+    spriteTexture: (rom, national) => (read(rom), list.sprites.get(national) || null),
     model: (rom, national, form) => hsd.parseModel(pkxOf(rom, national, form).pkx),
     clip: (rom, national, form, index) => hsd.parseClip(pkxOf(rom, national, form).pkx, index)
   };

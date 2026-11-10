@@ -15,6 +15,7 @@ function main(t, { platform = process.platform, childProcess } = {}) {
   const appEvents = {}, processEvents = {}, consoleEvents = {}, handlers = {}, copied = [];
   const electron = { ipcMain: { handle: (name, handler) => { handlers[name] = handler; } },
     clipboard: { writeText: text => copied.push(text) },
+    protocol: { registerSchemesAsPrivileged() {}, handle() {} },
     app: { requestSingleInstanceLock: () => true, commandLine: { appendSwitch() {} }, on: (name, handler) => { appEvents[name] = handler; },
     whenReady: () => ({ then() {} }), getPath: () => root },
     screen: { getPrimaryDisplay: () => ({ scaleFactor: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }), getDisplayMatching: () => ({ scaleFactor: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }), on() {} } };

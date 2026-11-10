@@ -19,7 +19,8 @@ function launcher(t, { portReady = true, binary = true, rom = true, current = tr
   if (binary) fs.writeFileSync(executable, 'game');
   const electron = { ipcMain: { handle() {} }, app: { requestSingleInstanceLock: () => true, commandLine: { appendSwitch() {} }, on() {},
     whenReady: () => ({ then() {} }), getPath: () => root, getVersion: () => '0.1.3', isPackaged: false },
-  BrowserWindow: class {}, dialog: {}, shell: {}, clipboard: {}, net: {}, screen: {} };
+  BrowserWindow: class {}, dialog: {}, shell: {}, clipboard: {}, net: {}, screen: {},
+  protocol: { registerSchemesAsPrivileged() {}, handle() {} } };
   const port = { ...realPort, isPort: () => portReady, binaryPath: () => executable, hdVisualsInstalled: () => hd,
     validateRom() { if (!rom) throw new Error('Choose your disc image.'); return 'disc.iso'; } };
   const context = { require: id => id === 'electron' ? electron : id === './port' ? port

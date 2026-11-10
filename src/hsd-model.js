@@ -106,8 +106,9 @@ function readTexture(dat, at, textures, cache) {
     paletteFormat = dat.u32(tlut + 4);
     palette = dat.data.subarray(table, table + count * 2);
   }
-  const rgba = gx.decode(format, width, height, dat.data.subarray(pixels, pixels + gx.textureSize(format, width, height)), palette, paletteFormat);
-  const index = rgba ? textures.push({ width, height, rgba, wrapS: dat.u32(at + 0x34), wrapT: dat.u32(at + 0x38) }) - 1 : -1;
+  const data = dat.data.subarray(pixels, pixels + gx.textureSize(format, width, height)), rgba = gx.decode(format, width, height, data, palette, paletteFormat);
+  // `disc` is the texture as the disc has it, for finding its HD replacement (texture-pack-lookup.js).
+  const index = rgba ? textures.push({ width, height, rgba, wrapS: dat.u32(at + 0x34), wrapT: dat.u32(at + 0x38), disc: { data, format, width, height, palette } }) - 1 : -1;
   cache.set(key, index);
   return index;
 }

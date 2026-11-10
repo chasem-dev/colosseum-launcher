@@ -83,14 +83,19 @@ function createViewer(canvas) {
       mesh.material.dispose();
     }
     for (const { map } of shown.materials) map?.dispose();
-    for (const texture of shown.textures) texture.dispose();
+    for (const texture of shown.textures) {
+      texture.dispose();
+      if (texture.image instanceof ImageBitmap) texture.image.close();
+    }
     shown = null;
   }
 
   function setModel(data, clip) {
     clearModel();
     const textures = data.textures.map(source => {
-      const texture = new THREE.DataTexture(source.rgba, source.width, source.height, THREE.RGBAFormat);
+      // An HD pack's image when it has one (decoded in showModel), else the disc's own; both top row first.
+      const texture = source.bitmap ? new THREE.Texture(source.bitmap) : new THREE.DataTexture(source.rgba, source.width, source.height, THREE.RGBAFormat);
+      texture.flipY = false;
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.wrapS = WRAP[source.wrapS] || THREE.ClampToEdgeWrapping;
       texture.wrapT = WRAP[source.wrapT] || THREE.ClampToEdgeWrapping;
@@ -406,6 +411,19 @@ const openingMotion = animations => {
   return index >= 0 ? index : animations.length ? 0 : -1;
 };
 
+// The HD pack's images a model's textures come with, decoded. One that can't be read leaves the disc's.
+async function decodeHdTextures(model) {
+  await Promise.all(model.textures.map(async source => {
+    if (!source.image) return;
+    try {
+      source.bitmap = await createImageBitmap(new Blob([source.image], { type: 'image/png' }), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    } catch (_) {}
+    delete source.image;
+  }));
+}
+
+const closeBitmaps = model => { for (const source of model.textures) source.bitmap?.close(); };
+
 async function showModel(entry) {
   const mine = ++request;
   $('pokedex-motion-field').hidden = true;
@@ -414,7 +432,8 @@ async function showModel(entry) {
   try {
     const model = await window.colo.pokedexModel(entry.key, form), motion = openingMotion(model.animations);
     const clip = motion >= 0 ? await window.colo.pokedexClip(entry.key, form, motion) : null;
-    if (mine !== request || !visible || !startViewer()) return;
+    await decodeHdTextures(model);
+    if (mine !== request || !visible || !startViewer()) return closeBitmaps(model);
     renderMotions(model.animations, motion);
     viewer.setModel(model, clip);
     setStatus('');

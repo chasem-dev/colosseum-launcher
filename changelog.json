@@ -17,7 +17,8 @@
       "Windows: if the folder for Setup files has an & in its path, the launcher now says so before building and explains how to choose another folder. Before, the game failed to build near the end, with \"ar.exe: … No such file or directory\" in the activity log.",
       "Online formats: create a room as Orre Colosseum (doubles, bring 6 pick 4), Hoenn Stadium (singles, pick 3) or Gen 3 OU (Smogon's 6-on-6), with their clauses and bans, or keep Casual, the rooms as they were. Customise changes any rule, and the room list shows a named variant such as Orre Limited, or Orre Colosseum* (custom) with what changed. Games makes a room a best of 3 or 5 with the same party for the set, and with team preview both players see both parties and pick before each game. A room your party can't play says why. Choose them under Create room on the Online tab.",
       "Randomizer: with Generation 4 Pokémon turned on, a randomized run can have them too, as starters, Shadow Pokémon, trainers' Pokémon and gifts. Choose Gen 4 beside the other generations under Randomizer; No legendaries leaves out Generation 4's legendaries too.",
-      "Fixed Generation 4 Pokémon that don't evolve evolving as the Pokémon standing in for their looks does, such as Arceus into Linoone at level 20."
+      "Fixed Generation 4 Pokémon that don't evolve evolving as the Pokémon standing in for their looks does, such as Arceus into Linoone at level 20.",
+      "Pokédex: with HD textures on and downloaded, the 3D models and the Pokémon's pictures use them, as the game does, so faces, eyes and markings are sharp. Custom textures you've added show there too, and the team builder's pictures get the HD ones as well."
     ],
     "game": [
       "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",
