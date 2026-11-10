@@ -19,7 +19,8 @@
       "Randomizer: with Generation 4 Pokémon turned on, a randomized run can have them too, as starters, Shadow Pokémon, trainers' Pokémon and gifts. Choose Gen 4 beside the other generations under Randomizer; No legendaries leaves out Generation 4's legendaries too.",
       "Fixed Generation 4 Pokémon that don't evolve evolving as the Pokémon standing in for their looks does, such as Arceus into Linoone at level 20.",
       "Pokédex: with HD textures on and downloaded, the 3D models and the Pokémon's pictures use them, as the game does, so faces, eyes and markings are sharp. Custom textures you've added show there too, and the team builder's pictures get the HD ones as well.",
-      "Fixed Generation 4 Pokémon's faces from Battle Revolution sitting small inside a grey ring in the battle and menu frames, with the scene showing through the corners: they now fill the frame as the game's own faces do."
+      "Fixed Generation 4 Pokémon's faces from Battle Revolution sitting small inside a grey ring in the battle and menu frames, with the scene showing through the corners: they now fill the frame as the game's own faces do.",
+      "Battle Revolution models: when a fix changes models you've already made, Settings → Gameplay says how many, and Make models makes only those again."
     ],
     "game": [
       "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",
@@ -39,7 +40,8 @@
       "The PC now has 10 boxes instead of 3, room for 300 Pokémon. L and R go through all ten, and a Pokémon sent to the PC goes to the first box with room. Boxes 4 to 10 are kept beside your save, so the save still opens in Dolphin, with boxes 1 to 3.",
       "Online battles now have critical hits, and Latias and Latios get Soul Dew's boost, as in the original game's link battles. Before, neither happened online.",
       "Online battles can be double battles, and can play by the original game's Battle Mode clauses: sleep, freeze, self-KO (Selfdestruct or Explosion loses a tie) and no Perish Song or Destiny Bond from a last Pokémon, with the other player's HP shown as a bar only if the room asks.",
-      "The randomizer can choose Generation 4 Pokémon for a new run when the launcher adds them. Runs started before play as they always have."
+      "The randomizer can choose Generation 4 Pokémon for a new run when the launcher adds them. Runs started before play as they always have.",
+      "Fixed Burmy's model from Battle Revolution coming apart when it moved, with its head at the bottom and its leaves stretched into tall blades, and smaller mistakes in how Shieldon's, Purugly's and Hippopotas's models bend."
     ]
   },
   "releases": [

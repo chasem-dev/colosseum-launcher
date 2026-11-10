@@ -972,9 +972,11 @@ function pbrWanted(settings = config.settings) {
   }
   return numbers;
 }
+// Made: a model of it is there, and no fix to the converter since has changed it (those count once Make models remakes them)
 function pbrState() {
-  const wanted = pbrWanted(), made = wanted.filter(n => fs.existsSync(path.join(pbrModels(), String(n), 'model.pkx'))).length;
-  return { disc: config.pbrDisc || null, wanted: wanted.length, made,
+  const wanted = pbrWanted(), present = wanted.filter(n => fs.existsSync(path.join(pbrModels(), String(n), 'model.pkx')));
+  const outdated = config.repo ? port.pbrOutdated(config.repo, pbrModels(), present) : new Set();
+  return { disc: config.pbrDisc || null, wanted: wanted.length, made: present.length - outdated.size, outdated: outdated.size,
     supported: Boolean(config.repo && fs.existsSync(port.pbrModelsScript(config.repo))) };
 }
 async function makePbrModels() {
