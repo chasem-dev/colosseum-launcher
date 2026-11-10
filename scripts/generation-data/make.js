@@ -1,12 +1,12 @@
 'use strict';
 
 // Makes src/generations/gen<N>.json: a later generation's Pokémon, moves, abilities and battle rules, for the
-// launcher's Generations settings (src/generations.js). Names, descriptions, Pokémon and learnsets are Pokémon
-// Showdown's (@pkmn/dex, MIT), as that generation had it. What Showdown's data doesn't have (catch rate, base
+// launcher's Generations settings (src/generations.js). Names, descriptions, Pokémon and TM, tutor and egg moves are
+// Pokémon Showdown's (@pkmn/dex, MIT), as that generation had it. What Showdown's data doesn't have (catch rate, base
 // experience, EV yield, growth rate, friendship) comes from a game of that generation, and is checked against it:
 // Pokémon Battle Revolution, for generation 4, read by pbr2pkx's pbrdata.py --dump. Each move's numbers and flags are
 // the game's own, from pret's decompilation of Pokémon Platinum (res/moves/<move>/data.json, and the move lists its
-// battle engine keeps in src/battle). Every difference between Showdown and the games is written to gen<N>-check.md
+// battle engine keeps in src/battle), and so are each Pokémon's level-up moves and evolutions (res/pokemon/<species>). Every difference between Showdown and the games is written to gen<N>-check.md
 // beside this script.
 //
 // usage: node make.js 4 PBR_DUMP.json [POKEPLATINUM_DIR]
@@ -30,18 +30,6 @@ function genderOf(species) {
   if (species.gender === 'M') return 0;
   if (species.gender === 'F') return 100;
   return Math.round((species.genderRatio?.F ?? 0.5) * 1000) / 10;
-}
-
-// What a species evolves into, as pokemon.json's evolutions say it.
-function evolutionsOf(dex, species) {
-  return (species.evos || []).map(name => dex.species.get(name)).filter(evo => evo.exists && !evo.forme && evo.num <= GENERATIONS[dex.gen].species[1]).map(evo => {
-    const into = evo.num;
-    if (evo.evoType === 'useItem') return { into, item: evo.evoItem };
-    if (evo.evoType === 'trade') return evo.evoItem ? { into, trade: evo.evoItem } : { into, trade: true };
-    if (evo.evoType === 'levelFriendship') return { into, friendship: /day/.test(evo.evoCondition || '') ? 'day' : /night/.test(evo.evoCondition || '') ? 'night' : true };
-    if (evo.evoLevel) return { into, level: evo.evoLevel, ...(evo.evoCondition ? { condition: evo.evoCondition } : {}) };
-    return { into, other: [evo.evoType, evo.evoItem, evo.evoMove, evo.evoCondition].filter(Boolean).join(', ') || 'unknown' };
-  });
 }
 
 async function learnsetOf(dex, species) {
@@ -142,6 +130,62 @@ function platinumMoves(root) {
   return moves;
 }
 
+// --- Pokémon Platinum's Pokémon ----------------------------------------------------------------
+
+// How a Pokémon evolves, as Platinum's EVO_* has it (res/pokemon/<species>/data.json): what pokemon.json's evolutions
+// say, with what Colosseum lacks kept for gen<N>-colosseum.json to turn into something it has (`heldItem`, `place`).
+const PLATINUM_EVOLUTIONS = {
+  EVO_LEVEL: level => ({ level }), EVO_LEVEL_MALE: level => ({ level, gender: 'male' }), EVO_LEVEL_FEMALE: level => ({ level, gender: 'female' }),
+  EVO_LEVEL_HAPPINESS: () => ({ friendship: true }), EVO_LEVEL_HAPPINESS_DAY: () => ({ friendship: 'day' }),
+  EVO_LEVEL_HAPPINESS_NIGHT: () => ({ friendship: 'night' }),
+  EVO_TRADE: () => ({ trade: true }), EVO_TRADE_WITH_HELD_ITEM: item => ({ trade: item }),
+  EVO_USE_ITEM: item => ({ item }), EVO_USE_ITEM_MALE: item => ({ item, gender: 'male' }), EVO_USE_ITEM_FEMALE: item => ({ item, gender: 'female' }),
+  EVO_LEVEL_WITH_HELD_ITEM_DAY: item => ({ heldItem: item, time: 'day' }), EVO_LEVEL_WITH_HELD_ITEM_NIGHT: item => ({ heldItem: item, time: 'night' }),
+  EVO_LEVEL_KNOW_MOVE: move => ({ knowsMove: move }), EVO_LEVEL_SPECIES_IN_PARTY: species => ({ withPokemon: species }),
+  EVO_LEVEL_MAGNETIC_FIELD: () => ({ place: 'magnetic field' }), EVO_LEVEL_MOSS_ROCK: () => ({ place: 'moss rock' }),
+  EVO_LEVEL_ICE_ROCK: () => ({ place: 'ice rock' }),
+  // the third generation's, which Colosseum's own Pokémon keep as the game has them
+  EVO_LEVEL_ATK_GT_DEF: level => ({ level, other: 'Attack above Defense' }), EVO_LEVEL_ATK_EQ_DEF: level => ({ level, other: 'Attack equal to Defense' }),
+  EVO_LEVEL_ATK_LT_DEF: level => ({ level, other: 'Attack below Defense' }), EVO_LEVEL_PID_LOW: level => ({ level, other: 'personality' }),
+  EVO_LEVEL_PID_HIGH: level => ({ level, other: 'personality' }), EVO_LEVEL_NINJASK: level => ({ level, other: 'Ninjask' }),
+  EVO_LEVEL_SHEDINJA: level => ({ level, other: 'Shedinja' }), EVO_LEVEL_BEAUTY: beauty => ({ other: `beauty ${beauty}` })
+};
+// ITEM_DUSK_STONE as its name, Dusk Stone
+const itemName = constant => constant.slice(5).toLowerCase().split('_').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')
+  .replace(/^Up Grade$/, 'Up-Grade').replace(/^Kings Rock$/, 'King\'s Rock');
+
+// Each Pokémon's level-up moves and evolutions as Platinum has them, by National Pokédex number. Showdown's level-up
+// moves are all of the generation's games at once (Squirtle's Rain Dance at 34 in HeartGold and SoulSilver, 37 in
+// Platinum), and leave out the moves an evolution learns again at a low level (Ivysaur's Growl at 3).
+function platinumSpecies(root, last) {
+  const lines = file => fs.readFileSync(path.join(root, file), 'utf8').split('\n').map(line => line.trim()).filter(Boolean);
+  const species = lines('generated/species.txt'), moves = lines('generated/moves.txt');
+  const speciesNumber = new Map(species.map((name, n) => [name, n])), moveNumber = new Map(moves.map((name, n) => [name, n]));
+  const value = token => {
+    if (typeof token === 'number') return token;
+    if (token.startsWith('MOVE_')) return moveNumber.get(token);
+    if (token.startsWith('SPECIES_')) return speciesNumber.get(token);
+    if (token.startsWith('ITEM_')) return itemName(token);
+    throw new Error(`pokeplatinum: an evolution's ${token}`);
+  };
+  const out = {};
+  for (let n = 1; n <= last; n++) {
+    const file = path.join(root, 'res', 'pokemon', species[n].slice('SPECIES_'.length).toLowerCase(), 'data.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const levelUp = data.learnset.by_level.map(([level, move]) => {
+      if (!moveNumber.has(move)) throw new Error(`pokeplatinum: ${species[n]} learns ${move}`);
+      return [level, moveNumber.get(move)];
+    });
+    const evolutions = (data.evolutions || []).map(([method, ...rest]) => {
+      if (!PLATINUM_EVOLUTIONS[method]) throw new Error(`pokeplatinum: ${species[n]} evolves by ${method}`);
+      const into = value(rest.pop());
+      return { into, ...PLATINUM_EVOLUTIONS[method](...rest.map(value)) };
+    }).filter(evolution => evolution.into <= last);
+    out[n] = { levelUp, evolutions };
+  }
+  return out;
+}
+
 function platinumCommit(root) {
   try {
     const head = fs.readFileSync(path.join(root, '.git', 'HEAD'), 'utf8').trim();
@@ -195,10 +239,10 @@ async function main() {
   if (!about) throw new Error(`No generation ${number}: this knows ${Object.keys(GENERATIONS).join(', ')}`);
   const dex = Dex.forGen(gen);
   const game = dumpFile ? JSON.parse(fs.readFileSync(dumpFile, 'utf8')) : null;
-  const report = [], moveReport = [];
+  const report = [], moveReport = [], learnsetReport = [];
   const platinumRoot = platinumDir || process.env.POKEPLATINUM || path.join(__dirname, '..', '..', '..', 'ref', 'pokeplatinum');
   if (!fs.existsSync(path.join(platinumRoot, 'res', 'moves'))) throw new Error(`No pokeplatinum checkout at ${platinumRoot}`);
-  const platinum = platinumMoves(platinumRoot);
+  const platinum = platinumMoves(platinumRoot), platinumPokemon = platinumSpecies(platinumRoot, about.species[1]);
 
   const moves = {};
   for (const move of dex.moves.all()) {
@@ -217,13 +261,18 @@ async function main() {
   const species = {};
   for (const entry of dex.species.all()) {
     if (entry.isNonstandard || entry.num < 1 || entry.num > about.species[1] || entry.forme) continue;
-    const learnset = await learnsetOf(dex, entry);
+    const learnset = await learnsetOf(dex, entry), own = platinumPokemon[entry.num];
+    // Level-up moves and evolutions are Platinum's own; what Showdown says differently goes in the report.
+    const showdownLevels = learnset.levelUp.map(([l, m]) => `${l}:${moves[m]?.name}`), platinumLevels = own.levelUp.map(([l, m]) => `${l}:${moves[m]?.name}`);
+    const onlyPlatinum = platinumLevels.filter(x => !showdownLevels.includes(x)), onlyShowdown = showdownLevels.filter(x => !platinumLevels.includes(x));
+    if (onlyPlatinum.length || onlyShowdown.length)
+      learnsetReport.push(`- #${entry.num} ${entry.name}: only Platinum ${JSON.stringify(onlyPlatinum)}, only Showdown ${JSON.stringify(onlyShowdown)}`);
     const record = {
       name: entry.name, types: entry.types,
       stats: Object.fromEntries(Object.entries(STATS).map(([from, to]) => [to, entry.baseStats[from]])),
       abilities: Object.values(entry.abilities).filter(Boolean), gender: genderOf(entry),
       height: entry.heightm, weight: entry.weightkg, eggGroups: entry.eggGroups,
-      evolutions: evolutionsOf(dex, entry), ...learnset
+      evolutions: own.evolutions, ...learnset, levelUp: own.levelUp
     };
     const theirs = game?.species?.[entry.num];
     if (theirs) {
@@ -240,7 +289,7 @@ async function main() {
       compare(report, `${name} weight`, record.weight, theirs.weight);
       const ourLevels = record.levelUp.map(([l, m]) => `${l}:${moves[m]?.name}`).sort(), theirLevels = theirs.levelUp.map(([l, m]) => `${l}:${moves[m]?.name}`).sort();
       const missing = theirLevels.filter(x => !ourLevels.includes(x)), extra = ourLevels.filter(x => !theirLevels.includes(x));
-      if (missing.length || extra.length) report.push(`- ${name} level-up moves: only the game ${JSON.stringify(missing)}, only Showdown ${JSON.stringify(extra)}`);
+      if (missing.length || extra.length) report.push(`- ${name} level-up moves: only the game ${JSON.stringify(missing)}, only Platinum ${JSON.stringify(extra)}`);
       const ourTms = record.tm, theirTms = theirs.tms;
       const tmMissing = theirTms.filter(m => !ourTms.includes(m)).map(m => moves[m]?.name), tmExtra = ourTms.filter(m => !theirTms.includes(m)).map(m => moves[m]?.name);
       if (tmMissing.length || tmExtra.length) report.push(`- ${name} TMs and HMs: only the game ${JSON.stringify(tmMissing)}, only Showdown ${JSON.stringify(tmExtra)}`);
@@ -255,7 +304,7 @@ async function main() {
     mechanics: about.mechanics,
     sources: [`Pokémon Showdown's data, generation ${gen} (@pkmn/dex ${require('@pkmn/dex/package.json').version}, MIT)`,
       ...(game ? [`catch rate, base experience, EV yield, growth rate and friendship: ${game.source}`] : []),
-      `moves' numbers and flags: Pokémon Platinum, by pret's decompilation (pokeplatinum${platinumCommit(platinumRoot)})`],
+      `moves' numbers and flags, level-up moves and evolutions: Pokémon Platinum, by pret's decompilation (pokeplatinum${platinumCommit(platinumRoot)})`],
     species, moves, abilities
   };
   fs.writeFileSync(out, `${JSON.stringify(data)}\n`);
@@ -265,9 +314,12 @@ async function main() {
     `## Moves: Showdown's data against Pokémon Platinum's\n\n` +
     'gen4.json has Platinum\'s numbers and flags, and Showdown\'s names and descriptions. Accuracy 0 is "never misses". ' +
     'Ranges are Platinum\'s, Showdown\'s targets put as the range they mean.\n\n' +
-    `${moveReport.length ? moveReport.join('\n') : 'No differences.'}\n`);
+    `${moveReport.length ? moveReport.join('\n') : 'No differences.'}\n\n` +
+    `## Level-up moves: Showdown's data against Pokémon Platinum's\n\n` +
+    'gen4.json has Platinum\'s. Showdown\'s are all of the generation\'s games at once, HeartGold and SoulSilver too.\n\n' +
+    `${learnsetReport.length ? learnsetReport.join('\n') : 'No differences.'}\n`);
   console.log(`${out}: ${Object.keys(species).length} species, ${Object.keys(moves).length} moves, ${Object.keys(abilities).length} abilities, ${(fs.statSync(out).size / 1024).toFixed(0)} KB`);
-  console.log(`${checkFile}: ${report.length} differences, ${moveReport.length} in moves`);
+  console.log(`${checkFile}: ${report.length} differences, ${moveReport.length} in moves, ${learnsetReport.length} in level-up moves`);
 }
 
 main().catch(error => { console.error(error); process.exit(1); });
