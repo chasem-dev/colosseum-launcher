@@ -52,6 +52,8 @@ function normalize(input) {
   return { trainer: trainerName(input?.trainer), parties, selected,
     level: LEVELS.includes(input?.level) ? input.level : LEVELS[0],
     size: SIZES.includes(input?.size) ? input.size : SIZES[1],
+    // Casual's timers, as level and size are its own: 0 for none (the competitive formats keep theirs in custom)
+    ...casualTimers(input),
     listed: input?.listed !== false,
     // whose battle rules the room plays by: Colosseum's (3) or Pokémon Platinum's (4), with any format
     battleRules: formats.BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : formats.BATTLE_RULES[0],
@@ -59,6 +61,11 @@ function normalize(input) {
     format: formats.FORMAT_IDS.includes(input?.format) ? input.format : 'casual',
     custom: cleanCustom(input?.custom),
     bestOf: formats.bestOf(input?.bestOf) };
+}
+
+function casualTimers(input) {
+  const rules = formats.normalize({ format: 'casual', turnTime: input?.turnTime, battleTime: input?.battleTime });
+  return { turnTime: rules.turnTime, battleTime: rules.battleTime };
 }
 
 // Each competitive format's changes, kept to what the format allows: { orre: { level: 50 }, ... }.
@@ -72,11 +79,13 @@ function cleanCustom(input) {
   return out;
 }
 
-// The rules of a room the player makes: Casual's level and size, or a format with their changes to it.
+// The rules of a room the player makes: Casual's level, size and timers, or a format with their changes to it.
 // Either plays by the battle rules the player chose.
 function roomRules(online) {
   const battleRules = online.battleRules;
-  if (online.format === 'casual') return formats.normalize({ format: 'casual', level: online.level, size: online.size, battleRules });
+  if (online.format === 'casual') {
+    return formats.normalize({ format: 'casual', level: online.level, size: online.size, turnTime: online.turnTime, battleTime: online.battleTime, battleRules });
+  }
   return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format, battleRules });
 }
 

@@ -186,14 +186,16 @@
     return F.problems(rules, party, members, names());
   }
 
-  // --- Formats: a room's format, and a host's changes to it
-  const currentRules = () => setup.format === 'casual'
-    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size, battleRules: setup.battleRules })
+  // --- Formats: a room's format, and a host's changes to it. A game from before timers plays without them, as the
+  // main process makes its room.
+  const chosenRules = () => setup.format === 'casual'
+    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size, turnTime: setup.turnTime, battleTime: setup.battleTime, battleRules: setup.battleRules })
     : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format, battleRules: setup.battleRules });
+  const currentRules = () => state.timersSupported ? chosenRules() : F.withoutTimers(chosenRules());
 
   // A change to the chosen format: what differs from its own settings is kept.
   function changeRule(key, value) {
-    const rules = F.normalize({ ...currentRules(), [key]: value });
+    const rules = F.normalize({ ...chosenRules(), [key]: value });
     setup.custom[setup.format] = Object.fromEntries(F.changes(rules).map(name => [name, rules[name]]));
     save();
   }
@@ -244,8 +246,28 @@
     box.querySelector('.online-custom-checks').append(...checks);
   }
 
+  // The timers, for any format: Casual's are its own, as its level and size are; a format's are a change to it.
+  const TIMER_FIELDS = [['online-turn-time', 'turnTime', F.TURN_TIMES, value => `${value} seconds`],
+    ['online-battle-time', 'battleTime', F.BATTLE_TIMES, value => `${value} minutes`]];
+  function renderTimers(rules) {
+    for (const [id, key, values, text] of TIMER_FIELDS) {
+      const select = $(id);
+      // a value set some other way (a saved one from the room list's choices) shows too
+      const choices = [...new Set([...values, rules[key]])].sort((a, b) => a - b);
+      select.replaceChildren(...choices.map(value => Object.assign(document.createElement('option'), { value: String(value), textContent: value ? text(value) : 'Off' })));
+      select.value = String(rules[key]);
+      select.disabled = !state.timersSupported;
+      select.closest('.online-field').title = state.timersSupported ? '' : 'Update the game from the Play page for turn and battle timers.';
+    }
+  }
+  function changeTimer(key, value) {
+    if (setup.format === 'casual') { setup[key] = value; save(); }
+    else changeRule(key, value);
+  }
+
   function renderFormat() {
     const rules = currentRules(), casual = rules.format === 'casual';
+    renderTimers(rules);
     $('online-format').value = setup.format;
     $('online-best-of').value = String(setup.bestOf);
     for (const option of $('online-format').options) option.disabled = option.value !== 'casual' && !state.rulesSupported;
@@ -425,6 +447,7 @@
   for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number], ['online-rules', 'battleRules', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
+  for (const [id, key] of TIMER_FIELDS) $(id).addEventListener('change', event => changeTimer(key, Number(event.target.value)));
   $('online-format').addEventListener('change', event => { setup.format = event.target.value; customOpen = false; save(); });
   $('online-best-of').addEventListener('change', event => { setup.bestOf = Number(event.target.value); save(); });
   $('online-customise').addEventListener('click', () => { customOpen = !customOpen; renderFormat(); });

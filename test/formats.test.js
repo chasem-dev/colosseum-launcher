@@ -36,16 +36,45 @@ test('the three formats as players set them up', () => {
   assert.equal(orre.size, 4);
   assert.equal(orre.level, 100);
   assert.equal(orre.preview, true);
-  assert.equal(formats.rulesLine(orre), 'rules double=1 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0');
+  assert.equal(formats.rulesLine(orre), 'rules double=1 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0 turn=60 battle=20');
   const hoenn = formats.normalize({ format: 'hoenn' });
   assert.equal(hoenn.battle, 'single');
   assert.equal(hoenn.size, 3);
-  assert.equal(formats.rulesLine(hoenn), 'rules double=0 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0');
+  assert.equal(formats.rulesLine(hoenn), 'rules double=0 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0 turn=60 battle=20');
   const ou = formats.normalize({ format: 'gen3ou' });
   assert.equal(ou.size, 6);
   assert.equal(ou.preview, false);
-  assert.equal(formats.rulesLine(ou), 'rules double=0 sleep=2 freeze=1 selfko=0 lastmon=0 hp=1');
+  assert.equal(formats.rulesLine(ou), 'rules double=0 sleep=2 freeze=1 selfko=0 lastmon=0 hp=1 turn=60 battle=30');
   assert.equal(formats.describe(ou).name, 'Gen 3 OU');
+});
+
+test('timers: a minute a turn and a battle timer in the formats, none in Casual unless the host sets them', () => {
+  const casual = formats.normalize({ format: 'casual' });
+  assert.equal(casual.turnTime, 0);
+  assert.equal(casual.battleTime, 0);
+  assert.equal(formats.rulesLine(casual), null);
+  const timed = formats.normalize({ format: 'casual', level: 100, size: 3, turnTime: 60, battleTime: 20 });
+  assert.equal(formats.rulesLine(timed), 'rules double=0 sleep=0 freeze=0 selfko=0 lastmon=0 hp=0 turn=60 battle=20');
+  assert.equal(formats.describe(timed).summary, 'Level 100, 3 Pokémon each, 60-second turn timer, 20-minute battle timer');
+  assert.equal(formats.describe(timed).custom, false);
+  assert.ok(formats.rulesText(timed).includes('60-second turn timer'));
+  const orre = formats.normalize({ format: 'orre' });
+  assert.deepEqual([orre.turnTime, orre.battleTime], [60, 20]);
+  assert.ok(formats.rulesText(orre).includes('20-minute battle timer'));
+  assert.deepEqual([formats.normalize({ format: 'gen3ou' }).turnTime, formats.normalize({ format: 'gen3ou' }).battleTime], [60, 30]);
+  // a change to a format's timers is a change to the format
+  const slower = formats.describe({ format: 'orre', turnTime: 90, battleTime: 0 });
+  assert.equal(slower.custom, true);
+  assert.deepEqual(slower.changes, ['90-second turn timer', 'no battle timer']);
+  // any whole number in range, else the format's own
+  assert.equal(formats.normalize({ format: 'orre', turnTime: 37 }).turnTime, 37);
+  for (const bad of [5, 100, 60.5, '60', -1, null]) assert.equal(formats.normalize({ format: 'orre', turnTime: bad }).turnTime, 60);
+  for (const bad of [100, 0.5, '20']) assert.equal(formats.normalize({ format: 'hoenn', battleTime: bad }).battleTime, 20);
+  assert.equal(formats.normalize({ format: 'hoenn', battleTime: 0 }).battleTime, 0);
+  // a game from before timers plays without them
+  const plain = formats.withoutTimers(orre);
+  assert.deepEqual([plain.turnTime, plain.battleTime, plain.format, plain.size], [0, 0, 'orre', 4]);
+  for (const value of [...formats.TURN_TIMES, ...formats.BATTLE_TIMES]) assert.ok(Number.isInteger(value));
 });
 
 test('a named variant shows its name, anything else as custom with what changed', () => {

@@ -6,7 +6,19 @@ const parties = require('../src/parties');
 
 test('a first run has no parties and the default rules', () => {
   assert.deepEqual(parties.normalize(undefined),
-    { trainer: 'Trainer', parties: [], selected: null, level: 50, size: 6, listed: true, battleRules: 3, format: 'casual', custom: {}, bestOf: 1 });
+    { trainer: 'Trainer', parties: [], selected: null, level: 50, size: 6, turnTime: 0, battleTime: 0, listed: true, battleRules: 3, format: 'casual',
+      custom: {}, bestOf: 1 });
+});
+
+test('Casual keeps timers of its own, and each format its changes to its timers', () => {
+  const online = parties.normalize({ turnTime: 45, battleTime: 15, custom: { orre: { turnTime: 90 }, hoenn: { battleTime: 20 } } });
+  assert.deepEqual([online.turnTime, online.battleTime], [45, 15]);
+  assert.deepEqual(online.custom, { orre: { turnTime: 90 } });
+  const casual = parties.roomRules(online);
+  assert.deepEqual([casual.turnTime, casual.battleTime], [45, 15]);
+  const orre = parties.roomRules({ ...online, format: 'orre' });
+  assert.deepEqual([orre.turnTime, orre.battleTime], [90, 20]);
+  assert.deepEqual([parties.normalize({ turnTime: 500, battleTime: 'x' }).turnTime, parties.normalize({ battleTime: 'x' }).battleTime], [0, 0]);
 });
 
 test('a room\'s format keeps only real changes to each format, and Casual its level and size', () => {

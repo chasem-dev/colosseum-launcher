@@ -8,8 +8,8 @@
 // name, and any other change shows as "Orre Colosseum* (custom)" with what changed.
 //
 // What the battle itself checks (the sleep, freeze and self-KO clauses, a last Pokémon's Perish Song and Destiny Bond,
-// the other player's HP as a bar) the game does, as its own Battle Mode rules (the game's host/online.c, rulesLine
-// here). What a party may hold (which Pokémon, items, moves and abilities) is checked here, by the launcher before it
+// the other player's HP as a bar, and the timers: seconds for each choice, minutes for the battle) the game does, as
+// its own Battle Mode rules (the game's host/online.c, rulesLine here). Any format, Casual too, can have timers. What a party may hold (which Pokémon, items, moves and abilities) is checked here, by the launcher before it
 // makes or joins a room, and by the room server (colosseum-server-api keeps a copy of this file) before a battle.
 //
 // Species, moves, items and abilities are the game's numbers: the third generation's, with the Hoenn Pokémon at
@@ -20,6 +20,12 @@
   const SIZES = { single: [3, 6], double: [4, 6] };
   const POOLS = ['any', 'restricted', 'legends', 'ou'];
   const SLEEP = ['off', 'stadium', 'smogon'];
+  // The timers, as the Online page offers them: seconds for each choice (the game's Choice Time), minutes for the
+  // whole battle (its Battle Time); 0 for none. A room may have any whole number up to the game's 99 of either.
+  const TURN_TIMES = [0, 15, 30, 45, 60, 75, 90, 99];
+  const BATTLE_TIMES = [0, 5, 10, 15, 20, 30, 45, 60];
+  const TIMER_RANGE = { turnTime: [10, 99], battleTime: [1, 99] };
+  const TIMERS = Object.keys(TIMER_RANGE);
   // Whose battle rules both games play by, whatever the format: Colosseum's own (3), or Pokémon Platinum's (4, the
   // launcher's src/generations.js). Not a change to a format: any format plays by either.
   const BATTLE_RULES = [3, 4];
@@ -61,20 +67,22 @@
     371: [43], 372: [43] };
 
   const OFF = { preview: false, pool: 'any', soulDew: true, speciesClause: false, itemClause: false, sleep: 'off', freeze: false,
-    selfKO: false, lastMon: false, hideHp: false, ohko: false, evasion: false, smogonBans: false };
-  // Each format's settings. Casual is the rooms from before formats: the host picks its level and how many each.
+    selfKO: false, lastMon: false, hideHp: false, ohko: false, evasion: false, smogonBans: false, turnTime: 0, battleTime: 0 };
+  // Each format's settings. Casual is the rooms from before formats: the host picks its level and how many each, and
+  // has no timers unless it sets them. The competitive formats have a minute for each choice, and a battle timer of
+  // 20 minutes (30 for six on six).
   const FORMATS = {
     casual: { name: 'Casual', ...OFF, level: 50, battle: 'single', size: 6 },
     orre: { name: 'Orre Colosseum', ...OFF, level: 100, battle: 'double', size: 4, preview: true, pool: 'restricted', soulDew: false,
-      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true },
+      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true, turnTime: 60, battleTime: 20 },
     hoenn: { name: 'Hoenn Stadium', ...OFF, level: 100, battle: 'single', size: 3, preview: true, pool: 'restricted', soulDew: false,
-      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true },
+      speciesClause: true, itemClause: true, sleep: 'stadium', freeze: true, selfKO: true, lastMon: true, turnTime: 60, battleTime: 20 },
     gen3ou: { name: 'Gen 3 OU', ...OFF, level: 100, battle: 'single', size: 6, pool: 'ou', speciesClause: true, sleep: 'smogon',
-      freeze: true, hideHp: true, ohko: true, evasion: true, smogonBans: true }
+      freeze: true, hideHp: true, ohko: true, evasion: true, smogonBans: true, turnTime: 60, battleTime: 30 }
   };
   const FORMAT_IDS = Object.keys(FORMATS);
   const SETTINGS = ['level', 'battle', 'size', 'preview', 'pool', 'soulDew', 'speciesClause', 'itemClause', 'sleep', 'freeze',
-    'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans'];
+    'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans', 'turnTime', 'battleTime'];
   // Changes with names of their own, as players have called them for years.
   const VARIANTS = [
     { name: 'Orre Unlimited', format: 'orre', changes: { pool: 'any', soulDew: true } },
@@ -104,11 +112,16 @@
     hideHp: value => on(value, 'opponent\'s HP as a bar', 'opponent\'s exact HP shown'),
     ohko: value => on(value, 'no one-hit KO moves', 'one-hit KO moves allowed'),
     evasion: value => on(value, 'no evasion moves or items', 'evasion moves and items allowed'),
-    smogonBans: value => on(value, 'Smogon\'s OU bans', 'none of Smogon\'s OU bans')
+    smogonBans: value => on(value, 'Smogon\'s OU bans', 'none of Smogon\'s OU bans'),
+    turnTime: value => value ? `${value}-second turn timer` : 'no turn timer',
+    battleTime: value => value ? `${value}-minute battle timer` : 'no battle timer'
   };
 
   const has = (list, value) => list.includes(value);
   const bool = (value, fallback) => typeof value === 'boolean' ? value : fallback;
+  // A timer: 0 for none, or a whole number in its range.
+  const timer = (key, value, fallback) => value === 0 || (Number.isInteger(value) && value >= TIMER_RANGE[key][0] && value <= TIMER_RANGE[key][1])
+    ? value : fallback;
 
   // A room's rules from what a host sent (or a launcher saved): its format's settings, with each change the format
   // allows. Anything else is the format's own. Without a format, Casual (as rooms from before formats are).
@@ -129,10 +142,17 @@
       for (const key of ['soulDew', 'speciesClause', 'itemClause', 'freeze', 'selfKO', 'lastMon', 'hideHp', 'ohko', 'evasion', 'smogonBans'])
         rules[key] = bool(input?.[key], base[key]);
     }
+    for (const key of TIMERS) rules[key] = timer(key, input?.[key], base[key]);
     rules.battleRules = has(BATTLE_RULES, input?.battleRules) ? input.battleRules : BATTLE_RULES[0];
     rules.stage = Number.isInteger(input?.stage) && input.stage >= 0 ? input.stage : 0;
     return rules;
   }
+
+  // The rules with no timers: for a game from before them, which would play without them.
+  const withoutTimers = input => normalize({ ...normalize(input), turnTime: 0, battleTime: 0 });
+
+  // The timers as the room list says them: [text], none for no timers.
+  const timersText = rules => TIMERS.filter(key => rules[key]).map(key => DESCRIBE[key](rules[key]));
 
   const bestOf = value => has(BEST_OF, value) ? value : 1;
 
@@ -151,7 +171,8 @@
 
   function describeFormat(rules) {
     const base = FORMATS[rules.format];
-    if (rules.format === 'casual') return { name: base.name, custom: false, changes: [], summary: `Level ${rules.level}, ${rules.size} Pokémon each` };
+    if (rules.format === 'casual') return { name: base.name, custom: false, changes: [],
+      summary: [`Level ${rules.level}`, `${rules.size} Pokémon each`, ...timersText(rules)].join(', ') };
     const changed = changes(rules);
     const variant = VARIANTS.find(each => each.format === rules.format
       && changed.length === Object.keys(each.changes).length && changed.every(key => each.changes[key] === rules[key]));
@@ -166,6 +187,7 @@
     const out = rules.format === 'casual' ? [`Level ${rules.level}`, `${rules.size} Pokémon each`, 'no clauses']
       : ['level', 'battle', 'size'].map(key => DESCRIBE[key](rules[key], rules));
     if (rules.battleRules === 4) out.push(PLATINUM_RULES);
+    out.push(...timersText(rules));
     if (rules.format === 'casual') return out;
     if (!rules.preview && rules.size === 6) out.push(DESCRIBE.preview(false));
     if (rules.pool !== 'any') out.push(DESCRIBE.pool(rules.pool));
@@ -177,10 +199,11 @@
   }
 
   // The game's rules line for these rules (host/online.c take_rules), or null when there's nothing for it to check.
+  // A game from before timers passes over turn= and battle=.
   function rulesLine(input) {
     const rules = normalize(input);
     const values = { double: rules.battle === 'double' ? 1 : 0, sleep: SLEEP.indexOf(rules.sleep), freeze: +rules.freeze,
-      selfko: +rules.selfKO, lastmon: +rules.lastMon, hp: +rules.hideHp };
+      selfko: +rules.selfKO, lastmon: +rules.lastMon, hp: +rules.hideHp, turn: rules.turnTime, battle: rules.battleTime };
     if (!Object.values(values).some(Boolean)) return null;
     return `rules ${Object.entries(values).map(([key, value]) => `${key}=${value}`).join(' ')}`;
   }
@@ -274,8 +297,9 @@
   // How many games win a best-of set.
   const toWin = games => Math.floor(bestOf(games) / 2) + 1;
 
-  const api = { LEVELS, BEST_OF, SIZES, POOLS, SLEEP, BATTLE_RULES, FORMATS, FORMAT_IDS, SETTINGS, VARIANTS, RESTRICTED, MYTHICAL, LEGENDARY, UBERS,
-    normalize, bestOf, changes, describe, rulesText, rulesLine, member, problems, validPick, toWin };
+  const api = { LEVELS, BEST_OF, SIZES, POOLS, SLEEP, TURN_TIMES, BATTLE_TIMES, TIMER_RANGE, TIMERS, BATTLE_RULES, FORMATS, FORMAT_IDS, SETTINGS,
+    VARIANTS, RESTRICTED, MYTHICAL, LEGENDARY, UBERS, normalize, withoutTimers, bestOf, changes, describe, rulesText, rulesLine, member,
+    problems, validPick, toWin };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.coloFormats = api;
 })(typeof self !== 'undefined' ? self : this);
