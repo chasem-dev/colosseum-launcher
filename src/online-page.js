@@ -163,15 +163,18 @@
 
   // --- What the party can play
   // The chosen party as the rules look at it: its species, and each member's item, ability and moves.
+  // A set as the room sees it (src/story-party.js wireMember), for the rules to check: what the page doesn't know (the
+  // personality, PP Ups) as nothing the rules ask about.
+  const wireOf = set => [set.species, 0, 0, set.ball ?? 4, set.ability, set.item, set.friendship ?? 255,
+    ...[0, 1, 2, 3].flatMap(i => [set.moves[i] || 0, 0]), ...(set.ivs || Array(6).fill(31)), ...(set.evs || Array(6).fill(0)), '-'];
   function chosenParty() {
     if (setup.selected === STORY) {
       const members = state.story.members.slice(0, PARTY_SIZE);
-      return { party: members.map(member => member.species),
-        members: members.map(({ set }) => [set.species, 0, 0, 0, set.ability, set.item, 0, ...[0, 1, 2, 3].flatMap(i => [set.moves[i] || 0, 0])]) };
+      return { party: members.map(member => member.species), members: members.map(({ set }) => wireOf(set)) };
     }
     const party = setup.parties.find(item => item.id === setup.selected);
     if (!party) return { party: [], members: [] };
-    return { party: party.members, members: party.sets.map(set => [set.species, 0, 0, 0, set.ability, set.item, 0, ...[0, 1, 2, 3].flatMap(i => [set.moves[i] || 0, 0])]) };
+    return { party: party.members, members: party.sets.map(wireOf) };
   }
 
   function names() {
@@ -218,7 +221,8 @@
     ['hideHp', 'Opponent\'s HP as a bar only', 'No exact HP for the other player\'s Pokémon'],
     ['ohko', 'No one-hit KO moves', 'Fissure, Guillotine, Horn Drill, Sheer Cold'],
     ['evasion', 'No evasion moves or items', 'Double Team, Minimize, BrightPowder, Lax Incense'],
-    ['smogonBans', 'Smogon\'s other OU bans', 'Sand Veil, Soundproof, Quick Claw, Assist, Swagger, and Baton Pass and trapping rules']
+    ['smogonBans', 'Smogon\'s other OU bans', 'Sand Veil, Soundproof, Quick Claw, Assist, Swagger, and Baton Pass and trapping rules'],
+    ['legal', 'Only legal Pokémon', 'Each move one the Pokémon could learn in the third generation, a held item a Pokémon can hold, and EVs and IVs in range']
   ];
 
   function renderCustom(rules) {

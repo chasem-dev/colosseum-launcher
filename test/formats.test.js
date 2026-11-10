@@ -120,7 +120,8 @@ test('Gen 3 OU: Ubers, OHKO and evasion, and Smogon\'s bans', () => {
   assert.equal(formats.problems(rules, [202, 6, 9, 3, 25, 130]).length, 1);   // Wobbuffet
   assert.deepEqual(formats.problems(rules, [251, 409, 9, 3, 25, 130]), []);   // Celebi and Jirachi are OU
   const party = [131, 113, 143, 101, 235, 197];
-  const check = (members, ids = party) => formats.problems(rules, ids, members);
+  // Smogon's rules alone: some of these sets couldn't be legal either (Lapras with Baton Pass)
+  const check = (members, ids = party) => formats.problems({ ...rules, legal: false }, ids, members);
   const plain = [wire(131), wire(113), wire(143), wire(101, { ability: 1 }), wire(235), wire(197)];
   const swap = (slot, member) => plain.map((each, i) => i === slot ? member : each);
   assert.deepEqual(check(plain), []);
@@ -136,6 +137,39 @@ test('Gen 3 OU: Ubers, OHKO and evasion, and Smogon\'s bans', () => {
   assert.equal(check(swap(0, wire(131, { moves: [226, 14] })).map((each, i) => i === 5 ? wire(197, { moves: [226, 347] }) : each)).length, 1);   // two passers
   assert.equal(check(swap(1, wire(113, { item: 183 }))).length, 1);                 // Quick Claw
   assert.equal(check(swap(5, wire(197, { moves: [212, 28] }))).length, 1);          // Mean Look + Sand-Attack
+});
+
+test('only legal Pokémon: moves each could know in the third generation, items it can hold, numbers in range', () => {
+  const rules = { format: 'hoenn' };
+  const ids = [143, 6, 235, 9, 3, 25];
+  const check = (slot, member) => formats.problems(rules, ids, ids.map((id, i) => i === slot ? member : wire(id)));
+  assert.equal(formats.normalize(rules).legal, true);
+  assert.equal(formats.normalize({ format: 'casual' }).legal, false);
+  assert.deepEqual(check(0, wire(143, { moves: [34, 156, 214, 89], item: 200 })), []);   // Snorlax: tutor Body Slam, Rest, Sleep Talk, EQ, Leftovers
+  assert.deepEqual(check(1, wire(6, { moves: [349, 89] })), []);                          // Charizard: Dragon Dance (Charmander's egg move)
+  assert.deepEqual(check(2, wire(235, { moves: [147, 14, 226, 187] })), []);              // Smeargle sketches anything
+  const spore = check(0, wire(143, { moves: [147] }));
+  assert.equal(spore.length, 1);
+  assert.match(spore[0], /can't learn move #147 in the third generation/);
+  assert.equal(check(2, wire(235, { moves: [165] })).length, 1);                          // not even Smeargle: Struggle
+  assert.equal(check(0, wire(143, { moves: [34, 34] })).length, 1);                       // the same move twice
+  assert.equal(check(0, wire(143, { moves: [0x163] })).length, 1);                        // a Shadow move
+  assert.match(check(0, wire(143, { item: 289 }))[0], /item #289, which a Pokémon can't hold/);   // TM01
+  assert.equal(check(0, wire(143, { item: 500 })).length, 1);                             // a key item
+  assert.equal(check(0, wire(143, { item: 60 })).length, 1);                              // an empty row
+  assert.deepEqual(check(0, wire(143, { item: 13 })), []);                                // a Potion can be held
+  const odd = (slot, edit) => { const w = wire(143); edit(w); return check(0, w); };
+  assert.equal(odd(0, w => { w[21] = 255; w[22] = 255; w[23] = 10; }).length, 1);       // 520 EVs
+  assert.equal(odd(0, w => { w[21] = 256; }).length, 1);
+  assert.equal(odd(0, w => { w[15] = 32; }).length, 1);
+  assert.equal(odd(0, w => { w[8] = 4; }).length, 1);
+  assert.equal(odd(0, w => { w[3] = 13; }).length, 1);
+  // a host can allow them, which makes the format custom; species alone are always legal; Casual checks none of it
+  assert.deepEqual(formats.problems({ format: 'hoenn', legal: false }, ids, ids.map((id, i) => i ? wire(id) : wire(143, { moves: [147] }))), []);
+  assert.deepEqual(formats.describe({ format: 'hoenn', legal: false }).changes, ['moves and items a Pokémon couldn\'t have allowed']);
+  assert.deepEqual(formats.problems(rules, ids), []);
+  assert.deepEqual(formats.problems({ format: 'casual', size: 6 }, ids, ids.map((id, i) => i ? wire(id) : wire(143, { moves: [147], item: 289 }))), []);
+  assert.ok(formats.rulesText(rules).includes('only legal Pokémon'));
 });
 
 test('a short party, and picks', () => {
