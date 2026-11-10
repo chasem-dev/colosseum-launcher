@@ -976,7 +976,8 @@ function pbrWanted(settings = config.settings) {
 function pbrState() {
   const wanted = pbrWanted(), present = wanted.filter(n => fs.existsSync(path.join(pbrModels(), String(n), 'model.pkx')));
   const outdated = config.repo ? port.pbrOutdated(config.repo, pbrModels(), present) : new Set();
-  return { disc: config.pbrDisc || null, wanted: wanted.length, made: present.length - outdated.size, outdated: outdated.size,
+  return { disc: config.pbrDisc || null, discFound: Boolean(config.pbrDisc && fs.existsSync(config.pbrDisc)),
+    wanted: wanted.length, made: present.length - outdated.size, outdated: outdated.size,
     supported: Boolean(config.repo && fs.existsSync(port.pbrModelsScript(config.repo))) };
 }
 async function makePbrModels() {

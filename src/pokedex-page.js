@@ -73,6 +73,14 @@ function createViewer(canvas) {
       const { map, source } = materials[material];
       if (map) placeTexture(map, source, values[index * 4], values[index * 4 + 1], values[index * 4 + 2], values[index * 4 + 3]);
     }
+    // A material's alpha track: Battle Revolution models show one mesh of two this way (Honchkrow's folded or open wings)
+    for (const { material, values } of clip.alphas || []) {
+      for (const { shape, mesh } of rig.meshes) {
+        if (shape.material !== material) continue;
+        mesh.material.opacity = values[index] * materials[material].source.alpha;
+        mesh.visible = values[index] > 0.01;
+      }
+    }
   }
 
   function clearModel() {

@@ -195,6 +195,36 @@ test('an animation holds the rest pose where it has no track, and moves where it
   assert.deepEqual([y(0), y(1), y(2)], [2, 2, 2]);
 });
 
+// The same, with its material's alpha going from 1 to 0 over the animation (a material track, HSD_A_M_ALPHA):
+// how a Battle Revolution model shows one mesh and hides another.
+function fadingModel(data, pointer) {
+  const root = triangleModel(data, pointer);
+  const SET = 0x1a0, MATANIMS = 0x240, MATJOINT = 0x248, MATANIM = 0x258, AOBJ = 0x268, FOBJ = 0x278, KEYS = 0x290;
+  pointer(SET + 8, MATANIMS);
+  pointer(MATANIMS, MATJOINT);
+  pointer(MATJOINT + 8, MATANIM);   // the joint's first display object's material animation
+  pointer(MATANIM + 4, AOBJ);   // its own tracks
+  data.writeFloatBE(3, AOBJ + 4);
+  pointer(AOBJ + 8, FOBJ);
+  data.writeUInt32BE(11, FOBJ + 4);
+  data[FOBJ + 0x0c] = 10;   // alpha
+  pointer(FOBJ + 0x10, KEYS);
+  data[KEYS] = 0x12;
+  data.writeFloatLE(1, KEYS + 1);
+  data[KEYS + 5] = 2;
+  data.writeFloatLE(0, KEYS + 6);
+  data[KEYS + 10] = 0;
+  return root;
+}
+
+test('an animation bakes its materials\' alpha, frame by frame', () => {
+  const clip = hsd.parseClip(pkx(fadingModel), 0);
+  assert.equal(clip.alphas.length, 1);
+  assert.equal(clip.alphas[0].material, 0);
+  assert.deepEqual([...clip.alphas[0].values], [1, 0.5, 0]);
+  assert.deepEqual(hsd.parseClip(pkx(triangleModel), 0).alphas, []);
+});
+
 test('parseClip turns down an animation the model lacks', () => {
   assert.throws(() => hsd.parseClip(pkx(triangleModel), 5), /isn't in this Pokémon's model/);
 });

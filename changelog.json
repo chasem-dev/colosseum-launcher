@@ -26,7 +26,9 @@
       "Fixed Generation 4 Pokémon's faces from Battle Revolution sitting small inside a grey ring in the battle and menu frames, with the scene showing through the corners: they now fill the frame as the game's own faces do.",
       "Battle Revolution models: when a fix changes models you've already made, Settings → Gameplay says how many, and Make models makes only those again.",
       "Generation 4 rules: Astonish, Extrasensory and Needle Arm no longer do double damage to a Pokémon that used Minimize, as in Platinum.",
-      "Online battles: both players need this update of the launcher, as it changes Generation 4's move data. Joining a room from another version of the launcher says so."
+      "Online battles: both players need this update of the launcher, as it changes Generation 4's move data. Joining a room from another version of the launcher says so.",
+      "Pokédex: Battle Revolution models show and hide parts as they move, such as Honchkrow folding its wings, as they do in battle.",
+      "When a fix changes your Battle Revolution models, a warning above Play says so, and its Make models button makes them again."
     ],
     "game": [
       "Online battles can have Battle Mode's choice and battle timers, shown on screen as in Battle Mode, with both games keeping the battle's time alike so the battle ends on the same turn for both. A battle that runs out of time with both sides even is a draw.",
@@ -58,7 +60,8 @@
       "Fixed Generation 4 moves that didn't match Platinum: Copycat always failed, Rapid Spin left Stealth Rock and Toxic Spikes, Baton Pass dropped Magnet Rise, Aqua Ring, Power Trick, Gastro Acid, Heal Block and Embargo, and Take Down and Submission cost a quarter of the user's own HP.",
       "More Generation 4 moves now match Platinum: Grass Knot and Low Kick go by weight in kilograms, Healing Wish and Lunar Dance heal after the entry hazards, Payback is doubled against a Pokémon that just switched in, confusion damage varies, and Fling, Pluck, Bug Bite, Last Resort, Trump Card, Worry Seed, Psych Up, Camouflage, Secret Power and Razor Wind have smaller fixes.",
       "Fixed Generation 4 abilities that didn't match Platinum: Tangled Feet did nothing, Magic Guard didn't stop recoil, full paralysis or a missed Jump Kick's crash, Slow Start lasted a turn too long for a Pokémon that started the battle, and Leaf Guard didn't stop Yawn in the sun.",
-      "More Generation 4 abilities now match Platinum: Will-O-Wisp sets off Flash Fire, Lightning Rod and Storm Drain draw Hidden Power, Pressure makes weather and other field moves cost extra PP, and Anticipation, Forewarn, Download and Trace have smaller fixes."
+      "More Generation 4 abilities now match Platinum: Will-O-Wisp sets off Flash Fire, Lightning Rod and Storm Drain draw Hidden Power, Pressure makes weather and other field moves cost extra PP, and Anticipation, Forewarn, Download and Trace have smaller fixes.",
+      "Fixed Generation 4 Pokémon models from Battle Revolution: Glameow's tail and Buneary's ears no longer stretch, Bonsly's feet, Spiritomb's spirits and Purugly's tail stay where they belong, Honchkrow, the Starly line, Darkrai, Rotom and Shaymin show the right one of their two wings, bodies, hands or flowers, Froslass and Munchlax have their eyes, and see-through wings and petals are see-through. Press Make models under Settings → Gameplay to make them again."
     ]
   },
   "releases": [
