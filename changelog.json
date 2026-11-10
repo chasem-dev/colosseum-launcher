@@ -27,7 +27,8 @@
       "Battle Revolution models: when a fix changes models you've already made, Settings → Gameplay says how many, and Make models makes only those again.",
       "Generation 4 rules: Astonish, Extrasensory and Needle Arm no longer do double damage to a Pokémon that used Minimize, as in Platinum.",
       "Online battles: both players need this update of the launcher, as it changes Generation 4's move data. Joining a room from another version of the launcher says so.",
-      "Pokédex: Battle Revolution models show and hide parts as they move, such as Honchkrow folding its wings, as they do in battle."
+      "Pokédex: Battle Revolution models show and hide parts as they move, such as Honchkrow folding its wings, as they do in battle.",
+      "When a fix changes your Battle Revolution models, a warning above Play says so, and its Make models button makes them again."
     ],
     "game": [
       "Online battles can have Battle Mode's choice and battle timers, shown on screen as in Battle Mode, with both games keeping the battle's time alike so the battle ends on the same turn for both. A battle that runs out of time with both sides even is a draw.",

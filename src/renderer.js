@@ -640,6 +640,7 @@ function renderActivity(active) {
   $('view-build-log').textContent = active?.label.startsWith('Build ') ? 'View build log' : 'View activity';
   const pbrNote = pbrProgress(active);
   if (pbrNote) $('pbr-note').textContent = pbrNote;
+  if (current) renderPbrBanner({ ...current, active });
   $('task-status').textContent = active ? taskName(active.label)
     : current?.binaryReady && needsTextureDownload(current) ? 'HD setup needed'
     : current?.game.needsUpdate && current.config.completedSetup ? 'Update ready'
@@ -1099,10 +1100,29 @@ function renderPbr(data) {
     || (!pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
       : !pbr.wanted ? 'Turn on Generation 4 Pokémon above, then make their models from your own Pokémon Battle Revolution disc. No Blender needed.'
         : !pbr.disc ? `Their models and icons, made from your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS). ${pbr.made} of ${pbr.wanted} made.`
-          : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make models to make ${pbr.outdated === 1 ? 'it' : 'them'} again, which only takes a moment.`
+          : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make models to make ${pbr.outdated === 1 ? 'it' : 'them'} again.`
             : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
   $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
   $('choose-pbr-disc').disabled = Boolean(data.active);
+  renderPbrBanner(data);
+}
+
+// Above Play: models made before a converter fix that changed them (or some not made yet, as when making them
+// stopped), with a button that makes them, so a player doesn't keep the broken ones without knowing.
+function renderPbrBanner(data) {
+  const pbr = data.pbr || {}, making = Boolean(pbrProgress(data.active)), missing = (pbr.wanted || 0) - (pbr.made || 0) - (pbr.outdated || 0);
+  // hidden while they're being made: the progress bar below shows that
+  const show = Boolean(pbr.supported && pbr.wanted && pbr.disc && !making && (pbr.outdated || (missing > 0 && pbr.made > 0)));
+  $('pbr-banner').hidden = !show;
+  if (!show) return;
+  const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  $('pbr-banner-title').textContent = pbr.outdated ? 'Your Battle Revolution models need making again' : 'Some Battle Revolution models aren\'t made yet';
+  $('pbr-banner-detail').textContent = (!pbr.discFound
+    ? `Your Battle Revolution disc isn't where it was. Choose it again under Settings → Gameplay, then make them.`
+    : pbr.outdated ? `A fix changed ${count(pbr.outdated, 'Generation 4 Pokémon\'s model', 'Generation 4 Pokémon\'s models')}. Until they're made again, they look as they did before the fix.`
+      : `${count(missing, 'Generation 4 Pokémon has', 'Generation 4 Pokémon have')} no model of its own yet.`);
+  $('pbr-banner-make').textContent = pbr.discFound ? 'Make models' : 'Open Settings';
+  $('pbr-banner-make').disabled = Boolean(data.active);
 }
 
 // What the randomizer will do, and what the save on the card already is: the save wins.
@@ -1599,6 +1619,10 @@ for (const type of ['dragover', 'drop']) window.addEventListener(type, event => 
 $('open-custom-textures').addEventListener('click', () => window.colo.openCustomTextures().catch(showError));
 $('choose-pbr-disc').addEventListener('click', () => action('choosePbrDisc'));
 $('make-pbr-models').addEventListener('click', () => action('makePbrModels'));
+$('pbr-banner-make').addEventListener('click', () => {
+  if (current?.pbr?.discFound) action('makePbrModels');
+  else { showPage('settings'); showSettingsTab('gameplay'); }
+});
 $('open-languages').addEventListener('click', () => window.colo.openLanguages().catch(showError));
 for (const key of [...SELECTS, ...SWITCHES]) $(key).addEventListener('change', saveSettings);
 $('randomizer-reroll').addEventListener('click', async () => {
