@@ -6,12 +6,13 @@
   const REFRESH_REST = 3000; // ms before Refresh works again: the server's list is this old at best
   const message = error => String(error?.message || error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
-  let state = null, setup = null, rooms = null, loaded = false;
+  let state = null, setup = null, rooms = null, loaded = false, customOpen = false, picking = [], pickTimer = null;
   const builder = () => window.coloTeamBuilder;
+  const F = window.coloFormats;
 
   // The sprites and names come with the team builder's Pokédex, read from the disc once.
   function loadSpecies() {
-    builder().load().then(() => { loaded = Boolean(builder().data()); if (setup) renderParties(); });
+    builder().load().then(() => { loaded = Boolean(builder().data()); if (setup) render(); if (rooms) renderRooms(); });
   }
 
   function sprite(id, size) {
@@ -154,7 +155,110 @@
     $('online-result').hidden = !text;
   }
 
-  const rulesText = rules => `Level ${rules.level}, ${rules.size} Pokémon each`;
+  // A room's rules as one line: Casual's level and size, a format's name, or what a host changed of it.
+  const rulesText = rules => F.describe(rules || {}).summary;
+  const gamesText = bestOf => bestOf > 1 ? ` · Best of ${bestOf}` : '';
+
+  // --- What the party can play
+  // The chosen party as the rules look at it: its species, and each member's item, ability and moves.
+  function chosenParty() {
+    if (setup.selected === STORY) {
+      const members = state.story.members.slice(0, PARTY_SIZE);
+      return { party: members.map(member => member.species),
+        members: members.map(({ set }) => [set.species, 0, 0, 0, set.ability, set.item, 0, ...[0, 1, 2, 3].flatMap(i => [set.moves[i] || 0, 0])]) };
+    }
+    const party = setup.parties.find(item => item.id === setup.selected);
+    if (!party) return { party: [], members: [] };
+    return { party: party.members, members: party.sets.map(set => [set.species, 0, 0, 0, set.ability, set.item, 0, ...[0, 1, 2, 3].flatMap(i => [set.moves[i] || 0, 0])]) };
+  }
+
+  function names() {
+    const data = builder().data();
+    return { species: id => builder().speciesName(id) || undefined, item: id => data?.items.find(item => item.id === id)?.name,
+      move: id => data?.moves.find(move => move.id === id)?.name };
+  }
+
+  // Why the chosen party can't play by these rules: [text].
+  function partyProblems(rules) {
+    const { party, members } = chosenParty();
+    return F.problems(rules, party, members, names());
+  }
+
+  // --- Formats: a room's format, and a host's changes to it
+  const currentRules = () => setup.format === 'casual'
+    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size })
+    : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format });
+
+  // A change to the chosen format: what differs from its own settings is kept.
+  function changeRule(key, value) {
+    const rules = F.normalize({ ...currentRules(), [key]: value });
+    setup.custom[setup.format] = Object.fromEntries(F.changes(rules).map(name => [name, rules[name]]));
+    save();
+  }
+
+  const CUSTOM_SELECTS = [
+    ['level', 'Level', () => [[50, 'Level 50'], [100, 'Level 100']]],
+    ['battle', 'Battle', () => [['single', 'Single battles'], ['double', 'Double battles']]],
+    ['size', 'Pokémon each', rules => F.SIZES[rules.battle].map(size => [size, rules.preview ? `Bring 6, pick ${size}` : `${size} each`])],
+    ['pool', 'Pokémon', () => [['restricted', 'No box legendaries or mythical'], ['legends', 'No legendaries or mythical'], ['ou', 'No Ubers (Smogon)'], ['any', 'All Pokémon']]],
+    ['sleep', 'Sleep clause', () => [['stadium', 'On (Rest counts)'], ['smogon', 'Smogon\'s (Rest doesn\'t count)'], ['off', 'Off']]]
+  ];
+  const CUSTOM_CHECKS = [
+    ['preview', 'Team preview', 'See both parties and pick before each game'],
+    ['speciesClause', 'Species clause', 'One of each Pokémon'],
+    ['itemClause', 'Item clause', 'One of each held item'],
+    ['soulDew', 'Soul Dew allowed', ''],
+    ['freeze', 'Freeze clause', 'Only one of a side frozen at once'],
+    ['selfKO', 'Self-KO clause', 'Selfdestruct or Explosion loses a tie'],
+    ['lastMon', 'No Perish Song or Destiny Bond from a last Pokémon', ''],
+    ['hideHp', 'Opponent\'s HP as a bar only', 'No exact HP for the other player\'s Pokémon'],
+    ['ohko', 'No one-hit KO moves', 'Fissure, Guillotine, Horn Drill, Sheer Cold'],
+    ['evasion', 'No evasion moves or items', 'Double Team, Minimize, BrightPowder, Lax Incense'],
+    ['smogonBans', 'Smogon\'s other OU bans', 'Sand Veil, Soundproof, Quick Claw, Assist, Swagger, and Baton Pass and trapping rules']
+  ];
+
+  function renderCustom(rules) {
+    const box = $('online-custom');
+    const rows = CUSTOM_SELECTS.map(([key, label, options]) => {
+      const field = Object.assign(document.createElement('label'), { className: 'online-field' });
+      const select = document.createElement('select');
+      for (const [value, text] of options(rules)) select.append(Object.assign(document.createElement('option'), { value: String(value), textContent: text }));
+      select.value = String(rules[key]);
+      select.addEventListener('change', () => changeRule(key, typeof rules[key] === 'number' ? Number(select.value) : select.value));
+      field.append(Object.assign(document.createElement('span'), { textContent: label }), select);
+      return field;
+    });
+    const checks = CUSTOM_CHECKS.map(([key, label, hint]) => {
+      const row = Object.assign(document.createElement('label'), { className: 'online-check', title: hint });
+      const input = Object.assign(document.createElement('input'), { type: 'checkbox', checked: Boolean(rules[key]) });
+      input.addEventListener('change', () => changeRule(key, input.checked));
+      row.append(input, Object.assign(document.createElement('span'), { textContent: label }));
+      return row;
+    });
+    const reset = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: `Back to ${F.FORMATS[rules.format].name}` });
+    reset.disabled = !F.changes(rules).length;
+    reset.addEventListener('click', () => { delete setup.custom[setup.format]; save(); });
+    box.replaceChildren(...rows, Object.assign(document.createElement('div'), { className: 'online-custom-checks' }), reset);
+    box.querySelector('.online-custom-checks').append(...checks);
+  }
+
+  function renderFormat() {
+    const rules = currentRules(), casual = rules.format === 'casual';
+    $('online-format').value = setup.format;
+    $('online-best-of').value = String(setup.bestOf);
+    for (const option of $('online-format').options) option.disabled = option.value !== 'casual' && !state.rulesSupported;
+    $('online-format').title = state.rulesSupported ? '' : 'Update the game from the Play page for Orre Colosseum, Hoenn Stadium and Gen 3 OU.';
+    for (const field of document.querySelectorAll('.online-casual')) field.hidden = !casual;
+    $('online-format-summary').hidden = casual;
+    $('online-custom').hidden = casual || !customOpen;
+    $('online-customise').setAttribute('aria-expanded', String(customOpen));
+    $('online-customise').textContent = customOpen ? 'Done' : 'Customise';
+    if (casual) return;
+    const described = F.describe(rules);
+    $('online-format-name').textContent = described.custom ? `${described.name} (custom)` : described.name;
+    $('online-format-rules').textContent = described.custom ? `Changed: ${described.changes.join(', ')}.` : `${F.rulesText(rules).join(', ')}.`;
+    if (customOpen) renderCustom(rules);
+  }
 
   function renderRooms() {
     const busy = Boolean(state.battle) || Boolean(state.ready);
@@ -162,13 +266,17 @@
     $('online-rooms-empty').hidden = rooms.length > 0;
     $('online-rooms').replaceChildren(...rooms.map(room => {
       // Both games play the same battle, so a room takes the same build of the game only.
-      const sameGame = room.build === state.build, waiting = room.status === 'waiting', fits = room.rules.size <= partyCount();
-      const detail = !waiting ? ' · in battle' : !sameGame ? ` · needs game ${room.version}` : fits ? '' : ' · your party is too short';
+      const rules = F.normalize(room.rules || {}), sameGame = room.build === state.build, waiting = room.status === 'waiting';
+      const needsGame = rules.format !== 'casual' && !state.rulesSupported;
+      const problems = waiting && sameGame && !needsGame ? partyProblems(rules) : [];
+      const detail = !waiting ? ' · in battle' : !sameGame ? ` · needs game ${room.version}` : needsGame ? ' · update the game to join'
+        : problems.length ? ` · ${rules.size > partyCount() ? 'your party is too short' : 'your party can\'t play this'}` : '';
       const row = Object.assign(document.createElement('div'), { className: 'online-room' });
       row.append(Object.assign(document.createElement('span'), { textContent: room.name }));
-      row.append(Object.assign(document.createElement('small'), { textContent: `${rulesText(room.rules)}${detail}` }));
+      row.append(Object.assign(document.createElement('small'), { textContent: `${rulesText(rules)}${gamesText(room.bestOf || 1)}${detail}` }));
+      row.title = [F.rulesText(rules).join(', '), ...problems].join('\n');
       const join = Object.assign(document.createElement('button'), { className: 'solid', type: 'button', textContent: 'Join' });
-      join.disabled = busy || !waiting || !sameGame || !fits;
+      join.disabled = busy || !waiting || !sameGame || needsGame || problems.length > 0;
       join.addEventListener('click', () => joinRoom(room.code));
       row.append(join);
       return row;
@@ -216,14 +324,69 @@
     const battle = state.battle;
     $('online-banner').hidden = !battle;
     if (!battle) return;
-    const title = { connecting: 'Connecting…', waiting: `Room ${battle.code}`, battling: `Battling ${battle.opponent || 'a player'}`, ended: 'Battle over' };
+    const set = battle.bestOf > 1, game = set && battle.game ? ` · game ${battle.game} of ${battle.bestOf}` : '';
+    const title = { connecting: 'Connecting…', waiting: `Room ${battle.code}`, picking: `Choosing for ${battle.opponent || 'a player'}${game}`,
+      battling: `Battling ${battle.opponent || 'a player'}${game}`, between: `Game ${battle.game} over`, ended: set ? 'Set over' : 'Battle over' };
     $('online-banner-title').textContent = title[battle.status] || 'Online battle';
+    const score = set && battle.side !== null && battle.game ? ` You ${battle.wins[battle.side]}, ${battle.opponent || 'them'} ${battle.wins[1 - battle.side]}.` : '';
     $('online-banner-detail').textContent = battle.peerLost ? `${battle.opponent || 'The other player'} lost their connection. Waiting for them to come back.`
-      : battle.status === 'waiting' ? `Waiting for a challenger. ${rulesText(battle.rules)}.` : rulesText(battle.rules);
+      : battle.status === 'waiting' ? `Waiting for a challenger. ${rulesText(battle.rules)}${gamesText(battle.bestOf)}.` : `${rulesText(battle.rules)}.${score}`;
+    renderPick();
   }
 
-  function showSizeNote() {
-    $('online-blocked').textContent = `Your Story party has ${partyCount()} Pokémon that can battle: choose 3 each to create a room.`;
+  // --- Team preview: both parties, and this player's picks in order
+  function renderPick() {
+    const preview = state.battle?.status === 'picking' ? state.battle.preview : null;
+    $('online-pick').hidden = !preview;
+    clearInterval(pickTimer);
+    if (!preview) { picking = []; return; }
+    const side = state.battle.side, mine = preview.players[side], theirs = preview.players[1 - side];
+    if (preview.picked) picking = preview.picked.slice();
+    picking = picking.filter(slot => mine.party[slot]);
+    $('online-pick-title').textContent = state.battle.bestOf > 1 ? `Game ${state.battle.game}: choose ${preview.size}` : `Choose ${preview.size} to battle with`;
+    $('online-pick-help').textContent = preview.picked ? `Waiting for ${theirs.name} to choose…`
+      : `Pick them in order: the first ${state.battle.rules?.battle === 'double' ? 'two lead' : 'leads'}. ${theirs.name} sees your party too, but not your picks.`;
+    $('online-pick-mine').replaceChildren(...mine.party.map((species, slot) => {
+      const button = Object.assign(document.createElement('button'), { type: 'button', className: 'online-pick-slot' });
+      if (!species) { button.disabled = true; return button; }
+      const at = picking.indexOf(slot);
+      button.setAttribute('aria-pressed', String(at >= 0));
+      button.title = builder().speciesName(species);
+      button.append(sprite(species, 40));
+      if (at >= 0) button.append(Object.assign(document.createElement('b'), { textContent: String(at + 1) }));
+      button.disabled = Boolean(preview.picked) || (at < 0 && picking.length >= preview.size);
+      button.addEventListener('click', () => {
+        picking = at >= 0 ? picking.filter(each => each !== slot) : [...picking, slot];
+        renderPick();
+      });
+      return button;
+    }));
+    $('online-pick-theirs-label').textContent = `${theirs.name}'s party`;
+    $('online-pick-theirs').replaceChildren(...theirs.party.filter(Boolean).map(species => sprite(species, 36)));
+    $('online-pick-go').disabled = Boolean(preview.picked) || picking.length !== preview.size;
+    $('online-pick-clear').disabled = Boolean(preview.picked) || !picking.length;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((preview.deadline - Date.now()) / 1000));
+      $('online-pick-time').textContent = preview.picked ? '' : `${left} s`;
+      // out of time: the picks so far, then the party's first
+      if (!left && !preview.picked) {
+        clearInterval(pickTimer);
+        const order = [...picking, ...mine.party.map((species, slot) => slot).filter(slot => mine.party[slot] && !picking.includes(slot))].slice(0, preview.size);
+        sendPick(order);
+      }
+    };
+    tick();
+    if (!preview.picked) pickTimer = setInterval(tick, 500);
+  }
+
+  function sendPick(order) {
+    window.colo.onlinePick(order).then(next => { state = next; render(); }).catch(error => showResult(message(error)));
+  }
+
+  function showSizeNote(size) {
+    $('online-blocked').textContent = setup.format === 'casual'
+      ? `Your Story party has ${partyCount()} Pokémon that can battle: choose 3 each to create a room.`
+      : `This format plays ${size} Pokémon each, and your Story party has ${partyCount()} that can battle.`;
     $('online-blocked').hidden = false;
   }
 
@@ -235,16 +398,23 @@
     $('online-size').value = String(setup.size);
     $('online-listed').checked = setup.listed;
     renderParties();
+    renderFormat();
     renderBanner();
     if (state.result) showResult(state.result.message);
     $('online-blocked').textContent = state.ready || '';
     $('online-blocked').hidden = !state.ready;
     const busy = Boolean(state.ready) || Boolean(state.battle);
+    const rules = currentRules();
     // A Story party short of six takes rooms of fewer each
-    const short = setup.size > partyCount();
+    const short = rules.size > partyCount();
     $('online-size').querySelector('option[value="6"]').disabled = partyCount() < 6;
-    if (short && !busy) showSizeNote();
-    $('online-create').disabled = busy || short;
+    const problems = !busy && !short && loaded ? partyProblems(rules) : [];
+    if (short && !busy) showSizeNote(rules.size);
+    else if (problems.length) {
+      $('online-blocked').textContent = `Your party can't play ${F.describe(rules).name}: ${problems.join(' ')}`;
+      $('online-blocked').hidden = false;
+    }
+    $('online-create').disabled = busy || short || problems.length > 0 || (rules.format !== 'casual' && !state.rulesSupported);
     $('online-code-join').disabled = busy;
   }
 
@@ -252,6 +422,11 @@
   for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
+  $('online-format').addEventListener('change', event => { setup.format = event.target.value; customOpen = false; save(); });
+  $('online-best-of').addEventListener('change', event => { setup.bestOf = Number(event.target.value); save(); });
+  $('online-customise').addEventListener('click', () => { customOpen = !customOpen; renderFormat(); });
+  $('online-pick-clear').addEventListener('click', () => { picking = []; renderPick(); });
+  $('online-pick-go').addEventListener('click', () => sendPick(picking));
   $('online-trainer').addEventListener('change', event => { setup.trainer = event.target.value; save(); });
   $('online-create').addEventListener('click', createRoom);
   $('online-leave').addEventListener('click', () => window.colo.onlineLeave());

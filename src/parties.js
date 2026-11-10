@@ -9,6 +9,7 @@
 // reads the party. The Story party (src/story-party.js) is the save's own,
 // chosen as STORY.
 const teamSets = require('./team-sets');
+const formats = require('./formats');
 
 const PARTY_SIZE = 6;
 const MAX_PARTIES = 32;
@@ -51,7 +52,28 @@ function normalize(input) {
   return { trainer: trainerName(input?.trainer), parties, selected,
     level: LEVELS.includes(input?.level) ? input.level : LEVELS[0],
     size: SIZES.includes(input?.size) ? input.size : SIZES[1],
-    listed: input?.listed !== false };
+    listed: input?.listed !== false,
+    // the room's format (src/formats.js), its changes for each format the player has changed, and how many games
+    format: formats.FORMAT_IDS.includes(input?.format) ? input.format : 'casual',
+    custom: cleanCustom(input?.custom),
+    bestOf: formats.bestOf(input?.bestOf) };
+}
+
+// Each competitive format's changes, kept to what the format allows: { orre: { level: 50 }, ... }.
+function cleanCustom(input) {
+  const out = {};
+  for (const format of formats.FORMAT_IDS.filter(id => id !== 'casual')) {
+    const rules = formats.normalize({ ...(input && typeof input[format] === 'object' ? input[format] : {}), format });
+    const changed = Object.fromEntries(formats.changes(rules).map(key => [key, rules[key]]));
+    if (Object.keys(changed).length) out[format] = changed;
+  }
+  return out;
+}
+
+// The rules of a room the player makes: Casual's level and size, or a format with their changes to it.
+function roomRules(online) {
+  if (online.format === 'casual') return formats.normalize({ format: 'casual', level: online.level, size: online.size });
+  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format });
 }
 
 // The chosen party of the player's own, when it is ready to battle with (not the Story party).
@@ -60,4 +82,4 @@ function selectedParty(online) {
   return party?.members.length === PARTY_SIZE ? party : null;
 }
 
-module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty };
+module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty, roomRules };

@@ -33,6 +33,7 @@ const online = require('./online');
 const discord = require('./discord');
 const presence = require('./presence');
 const parties = require('./parties');
+const formats = require('./formats');
 const storyParty = require('./story-party');
 const pokedexData = require('./pokedex').create();
 const battleData = require('./battle-data').create();
@@ -1134,14 +1135,15 @@ function setupTelemetry() {
 }
 
 // --- Online battles (src/online.js): the room, the game between it and the player.
-let battle = null;     // { session, status, code, role, opponent, rules }
+let battle = null;     // { session, status, code, role, opponent, rules, bestOf, game, wins, preview }
 let battleResult = null;
 
 function onlineState() {
   return { setup: config.online, ready: onlineReadiness(), build: binaryReady() ? gameBuild().build : null, result: battleResult,
-    story: storyState(),
+    story: storyState(), rulesSupported: binaryReady() && onlineFeatures(config.repo).rules,
     battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
-      opponent: battle.opponent, peerLost: Boolean(battle.peerLost) } };
+      opponent: battle.opponent, peerLost: Boolean(battle.peerLost), bestOf: battle.bestOf || 1, game: battle.game || 0,
+      wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null } };
 }
 
 function broadcastOnline() { broadcast('online', onlineState()); }
@@ -1154,10 +1156,12 @@ function onlineFeatures(root) {
     const { mtimeMs } = fs.statSync(file);
     if (onlineBinary?.file !== file || onlineBinary.mtimeMs !== mtimeMs) {
       const bytes = fs.readFileSync(file);
-      onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story: bytes.includes('online: story member') };
+      onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story: bytes.includes('online: story member'),
+        // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
+        rules: bytes.includes('battle, rules: ') };
     }
     return onlineBinary;
-  } catch (_) { return { online: false, story: false }; }
+  } catch (_) { return { online: false, story: false, rules: false }; }
 }
 const gameHasOnline = root => onlineFeatures(root).online;
 
@@ -1218,6 +1222,26 @@ function battleParty(size) {
   return { party: party.members, members: party.sets.map((set, slot) => teamSets.toWire(set, species[set.species]?.gender ?? teamSets.GENDER.none, slot)) };
 }
 
+// Names for what a party's problems mention, from the disc.
+function partyNames() {
+  try {
+    const rom = port.validateRom(config.rom), data = battleData(rom);
+    const species = new Map(pokedexData.list(rom).map(entry => [entry.id, entry.name]));
+    const moves = new Map(data.moves.map(move => [move.id, move.name])), items = new Map(data.items.map(item => [item.id, item.name]));
+    return { species: id => species.get(id), move: id => moves.get(id), item: id => items.get(id) };
+  } catch (_) { return {}; }
+}
+
+// The party to battle with by a room's rules: what battleParty gives, once it can play by them.
+function partyFor(rules) {
+  if (rules.format !== 'casual' && !onlineFeatures(config.repo).rules)
+    throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
+  const chosen = battleParty(rules.size);
+  const problems = formats.problems(rules, chosen.party, chosen.members || null, partyNames());
+  if (problems.length) throw Object.assign(new Error(`Your party can't play ${formats.describe(rules).name}: ${problems.join(' ')}`), { problems });
+  return chosen;
+}
+
 // Why a room can't be made or joined now, or null.
 function onlineReadiness() {
   if (!port.isPort(config.repo) || !binaryReady()) return 'Set up the game on the Play page first.';
@@ -1244,18 +1268,32 @@ const BATTLE_OVER = {
   desync: 'The battle stopped: the two games no longer agreed. This is a bug, please report it.'
 };
 
-function battleOutcome(result, side) {
-  if (result.reason === 'over') return { won: result.winner === side, draw: result.winner === null,
-    message: result.winner === null ? 'The battle ended in a draw.' : result.winner === side ? 'You won the battle!' : 'You lost the battle.' };
+function battleOutcome(result, side, set = null) {
+  if (result.reason === 'over') {
+    const what = set ? `game ${set.game}` : 'the battle';
+    const message = result.winner === null ? `${set ? `Game ${set.game}` : 'The battle'} ended in a draw.` : result.winner === side ? `You won ${what}!` : `You lost ${what}.`;
+    return { won: result.winner === side, draw: result.winner === null, message: set ? `${message} The next game starts once both games have seen the end.` : message };
+  }
   return BATTLE_OVER[result.reason] ? { message: BATTLE_OVER[result.reason] } : null;
 }
 
-// The game starts and plays with a port for its turns; it ends the session as it closes.
+// A set's end, as the page says it: the score from this player's side.
+function setOutcome(set, side) {
+  const mine = set.wins[side] || 0, theirs = set.wins[1 - side] || 0;
+  if (set.reason === 'disagree') return { message: 'The set stopped: the two games saw different results. This is a bug, please report it.' };
+  return { won: mine > theirs, draw: mine === theirs, message: mine > theirs ? `You won the set ${mine}–${theirs}!` : mine < theirs ? `You lost the set ${mine}–${theirs}.` : `The set ended ${mine}–${theirs}.` };
+}
+
+// The game starts and plays with a port for its turns, once for each battle: again for a host's game that waited in
+// the stadium, and for each game of a set. It ends the session once no game comes after.
 async function playBattle(session) {
   const gamePort = await session.attachGame();
   try {
+    // a joiner's game starts once there's a battle: with team preview, after both have picked
+    if (session.role === 'host') session.prepareGame();
+    else if (!await session.again()) return;
     do await exclusive(PLAY_LABEL, () => play(null, { port: gamePort }), true);
-    while (session.takeRestart());
+    while (await session.again());
   } finally {
     session.close();
     if (battle?.session === session) battle = null;
@@ -1264,40 +1302,84 @@ async function playBattle(session) {
   }
 }
 
+// Where a set is: which game, and the score so far.
+function noteSet(message) {
+  Object.assign(battle, { bestOf: message.bestOf || 1, game: message.game || 1, wins: Array.isArray(message.wins) ? message.wins : [0, 0],
+    side: message.side, rules: message.rules || battle.rules, opponent: message.players[1 - message.side].name });
+}
+
 function watchSession(session) {
+  session.on('preview', message => {
+    if (!battle) return;
+    noteSet(message);
+    battle.status = 'picking';
+    battle.preview = { players: message.players, size: message.rules.size, picked: null, deadline: Date.now() + PICK_SECONDS * 1000 };
+    battleResult = null;
+    broadcastOnline();
+    // the game that waited closes: the picks are here
+    if (window && !window.isDestroyed()) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); }
+  });
   session.on('start', message => {
     if (!battle) return;
+    noteSet(message);
     battle.status = 'battling';
-    battle.opponent = message.players[1 - message.side].name;
+    battle.preview = null;
+    if (battle.bestOf > 1) battleResult = null;
     broadcastOnline();
     showPresence();
   });
   session.on('peer', peer => { if (battle) { battle.peerLost = peer === 'lost'; broadcastOnline(); } });
   session.on('end', result => {
-    const outcome = battleOutcome(result, session.side);
+    const set = battle && battle.bestOf > 1 && result.reason === 'over' && !session.over ? { game: battle.game } : null;
+    const outcome = battleOutcome(result, session.side, set);
     if (outcome) battleResult = { ...outcome, opponent: battle?.opponent || null };
-    if (battle) battle.status = 'ended';
+    if (battle) battle.status = set ? 'between' : 'ended';
     broadcastOnline();
   });
+  session.on('set', set => {
+    battleResult = { ...setOutcome(set, session.side), opponent: battle?.opponent || null };
+    if (battle) { battle.wins = set.wins; battle.status = 'ended'; }
+    broadcastOnline();
+  });
+}
+
+// A room's refusal, with what the room server found wrong with the party.
+function withProblems(error) {
+  if (Array.isArray(error.problems) && error.problems.length) error.message = `${error.message} ${error.problems.join(' ')}`;
+  return error;
+}
+
+// How long each player has to pick, with team preview: then the first of their party go.
+const PICK_SECONDS = 90;
+
+function pickPokemon(order) {
+  if (!battle?.preview || battle.preview.picked) return onlineState();
+  const party = battle.preview.players[battle.side].party;
+  const valid = formats.validPick(order, party, battle.preview.size);
+  if (!valid) throw new Error(`Choose ${battle.preview.size} Pokémon.`);
+  battle.session.pick(valid);
+  battle.preview.picked = valid;
+  broadcastOnline();
+  return onlineState();
 }
 
 async function createRoom() {
   requireOnlineReady();
   const setup = config.online;
-  const chosen = battleParty(setup.size);
-  const session = new online.Session();
+  const rules = parties.roomRules(setup);
+  const chosen = partyFor(rules);
+  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules } });
   battleResult = null;
-  battle = { session, status: 'connecting', role: 'host', rules: { level: setup.level, size: setup.size }, code: null, opponent: null };
+  battle = { session, status: 'connecting', role: 'host', rules, bestOf: setup.bestOf, code: null, opponent: null };
   broadcastOnline();
   watchSession(session);
   try {
-    battle.code = await session.host({ name: setup.trainer, ...gameBuild(), ...chosen,
-      rules: { level: setup.level, size: setup.size }, listed: setup.listed });
+    battle.code = await session.host({ name: setup.trainer, ...gameBuild(), ...chosen, rules, bestOf: setup.bestOf, listed: setup.listed });
   } catch (error) {
     session.close();
     battle = null;
     broadcastOnline();
-    throw error;
+    throw withProblems(error);
   }
   battle.status = 'waiting';
   broadcastOnline();
@@ -1311,12 +1393,13 @@ async function joinRoom(input) {
   const code = online.parseRoomCode(input);
   if (!code) throw new Error('A room code looks like KQ7-M2D.');
   const setup = config.online;
-  const session = new online.Session();
+  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules } });
   battleResult = null;
   const info = await online.lookup(code);
   if (info.status !== 'waiting') throw new Error('That battle has already started.');
-  const chosen = battleParty(info.rules?.size || parties.PARTY_SIZE);
-  battle = { session, status: 'connecting', role: 'joiner', rules: info.rules, code, opponent: info.name };
+  const rules = formats.normalize(info.rules || {});
+  const chosen = partyFor(rules);
+  battle = { session, status: 'connecting', role: 'joiner', rules, bestOf: info.bestOf || 1, code, opponent: info.name };
   broadcastOnline();
   watchSession(session);
   try { await session.join({ code, name: setup.trainer, ...gameBuild(), ...chosen }); }
@@ -1324,7 +1407,7 @@ async function joinRoom(input) {
     session.close();
     battle = null;
     broadcastOnline();
-    throw error;
+    throw withProblems(error);
   }
   playBattle(session).catch(error => log(`✕ ${error.message}`));
   return { code: online.formatRoomCode(code) };
@@ -1589,6 +1672,7 @@ function registerHandlers() {
   ipcMain.handle('online-create', () => createRoom());
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
+  ipcMain.handle('online-pick', (_event, order) => pickPokemon(Array.isArray(order) ? order.map(Number) : []));
   ipcMain.handle('pokedex', () => pokedexData.list(port.validateRom(config.rom)));
   // gameTakesSets: false when the installed game is from before sets, and battles with its species only
   ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story }));
