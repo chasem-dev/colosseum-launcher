@@ -29,7 +29,7 @@
       "Online battles: both players need this update of the launcher, as it changes Generation 4's move data. Joining a room from another version of the launcher says so.",
       "Pokédex: Battle Revolution models show and hide parts as they move, such as Honchkrow folding its wings, as they do in battle.",
       "When a fix changes your Battle Revolution models, a warning above Play says so, and its Make models button makes them again.",
-      "Quick moves: in battle, press R or Z to open your moves, each shown with its button, then A, B, X or Y to use the first, second, third or fourth move at once, as in Pokémon Stadium. The buttons look like the controller or keyboard you're using, as you've bound them; choose another look under Controls → Button prompts. Quick status effects: a status condition or stat change shows right where the move hit, without its own camera shot, and the battle moves on once its message closes. Turn them on under Gameplay."
+      "Quick moves: in battle, press R or Z to open your moves (the battle menu shows them beside FIGHT), each shown with its button, then A, B, X or Y to use the first, second, third or fourth move at once, as in Pokémon Stadium. The buttons look like the controller or keyboard you're using, as you've bound them; choose another look under Controls → Button prompts. Quick status effects: a status condition or stat change shows right where the move hit, without its own camera shot, and the battle moves on once its message closes. Turn them on under Gameplay."
     ],
     "game": [
       "Online battles can have Battle Mode's choice and battle timers, shown on screen as in Battle Mode, with both games keeping the battle's time alike so the battle ends on the same turn for both. A battle that runs out of time with both sides even is a draw.",
@@ -64,7 +64,7 @@
       "More Generation 4 abilities now match Platinum: Will-O-Wisp sets off Flash Fire, Lightning Rod and Storm Drain draw Hidden Power, Pressure makes weather and other field moves cost extra PP, and Anticipation, Forewarn, Download and Trace have smaller fixes.",
       "Fixed Generation 4 Pokémon models from Battle Revolution: Glameow's tail and Buneary's ears no longer stretch, Bonsly's feet, Spiritomb's spirits and Purugly's tail stay where they belong, Honchkrow, the Starly line, Darkrai, Rotom and Shaymin show the right one of their two wings, bodies, hands or flowers, Froslass and Munchlax have their eyes, and see-through wings and petals are see-through. Press Make models under Settings → Gameplay to make them again.",
       "Fixed the game failing to build on computers with pandoc, markdown or kramdown installed, as many Macs have, with \"cannot create target README\" in the activity log.",
-      "Battles can open the moves with R or Z, each move shown with its button as your controller or keyboard has it, and use one with A, B, X or Y, and can show status conditions and stat changes without their own camera shot and the wait after them."
+      "Battles can open the moves with R or Z, shown beside FIGHT, each move shown with its button as your controller or keyboard has it, and use one with A, B, X or Y, and can show status conditions and stat changes without their own camera shot and the wait after them."
     ]
   },
   "releases": [
