@@ -23,7 +23,9 @@ const formats = require('./formats');
 // 2: a party can be a Story party, its Pokémon sent whole as `members`, and shorter than six.
 // 3: rooms have formats (src/formats.js), team preview with picks, and best-of sets.
 // 4: a room's rules may be Pokémon Platinum's battle rules (battleRules), which a launcher before 4 can't play.
-const PROTOCOL = 4;
+// 5: rooms have timers (turnTime, battleTime), whose battle clock both games share: a launcher before 5 would leave
+// its game without them, and the two games would end the battle at different turns.
+const PROTOCOL = 5;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list
@@ -178,6 +180,8 @@ class Session extends EventEmitter {
     this.over = false;      // and so has the room: no game comes after it
     this.restart = false;
     this.peerFinished = false;
+    this.stalled = false;     // this game's battle ended as the other's stopped choosing
+    this.timeUp = false;      // or as its time ran out
     this.timers = [];
   }
 
@@ -292,6 +296,9 @@ class Session extends EventEmitter {
   onGameLine(line) {
     const [word, value] = line.split(' ');
     if (word === 'restart') this.restart = true;
+    // how the battle is ending: the other player's game stopped choosing, or the battle's time ran out
+    else if (word === 'stalled') this.stalled = true;
+    else if (word === 'timeup') this.timeUp = true;
     else if (word === 'act' || word === 'irekae') {
       this.outbox.push(line);
       this.sendJson({ type: 'game', game: this.game, seq: this.outbox.length, line });
@@ -299,7 +306,8 @@ class Session extends EventEmitter {
     else if (word === 'end') {
       const winner = Number(value);
       this.sendJson({ type: 'result', winner });
-      this.finish({ reason: 'over', winner: Number.isInteger(winner) && winner >= 0 ? winner : null }, this.bestOf() === 1 || Boolean(this.peerGone));
+      this.finish({ reason: 'over', winner: Number.isInteger(winner) && winner >= 0 ? winner : null,
+        ...(this.stalled ? { stalled: true } : {}), ...(this.timeUp ? { timeUp: true } : {}) }, this.bestOf() === 1 || Boolean(this.peerGone));
     }
   }
 
@@ -321,6 +329,8 @@ class Session extends EventEmitter {
     this.ended = false;
     this.peerFinished = false;
     this.peerGone = false;
+    this.stalled = false;
+    this.timeUp = false;
   }
 
   onMessage(ws, data) {

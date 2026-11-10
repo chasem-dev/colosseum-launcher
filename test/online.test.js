@@ -124,7 +124,7 @@ test('a game that knows rules gets them first, and a waiting one is told to clos
   await session.attachGame(make);
   const bridge = make({});
   session.prepareGame();
-  assert.deepEqual(bridge.lines, ['rules double=0 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0', 'config 0 100 3 1 KQ7-M2D']);
+  assert.deepEqual(bridge.lines, ['rules double=0 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0 turn=60 battle=20', 'config 0 100 3 1 KQ7-M2D']);
   const previewed = new Promise(resolve => session.once('preview', resolve));
   ws.receive({ type: 'preview', key: 'k'.repeat(32), side: 0, rules: HOENN, bestOf: 3, game: 1, wins: [0, 0], players: START.players });
   await previewed;
@@ -135,7 +135,7 @@ test('a game that knows rules gets them first, and a waiting one is told to clos
   assert.deepEqual(ws.messages().at(-1), { type: 'pick', order: [5, 0, 2] });
   ws.receive({ ...START, rules: HOENN, bestOf: 3, game: 1, wins: [0, 0], players: [{ name: 'Ash', party: [6, 1, 3] }, { name: 'Misty', party: [7, 8, 9] }] });
   assert.equal(await again, true);
-  assert.deepEqual(bridge.lines.slice(-3), ['rules double=0 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0', 'config 0 100 3 1', 'start 42 Ash Misty 6 1 3 0 0 0 7 8 9 0 0 0']);
+  assert.deepEqual(bridge.lines.slice(-3), ['rules double=0 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0 turn=60 battle=20', 'config 0 100 3 1', 'start 42 Ash Misty 6 1 3 0 0 0 7 8 9 0 0 0']);
   session.close();
 });
 
@@ -151,7 +151,7 @@ test('a set: each game starts the game again, until the set is over', async () =
   await session.attachGame(make);
   const bridge = make({});
   assert.equal(await session.again(), true);   // the first game: prepared
-  assert.equal(bridge.lines[0], 'rules double=0 sleep=2 freeze=1 selfko=0 lastmon=0 hp=1');
+  assert.equal(bridge.lines[0], 'rules double=0 sleep=2 freeze=1 selfko=0 lastmon=0 hp=1 turn=60 battle=30');
   bridge.onLine('act 0 1 2 0');
   assert.deepEqual(ws.messages().at(-1), { type: 'game', game: 1, seq: 1, line: 'act 0 1 2 0' });
   const ends = [];
@@ -178,6 +178,34 @@ test('a set: each game starts the game again, until the set is over', async () =
   bridge.onClose();
   assert.deepEqual(sets, [{ wins: [0, 2], reason: null }]);
   assert.equal(await session.again(), false);
+  session.close();
+});
+
+test('a battle that ends on its timers says how', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, features: { rules: true } });
+  const joined = session.join({ ...details, code: 'KQ7M2D' });
+  await new Promise(resolve => setImmediate(resolve));
+  const ws = FakeSocket.last;
+  const timed = formats.normalize({ format: 'casual', turnTime: 45, battleTime: 10, stage: 1 });
+  ws.receive({ ...START, side: 1, rules: timed, bestOf: 3, game: 1, wins: [0, 0] });
+  await joined;
+  const make = fakeBridge();
+  await session.attachGame(make);
+  const bridge = make({});
+  assert.equal(await session.again(), true);
+  assert.equal(bridge.lines[0], 'rules double=0 sleep=0 freeze=0 selfko=0 lastmon=0 hp=0 turn=45 battle=10');
+  const ends = [];
+  session.on('end', result => ends.push(result));
+  bridge.onLine('timeup');
+  bridge.onLine('end 0');
+  assert.deepEqual(ends, [{ reason: 'over', winner: 0, timeUp: true }]);
+  // the next game starts afresh
+  ws.receive({ ...START, side: 1, seed: 43, rules: timed, bestOf: 3, game: 2, wins: [1, 0] });
+  bridge.onClose();
+  assert.equal(await session.again(), true);
+  bridge.onLine('stalled');
+  bridge.onLine('end 1');
+  assert.deepEqual(ends.at(-1), { reason: 'over', winner: 1, stalled: true });
   session.close();
 });
 

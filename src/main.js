@@ -1321,6 +1321,7 @@ let battleResult = null;
 function onlineState() {
   return { setup: config.online, ready: onlineReadiness(), build: binaryReady() ? gameBuild().build : null, result: battleResult,
     story: storyState(), rulesSupported: binaryReady() && onlineFeatures(config.repo).rules,
+    timersSupported: binaryReady() && onlineFeatures(config.repo).timers,
     battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
       opponent: battle.opponent, peerLost: Boolean(battle.peerLost), bestOf: battle.bestOf || 1, game: battle.game || 0,
       wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null } };
@@ -1339,11 +1340,13 @@ function onlineFeatures(root) {
       onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story: bytes.includes('online: story member'),
         // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
         rules: bytes.includes('battle, rules: '),
+        // turn and battle timers, with the battle's clock shared between the games
+        timers: bytes.includes('online: turn timer'),
         // the randomizer's fourth generation (host/randomizer.c)
         randomizerGenerations: bytes.includes('randomizer: later generations') };
     }
     return onlineBinary;
-  } catch (_) { return { online: false, story: false, rules: false, randomizerGenerations: false }; }
+  } catch (_) { return { online: false, story: false, rules: false, timers: false, randomizerGenerations: false }; }
 }
 const gameHasOnline = root => onlineFeatures(root).online;
 
@@ -1454,7 +1457,10 @@ const BATTLE_OVER = {
 function battleOutcome(result, side, set = null) {
   if (result.reason === 'over') {
     const what = set ? `game ${set.game}` : 'the battle';
-    const message = result.winner === null ? `${set ? `Game ${set.game}` : 'The battle'} ended in a draw.` : result.winner === side ? `You won ${what}!` : `You lost ${what}.`;
+    let message = result.winner === null ? `${set ? `Game ${set.game}` : 'The battle'} ended in a draw.` : result.winner === side ? `You won ${what}!` : `You lost ${what}.`;
+    // the battle timer: the side with more Pokémon left won, then the one with more HP left
+    if (result.timeUp) message = `Time ran out. ${message}`;
+    if (result.stalled && result.winner === side) message = `You won ${what}: the other player's game stopped choosing.`;
     return { won: result.winner === side, draw: result.winner === null, message: set ? `${message} The next game starts once both games have seen the end.` : message };
   }
   return BATTLE_OVER[result.reason] ? { message: BATTLE_OVER[result.reason] } : null;
@@ -1549,7 +1555,8 @@ function pickPokemon(order) {
 async function createRoom() {
   requireOnlineReady();
   const setup = config.online;
-  const rules = parties.roomRules(setup);
+  // a game from before timers would play without them: the room says so
+  const rules = onlineFeatures(config.repo).timers ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
   const chosen = partyFor(rules);
   const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules } });
   battleResult = null;
