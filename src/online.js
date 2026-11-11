@@ -30,7 +30,9 @@ const formats = require('./formats');
 // 7: with team preview the players pick on the game's own screen when the game has it (gamePicks): the room sends no
 //    preview, each start carries both parties whole, and the games pass each other's picks. A launcher before 7 would
 //    start its game with six where the other's has the picked few.
-const PROTOCOL = 7;
+// 8: a party can have the fourth generation's Pokémon (src/team-sets.js), in a room on Platinum's rules, whose games then
+//    have them: a launcher before 8 would start its game without them.
+const PROTOCOL = 8;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list

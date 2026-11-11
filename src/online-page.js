@@ -104,6 +104,9 @@
       card.setAttribute('aria-disabled', String(missing > 0));
       card.tabIndex = missing ? -1 : 0;
       const name = Object.assign(document.createElement('strong'), { textContent: party.name });
+      // a Generation 4 party says so: it battles only in rooms on Platinum's rules
+      if (party.generation >= 4) name.prepend(Object.assign(document.createElement('span'), { className: 'party-generation', textContent: `Gen ${party.generation}`,
+        title: `A Generation ${party.generation} party: it battles only under Pokémon Platinum's battle rules` }));
       const edit = Object.assign(document.createElement('button'), { className: 'party-card-edit', type: 'button', textContent: 'Edit' });
       edit.addEventListener('click', event => { event.stopPropagation(); openEditor(party); });
       const team = Object.assign(document.createElement('div'), { className: 'party-card-team' });
@@ -116,7 +119,8 @@
       const summary = partySummary(party);
       card.append(name, edit, team, Object.assign(document.createElement('small'), { className: summary.warn ? '' : 'party-summary', textContent: summary.text }));
       if (missing) return card;
-      const choose = () => { setup.selected = party.id; save(); };
+      // a Generation 4 party battles under Platinum's rules, so choosing one chooses them for the room too
+      const choose = () => { setup.selected = party.id; if (party.generation >= 4) setup.battleRules = 4; save(); };
       card.addEventListener('click', choose);
       card.addEventListener('keydown', event => { if (event.target === card && (event.key === ' ' || event.key === 'Enter')) { event.preventDefault(); choose(); } });
       return card;
@@ -124,7 +128,7 @@
   }
 
   function keepParty(party) {
-    const saved = { id: party.id || `party-${Date.now().toString(36)}`, name: party.name, members: party.members, sets: party.sets };
+    const saved = { id: party.id || `party-${Date.now().toString(36)}`, name: party.name, generation: party.generation, members: party.members, sets: party.sets };
     const at = setup.parties.findIndex(item => item.id === saved.id);
     if (at >= 0) setup.parties[at] = saved;
     else setup.parties.push(saved);
@@ -133,8 +137,10 @@
     save();
   }
 
+  // A new party is of the generation whose rules the Online page has chosen (the Story party's copy is the third's).
   function openEditor(party, from = null, name = null) {
-    builder().open(party, { name: name || `Party ${setup.parties.length + 1}`, level: setup.level, battleRules: setup.battleRules, from, done: keepParty,
+    const generation = party?.generation || (from ? 3 : setup.battleRules >= 4 ? 4 : 3);
+    builder().open(party, { name: name || `Party ${setup.parties.length + 1}`, level: setup.level, battleRules: setup.battleRules, generation, from, done: keepParty,
       remove: () => { setup.parties = setup.parties.filter(item => item.id !== party.id); save(); } });
   }
 
@@ -179,12 +185,15 @@
 
   function names() {
     const data = builder().data();
+    const moves = [...(data?.generations?.[4]?.moves || []), ...(data?.moves || [])];
     return { species: id => builder().speciesName(id) || undefined, item: id => data?.items.find(item => item.id === id)?.name,
-      move: id => data?.moves.find(move => move.id === id)?.name };
+      move: id => moves.find(move => move.id === id)?.name };
   }
 
-  // Why the chosen party can't play by these rules: [text].
+  // Why the chosen party can't play by these rules: [text]. A Generation 4 party battles only under Platinum's.
   function partyProblems(rules) {
+    const own = setup.selected === STORY ? null : setup.parties.find(item => item.id === setup.selected);
+    if (own?.generation >= 4 && rules.battleRules !== 4) return [`${own.name} is a Generation 4 party, which battles only under Pokémon Platinum's battle rules.`];
     const { party, members } = chosenParty();
     return F.problems(rules, party, members, names());
   }

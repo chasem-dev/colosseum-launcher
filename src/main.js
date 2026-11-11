@@ -1023,13 +1023,17 @@ function preparePokemonPacks(rom, folder) {
   return file;
 }
 
-// An online room's battle rules for its game: the generation's rules and moves alone, no Pokémon of packs or generations.
+// An online room's battle rules for its game: the generation's rules, moves and Pokémon (which a party of that generation
+// can have: src/team-sets.js), and no packs' Pokémon. Both games have the same rows; each looks as the player's own
+// Battle Revolution models make it, or as its stand-in does, which changes nothing in the battle.
 function prepareBattleRules(rom, folder, battleRules) {
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
-  const { moves, rules } = generations.build(packTables.tables, { battleRules, generationPokemon: [] });
+  const built = generations.build(packTables.tables, { battleRules, generationPokemon: [battleRules] });
+  const { pokemon, problems } = pokemonPacks.generationPokemon(packTables.tables, built, { modelsDirectory: pbrModels() });
+  for (const problem of problems) log(`Generation ${battleRules} Pokémon ${packLabel(problem)}: ${problem.message}`);
   const file = path.join(folder, 'online-rules.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon: [], moves, rules }));
-  log(`Battle rules: generation ${battleRules}, the room's.`);
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules }));
+  log(`Battle rules: generation ${battleRules}, the room's, with its ${pokemon.length} Pokémon.`);
   return file;
 }
 
@@ -1081,6 +1085,28 @@ function hdSpriteResponse(request) {
 
 // The Pokédex's list: the disc's Pokémon, and the packs' after the ones they're based on.
 let pokedexPacks = new Map();   // key -> the pack Pokémon, for its model
+// A later generation's Pokémon as the team builder lists them for a party of that generation (the Pokédex's shape:
+// id, name, national, types, abilities, stats, sprite), whether or not its Pokémon are turned on for the story: the
+// icon made from the player's Battle Revolution disc, else its stand-in's.
+let generationDexCache = null;
+function generationDex(rom, generation = 4) {
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const made = n => fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.model)) && fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.body));
+  const built = generations.build(packTables.tables, { battleRules: generation, generationPokemon: [generation] });
+  const { pokemon } = pokemonPacks.generationPokemon(packTables.tables, built);
+  const stamp = `${rom}:${generation}:${pokemon.filter(each => made(each.national)).map(each => each.national).join(',')}`;
+  if (generationDexCache?.stamp === stamp) return generationDexCache.list;
+  const disc = withHdSprites(rom, pokedexData.list(rom));
+  const list = pokemonPacks.pokedexEntries(pokemon, packTables.tables).map((entry, i) => {
+    const each = pokemon[i];
+    const sprite = made(each.national) ? `data:image/png;base64,${fs.readFileSync(path.join(pbrModels(), String(each.national), pokemonPacks.FILES.body)).toString('base64')}`
+      : disc.find(item => item.national === each.base.national)?.sprite || null;
+    return { id: each.id, name: entry.name, national: each.national, types: entry.types, abilities: entry.abilities, stats: entry.stats, sprite, generation };
+  });
+  generationDexCache = { stamp, list };
+  return list;
+}
+
 function pokedexList(rom) {
   let species = withHdSprites(rom, pokedexData.list(rom));
   let packs = [], problems = [];
@@ -1443,8 +1469,10 @@ function battleParty(size) {
   const party = parties.selectedParty(config.online);
   if (!onlineFeatures(config.repo).story) return { party: party.members };
   let species = {};
-  try { species = battleData(port.validateRom(config.rom)).species; }
-  catch (error) { log(`Team builder: couldn't read genders from the disc (${error.message}).`); }
+  try {
+    const data = battleData(port.validateRom(config.rom));
+    species = party.generation >= 4 ? data.generations[party.generation].species : data.species;
+  } catch (error) { log(`Team builder: couldn't read genders from the disc (${error.message}).`); }
   return { party: party.members, members: party.sets.map((set, slot) => teamSets.toWire(set, species[set.species]?.gender ?? teamSets.GENDER.none, slot)) };
 }
 
@@ -1452,8 +1480,10 @@ function battleParty(size) {
 function partyNames() {
   try {
     const rom = port.validateRom(config.rom), data = battleData(rom);
-    const species = new Map(pokedexData.list(rom).map(entry => [entry.id, entry.name]));
-    const moves = new Map(data.moves.map(move => [move.id, move.name])), items = new Map(data.items.map(item => [item.id, item.name]));
+    const later = data.generations?.[4];
+    const species = new Map([...Object.entries(later?.species || {}).map(([id, entry]) => [Number(id), entry.name]),
+      ...pokedexData.list(rom).map(entry => [entry.id, entry.name])]);
+    const moves = new Map([...(later?.moves || []), ...data.moves].map(move => [move.id, move.name])), items = new Map(data.items.map(item => [item.id, item.name]));
     return { species: id => species.get(id), move: id => moves.get(id), item: id => items.get(id) };
   } catch (_) { return {}; }
 }
@@ -1462,6 +1492,9 @@ function partyNames() {
 function partyFor(rules) {
   if (rules.format !== 'casual' && !onlineFeatures(config.repo).rules)
     throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
+  const own = config.online.selected === parties.STORY ? null : parties.selectedParty(config.online);
+  const mismatch = parties.rulesProblem(own, rules.battleRules);
+  if (mismatch) throw Object.assign(new Error(mismatch), { problems: [mismatch] });
   const chosen = battleParty(rules.size);
   const problems = formats.problems(rules, chosen.party, chosen.members || null, partyNames());
   if (problems.length) throw Object.assign(new Error(`Your party can't play ${formats.describe(rules).name}: ${problems.join(' ')}`), { problems });
@@ -1910,9 +1943,18 @@ function registerHandlers() {
   ipcMain.handle('pokedex', () => pokedexList(port.validateRom(config.rom)));
   // gameTakesSets: false when the installed game is from before sets, and battles with its species only
   // categories: each later generation's own physical or special for a move, as its battle rules make it
-  ipcMain.handle('battle-data', () => ({ ...battleData(port.validateRom(config.rom)), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story,
-    categories: Object.fromEntries(generations.available().filter(each => each.generation > generations.COLOSSEUM_RULES)
-      .map(each => [each.generation, generations.moveCategories(each.generation)])) }));
+  // generations: what a party of a later generation is offered (src/battle-data.js), with its Pokémon to pick from (dex)
+  ipcMain.handle('battle-data', () => {
+    const rom = port.validateRom(config.rom), data = battleData(rom);
+    const later = Object.fromEntries(Object.entries(data.generations || {}).map(([generation, each]) => {
+      let dex = [];
+      try { dex = generationDex(rom, Number(generation)); } catch (error) { log(`Team builder: couldn't list the Generation ${generation} Pokémon (${error.message}).`); }
+      return [generation, { ...each, dex }];
+    }));
+    return { ...data, generations: later, gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story,
+      categories: Object.fromEntries(generations.available().filter(each => each.generation > generations.COLOSSEUM_RULES)
+        .map(each => [each.generation, generations.moveCategories(each.generation)])) };
+  });
   ipcMain.handle('pokedex-model', (_event, key, form) => {
     const look = pokedexLook(key, String(form));
     return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form)));
