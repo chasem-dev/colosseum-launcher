@@ -83,7 +83,8 @@
       "Fixed Shadow Rush doing no damage to Ghost-type Pokémon with Generation 4 battle rules.",
       "Fixed Hippopotas, Luxio, Shellos, Riolu, Tangrowth, Glaceon and Gallade from Battle Revolution not reacting when hit. Press Make models under Settings → Gameplay to make them again.",
       "Fixed move sounds such as Sing, Attract and Captivate having a dull echo trailing behind them that the original game doesn't have.",
-      "Fixed a stretched box around Sweet Scent's and Confusion's ripple in widescreen."
+      "Fixed a stretched box around Sweet Scent's and Confusion's ripple in widescreen.",
+      "Fixed the game crashing on Mac when a Pokémon's Wish came true in battle."
     ]
   },
   "releases": [
