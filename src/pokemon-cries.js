@@ -194,4 +194,4 @@ function create() {
   };
 }
 
-module.exports = { create, readTables, locate, decodeCry, decodeAdpcm, wav, fxTable, macros, macroSample, sampleDirectory, VOICE };
+module.exports = { SOUNDS, SOUND_EFFECT, create, readTables, locate, decodeCry, decodeAdpcm, wav, fxTable, macros, macroSample, sampleDirectory, VOICE };

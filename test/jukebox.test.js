@@ -20,21 +20,21 @@ test('the game runs in jukebox mode with the flag added to its command', () => {
   assert.deepEqual(base.args, ['/disc.iso']);
 });
 
-test('tracks keep valid, distinct group and song ids and get a name', () => {
+test('tracks keep valid, distinct sound ids and get a name', () => {
   const list = jukebox.normalizeTracks([
-    { group: 1, song: 2, name: 'Title' }, { group: 1, song: 2, name: 'Again' }, { group: -1, song: 0 },
-    { group: 'x', song: 0 }, { group: 70000, song: 0 }, { group: 3, song: 4 }, null
+    { sound: 1130, name: 'Title' }, { sound: 1130, name: 'Again' }, { sound: 0 }, { sound: -1 },
+    { sound: 'x' }, { sound: 70000 }, { sound: 24 }, null
   ]);
-  assert.deepEqual(list, [{ id: '1:2', group: 1, song: 2, name: 'Title' }, { id: '3:4', group: 3, song: 4, name: 'Track 002' }]);
+  assert.deepEqual(list, [{ id: '1130', sound: 1130, name: 'Title' }, { id: '24', sound: 24, name: 'Track 002' }]);
   assert.deepEqual(jukebox.normalizeTracks(undefined), []);
-  assert.ok(Array.isArray(jukebox.tracks()));
+  assert.equal(jukebox.mockTracks().length, 3);
 });
 
 test('the game\'s lines are read as events, and anything else is left alone', () => {
   assert.deepEqual(jukebox.parseEvent('ready'), { type: 'ready' });
-  assert.deepEqual(jukebox.parseEvent('playing 4 12\r'), { type: 'playing', group: 4, song: 12 });
+  assert.deepEqual(jukebox.parseEvent('playing 1130\r'), { type: 'playing', sound: 1130 });
   assert.deepEqual(jukebox.parseEvent('error no such song'), { type: 'error', message: 'no such song' });
-  assert.equal(jukebox.parseEvent('playing x y'), null);
+  assert.equal(jukebox.parseEvent('playing x'), null);
   assert.equal(jukebox.parseEvent('[audio] opened device'), null);
   assert.equal(jukebox.parseEvent(''), null);
 });
@@ -45,19 +45,19 @@ test('the volume is a whole number from 0 to 100', () => {
 
 test('a song plays, pauses, resumes, stops and ends', async () => {
   const player = jukebox.create({ spawn });
-  const track = { id: '4:12', group: 4, song: 12 };
+  const track = { id: '1130', sound: 1130 };
   assert.equal((await player.start(run())).ready, true);
   player.play(track);
-  assert.equal((await until(player, state => state.playing === '4:12')).paused, false);
+  assert.equal((await until(player, state => state.playing === '1130')).paused, false);
   player.pause();
-  assert.equal((await until(player, state => state.paused)).playing, '4:12');
+  assert.equal((await until(player, state => state.paused)).playing, '1130');
   player.resume();
   await until(player, state => !state.paused);
   player.stop();
   assert.equal((await until(player, state => state.playing === null)).paused, false);
   const ended = wait(player, 'ended');
   player.play(track);
-  assert.equal(await ended, '4:12');
+  assert.equal(await ended, '1130');
   player.setVolume(250);
   assert.equal(player.state().volume, 100);
   player.quit();
@@ -76,7 +76,7 @@ test('a game that closes before it is ready is reported, and can be started agai
   const player = jukebox.create({ spawn });
   await assert.rejects(player.start(run([])), /closed before its music started/);
   assert.equal(player.state().running, false);
-  assert.throws(() => player.play({ group: 1, song: 1 }), /not ready/);
+  assert.throws(() => player.play({ id: '1', sound: 1 }), /not ready/);
   assert.equal((await player.start(run())).ready, true);
   player.quit();
   await until(player, state => !state.running);

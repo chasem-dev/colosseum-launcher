@@ -1,13 +1,12 @@
 'use strict';
 // The Jukebox: the launcher asks the game itself to play a song, so the music is the game's own, from the
 // player's disc. The game is started in a window-less jukebox mode (FLAG) and takes one command per line on
-// stdin; it answers with one event per line on stdout. Nothing here plays sound or reads the disc.
+// stdin (the sound id is the one the game's own soundPlay takes); it answers with one event per line on stdout. Nothing here plays sound or reads the disc.
 //
-//   launcher -> game:  play <group> <song> | pause | resume | stop | volume <0-100> | quit
-//   game -> launcher:  ready | playing <group> <song> | paused | resumed | stopped | ended | error <message>
+//   launcher -> game:  play <sound id> | pause | resume | stop | volume <0-100> | quit
+//   game -> launcher:  ready | playing <sound id> | paused | resumed | stopped | ended | error <message>
 const { EventEmitter } = require('node:events');
 const readline = require('node:readline');
-const tracksFile = require('./jukebox-tracks.json');
 
 const FLAG = '--jukebox';
 const READY_TIMEOUT = 20000;  // ms the game gets to start its sound before the launcher gives up on it
@@ -15,22 +14,19 @@ const READY_TIMEOUT = 20000;  // ms the game gets to start its sound before the 
 // The game's run command (port.gameRunCommand), started in jukebox mode.
 function command(run) { return { ...run, args: [...run.args, FLAG] }; }
 
-// What the tracks file lists: a song is a MusyX group and song id (the game's sndSeqPlayEx), with a name to show.
+// A song is a sound id (the game's soundPlay; 0 is never played), with a name to show (jukebox-songs.js reads them from the disc).
 function normalizeTracks(list) {
   const seen = new Set(), tracks = [];
   for (const each of Array.isArray(list) ? list : []) {
-    const group = Number(each?.group), song = Number(each?.song);
-    if (!Number.isInteger(group) || !Number.isInteger(song) || group < 0 || song < 0 || group > 0xFFFF || song > 0xFFFF) continue;
-    const id = `${group}:${song}`;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    tracks.push({ id, group, song, name: String(each.name || `Track ${String(tracks.length + 1).padStart(3, '0')}`) });
+    const sound = Number(each?.sound);
+    if (!Number.isInteger(sound) || sound < 1 || sound > 0xFFFF || seen.has(sound)) continue;
+    seen.add(sound);
+    tracks.push({ id: String(sound), sound, name: String(each.name || `Track ${String(tracks.length + 1).padStart(3, '0')}`) });
   }
   return tracks;
 }
-const tracks = (file = tracksFile) => normalizeTracks(file.tracks);
 // Three silent songs for developing the page without a game (scripts/mock-jukebox.js).
-const mockTracks = () => normalizeTracks([1, 2, 3].map(song => ({ group: 0, song, name: `Mock track ${song}` })));
+const mockTracks = () => normalizeTracks([1, 2, 3].map(sound => ({ sound, name: `Mock track ${sound}` })));
 
 // One line from the game, as an event; null for a line that isn't one (the game's own logging).
 function parseEvent(line) {
@@ -38,8 +34,8 @@ function parseEvent(line) {
   switch (name) {
     case 'ready': case 'paused': case 'resumed': case 'stopped': case 'ended': return { type: name };
     case 'playing': {
-      const [group, song] = rest.map(Number);
-      return Number.isInteger(group) && Number.isInteger(song) ? { type: name, group, song } : null;
+      const sound = Number(rest[0]);
+      return Number.isInteger(sound) ? { type: name, sound } : null;
     }
     case 'error': return { type: name, message: rest.join(' ') || 'The game stopped the music.' };
     default: return null;
@@ -65,7 +61,7 @@ function create({ spawn, readyTimeout = READY_TIMEOUT } = {}) {
   function handle(event) {
     switch (event.type) {
       case 'ready': return update({ ready: true, error: null });
-      case 'playing': return update({ playing: `${event.group}:${event.song}`, paused: false, error: null });
+      case 'playing': return update({ playing: String(event.sound), paused: false, error: null });
       case 'paused': return update({ paused: true });
       case 'resumed': return update({ paused: false });
       case 'stopped': return update({ playing: null, paused: false });
@@ -111,7 +107,7 @@ function create({ spawn, readyTimeout = READY_TIMEOUT } = {}) {
 
   function play(track) {
     if (!state.ready) throw new Error('The jukebox is not ready.');
-    send(`play ${track.group} ${track.song}`);
+    send(`play ${track.sound}`);
     update({ playing: track.id, paused: false });
   }
   function pause() { send('pause'); }
@@ -133,4 +129,4 @@ function create({ spawn, readyTimeout = READY_TIMEOUT } = {}) {
   return { start, play, pause, resume, stop, setVolume, quit, state: () => state, on: (name, listener) => events.on(name, listener) };
 }
 
-module.exports = { FLAG, command, normalizeTracks, tracks, mockTracks, parseEvent, volumeOf, create };
+module.exports = { FLAG, command, normalizeTracks, mockTracks, parseEvent, volumeOf, create };

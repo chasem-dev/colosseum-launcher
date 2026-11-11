@@ -23,10 +23,10 @@ say('ready');
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const [name, ...rest] = line.trim().split(/\s+/);
   const numbers = rest.map(Number);
-  if (name === 'play' && numbers.length === 2 && numbers.every(Number.isInteger)) {
+  if (name === 'play' && numbers.length === 1 && Number.isInteger(numbers[0])) {
     current = numbers; paused = false;
     schedule(songMs);
-    say(`playing ${numbers[0]} ${numbers[1]}`);
+    say(`playing ${numbers[0]}`);
   } else if (name === 'pause' && current && !paused) {
     paused = true; clearTimeout(timer); remaining -= Date.now() - startedAt;
     say('paused');

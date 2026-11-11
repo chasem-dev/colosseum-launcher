@@ -1,4 +1,0 @@
-{
-  "_note": "Each track is a MusyX group and song id the game plays with sndSeqPlayEx, e.g. { \"group\": 1, \"song\": 0, \"name\": \"Title\" }. Empty until the game's song table is read from the decomp.",
-  "tracks": []
-}

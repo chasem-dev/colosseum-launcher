@@ -41,6 +41,8 @@ const pokedexData = pokedexNames.create();
 const pokemonCries = require('./pokemon-cries');
 const pokedexCries = pokemonCries.create();
 const jukebox = require('./jukebox');
+const jukeboxSongs = require('./jukebox-songs');
+const { Disc } = require('./disc');
 const texturePackLookup = require('./texture-pack-lookup');
 const { pathToFileURL } = require('node:url');
 const battleData = require('./battle-data').create();
@@ -1174,7 +1176,17 @@ function noteCrashReport(error, since) {
 const jukeboxPlayer = jukebox.create({ spawn });
 jukeboxPlayer.on('state', value => broadcast('jukebox', value));
 const jukeboxMock = () => process.env.COLO_JUKEBOX_MOCK === '1';
-const jukeboxTracks = () => jukeboxMock() ? jukebox.mockTracks() : jukebox.tracks();
+// The songs on the player's disc, read once for each disc.
+let jukeboxSongList = { rom: null, tracks: [] };
+function jukeboxTracks() {
+  if (jukeboxMock()) return jukebox.mockTracks();
+  const rom = port.validateRom(config.rom);
+  if (jukeboxSongList.rom !== rom) {
+    const disc = new Disc(rom);
+    try { jukeboxSongList = { rom, tracks: jukeboxSongs.read(disc) }; } finally { disc.close(); }
+  }
+  return jukeboxSongList.tracks;
+}
 
 function jukeboxRun() {
   if (jukeboxMock()) return { command: process.execPath, args: [path.join(__dirname, '..', 'scripts', 'mock-jukebox.js'), jukebox.FLAG],
