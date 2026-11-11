@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Fast-forward can stay on: set Fast-forward button to Press to turn on and off under Settings → Gameplay, and one press of L + R (both triggers, both bumpers, or Q + E) speeds the game up until the next press, with Fast-forward shown at the top right meanwhile. Fast-forward speed, next to it, sets how fast it runs, from 2× to 8×; 4× is as before.",
       "Team builder: a party can now be Generation 4. Choose Generation 4 at the top of the team builder and it can have the 107 Generation 4 Pokémon and their moves, each move and ability as Pokémon Platinum plays it, and every move a Pokémon can learn in Diamond, Pearl, Platinum, HeartGold or SoulSilver or bring over from Generation 3. A Generation 4 party battles only in rooms on Platinum's rules, and choosing one picks those rules for your room. In those rooms Only legal Pokémon checks moves against Generation 4, and Dialga, Palkia, Giratina and Generation 4's mythical Pokémon count as restricted, as Mewtwo does. Both players need this launcher.",
       "Pokédex: models are drawn the way the game draws them, with every texture layer, reflections, shine, glows and bumps, so Ditto is purple, Gastly has its gas, Onix's rock has its shape and shading, Omanyte's eyes are black and see-through parts blend as they do in battle.",
       "Pokédex: Pokémon blink now and then while they idle, as they do in battle.",
@@ -47,6 +48,7 @@
       "When the game stops itself after an error, the launcher's message says why, in the game's own words, instead of only its exit code."
     ],
     "game": [
+      "Fast-forward can be turned on and off with a press of L + R instead of held, and run at 2× to 8×, as set in the launcher.",
       "Generation 4 models: Combee's, Vespiquen's and Yanmega's wings are see-through, Bonsly has its eyes and mouth, Spiritomb its purple swirl, Infernape's head fire and Dusknoir's eyes their colours, and parts that show and hide as a Pokémon moves, such as Honchkrow's wings and Rotom's arms, now do so the right way round. Press Make models when the launcher asks to make the 34 changed models again.",
       "Fixed the arrow keys picking nothing on the Pokémon selection screen before a battle: on a keyboard, the arrows and WASD now pick as the Control Pad does. The screen also shows your own keys or your controller's buttons beside each Pokémon and for Cancel and Check, as set under Controls → Button prompts.",
       "Online battles now have Battle Mode's screens around them: both trainers and their Pokémon with the VS before the battle, and the results after it with each Pokémon's HP and who won. Press A on the results to go back to the launcher.",

@@ -18,7 +18,7 @@
     { id: 'CSTICK_LEFT', label: 'C-stick left' }, { id: 'CSTICK_RIGHT', label: 'C-stick right' },
     { id: 'DPAD_UP', label: 'D-pad up' }, { id: 'DPAD_DOWN', label: 'D-pad down' },
     { id: 'DPAD_LEFT', label: 'D-pad left' }, { id: 'DPAD_RIGHT', label: 'D-pad right' },
-    { id: 'FAST_FORWARD', label: 'Fast-forward (hold)' },
+    { id: 'FAST_FORWARD', label: 'Fast-forward' },
     { id: 'GBA', label: 'Game Boy Advance: use it (hold: on or off)' }
   ];
   // The game's built-in keys (bindings.txt in the port).

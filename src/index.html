@@ -212,7 +212,12 @@
               <p id="language-note" class="row-note" hidden></p>
               <div class="field"><span>Other languages<small>A fan translation is a folder with a pack.json and a text.txt: put it in the languages folder and it shows in the list above.</small></span><button class="subtle" id="open-languages" type="button">Open languages folder</button></div>
             </div>
-            <p class="preset-tip"><strong>Fast-forward:</strong> hold <strong>L + R</strong> (Q + E on the keyboard) to run the game at 4× and skip movies. <strong>A</strong> skips a movie.</p>
+            <h2 class="group-title">Fast-forward</h2>
+            <div class="settings-group">
+              <label class="field"><span>Fast-forward button<small>Fast-forward is L + R together: both triggers, or both bumpers, on a controller, and Q + E or Tab on the keyboard. Hold runs the game faster while you hold them. Press to turn on and off runs it faster from one press until the next, and shows Fast-forward at the top right while it's on.</small></span><select id="fastForward"><option value="hold">Hold</option><option value="toggle">Press to turn on and off</option></select></label>
+              <label class="field"><span>Fast-forward speed<small>How many times faster the game runs while fast-forwarding. A slower computer may not reach the faster speeds.</small></span><select id="fastForwardSpeed"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="6">6×</option><option value="8">8×</option></select></label>
+            </div>
+            <p class="preset-tip"><strong>Movies:</strong> <strong>A</strong> or the fast-forward button skips a movie.</p>
                       <h2 class="group-title">Randomizer</h2>
             <div class="settings-group">
               <label class="switch"><span><strong>Randomize new games</strong><small>Swaps the game's Pokémon for others, chosen by a seed. It starts with your next New Game and stays with that save: an existing save is never changed.</small></span><input id="randomizer" type="checkbox"><i></i></label>
