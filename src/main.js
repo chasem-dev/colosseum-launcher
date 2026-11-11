@@ -24,7 +24,7 @@ const portable = require('./portable');
 const changelog = require('./changelog');
 const { cleanOutputLine, createActivityReader } = require('./progress');
 const { createActivityLog } = require('./activity-log');
-const { observeProcess, exitDescription, failureMessage, taskEnvironment } = require('./process-output');
+const { observeProcess, exitDescription, failureMessage, gameStopReason, taskEnvironment } = require('./process-output');
 const { createSessionLog } = require('./session-log');
 const displayScale = require('./display-scale');
 const steam = require('./steam');
@@ -532,6 +532,8 @@ async function launch(command, args, options = {}, label = 'Task', isGame = fals
       percent: null, startedAt: Date.now() };
     broadcast('activity', activityState());
     const recent = [], readActivity = createActivityReader();
+    // The crash report's FATAL line can be more than 80 lines back by the time the game has closed
+    let stopReason = '';
     // The game's [presence] lines go to Discord, not the activity log; a
     // partial line that could become one waits for the rest.
     function output(text, stream, entry) {
@@ -543,6 +545,7 @@ async function launch(command, args, options = {}, label = 'Task', isGame = fals
       if (isGame && stream === 'stdout' && presence.isPresenceLine(value)) return onPresence?.(value);
       completeOutput(value, stream, entry);
       if (!value) return;
+      if (isGame && !stopReason) stopReason = gameStopReason(value);
       if (recent.push(value) > 80) recent.shift();
       const progress = isGame ? null : readActivity(value);
       if (progress && active && active.child === child) {
@@ -555,7 +558,7 @@ async function launch(command, args, options = {}, label = 'Task', isGame = fals
     broadcast('activity', activityState());
     if (error) throw error;
     if (code !== 0 || signal) {
-      throw Object.assign(new Error(failureMessage(label, { code, signal }, recent, { game: isGame })), { exitCode: code, output: recent.slice() });
+      throw Object.assign(new Error(failureMessage(label, { code, signal }, recent, { game: isGame, stopReason })), { exitCode: code, output: recent.slice() });
     }
     log(`✓ ${label} finished`);
     return { ok: true };

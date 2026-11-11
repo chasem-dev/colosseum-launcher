@@ -155,7 +155,15 @@ function gameExitCause(code, platform = process.platform) {
   return name ? `${name}: the game crashed` : '';
 }
 
-function failureMessage(label, result, recent, { game = false, platform = process.platform } = {}) {
+// The reason the game gave when it stopped itself, from the FATAL line at the top of its crash report, or ''.
+function gameStopReason(value) {
+  const match = /^FATAL: (.+)$/.exec(String(value).trim());
+  return match ? match[1].trim() : '';
+}
+
+function failureMessage(label, result, recent, { game = false, platform = process.platform, stopReason = '' } = {}) {
+  // The game's own words, when it stopped itself for a reason (play adds where its crash report is)
+  if (game && stopReason) return /[.!?]$/.test(stopReason) ? stopReason : `${stopReason}.`;
   const native = platform === 'win32' && Number.isInteger(result.code) && (result.code >>> 0) >= 0x80000000;
   // Game reports contain ordinary warnings and stage state. They do not tell
   // us what caused an abrupt exit, so quote only the actual process status.
@@ -176,4 +184,4 @@ function taskEnvironment(env) {
   return rest;
 }
 
-module.exports = { observeProcess, exitDescription, failureMessage, codePageDecoder, taskEnvironment };
+module.exports = { observeProcess, exitDescription, failureMessage, gameStopReason, codePageDecoder, taskEnvironment };
