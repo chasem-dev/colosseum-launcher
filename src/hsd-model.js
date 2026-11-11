@@ -9,14 +9,18 @@ const PKX_HEADER = 0x40;
 
 // JObj flags
 const SKELETON = 1 << 0, SKELETON_ROOT = 1 << 1, CLASSICAL_SCALE = 1 << 3, HIDDEN = 1 << 4, PARTICLE = 1 << 5, SPLINE = 1 << 14;
+const BILLBOARD_SHIFT = 9, BILLBOARD_MASK = 7, PERSPECTIVE_BILLBOARD = 1 << 13;
 // PObj flags
 const POBJ_TYPE = 0x3000, POBJ_ENVELOPE = 0x2000, CULL_FRONT = 0x4000, CULL_BACK = 0x8000;
-// MObj render mode
-const RENDER_DIFFUSE_VERTEX = 1 << 1, RENDER_XLU = 1 << 30;
+// MObj render mode: where the diffuse colour and the alpha come from (1 the material, 2 the vertices, 3 both), lit or
+// not, specular, and how it's drawn (src/hsd/mobj.c MObjMakeTExp, state.c HSD_SetupPEMode in the decompilation)
+const RENDER_DIFFUSE_BITS = 3, RENDER_LIT = 1 << 2, RENDER_SPECULAR = 1 << 3, RENDER_ALPHA_SHIFT = 13, RENDER_ZMODE_ALWAYS = 1 << 27,
+  RENDER_NO_ZUPDATE = 1 << 29, RENDER_XLU = 1 << 30;
 // TObj flags
-const COORD_MASK = 0x0f, COORD_UV = 0, COLORMAP_MASK = 0x0f << 16, COLORMAP_ALPHA_MASK = 1 << 16, COLORMAP_MODULATE = 4 << 16, LIGHTMAP_MASK = 0xf0, LIGHTMAP_DIFFUSE = 1 << 4;
+const COORD_MASK = 0x0f, COORD_UV = 0, COORD_REFLECTION = 1, COORD_HILIGHT = 2, LIGHTMAP_MASK = 0x1f0, TEX_BUMP = 1 << 24;
+const LIGHTMAP_DIFFUSE = 1 << 4, LIGHTMAP_SPECULAR = 1 << 5, LIGHTMAP_AMBIENT = 1 << 6, LIGHTMAP_EXT = 1 << 7;
 // GX vertex attributes, and how a vertex holds each
-const VA_PNMTXIDX = 0, VA_TEX7MTXIDX = 8, VA_POS = 9, VA_NRM = 10, VA_CLR0 = 11, VA_CLR1 = 12, VA_TEX0 = 13, VA_TEX7 = 20, VA_NULL = 0xff;
+const VA_PNMTXIDX = 0, VA_TEX7MTXIDX = 8, VA_POS = 9, VA_NRM = 10, VA_CLR0 = 11, VA_CLR1 = 12, VA_TEX0 = 13, VA_TEX7 = 20, VA_NBT = 25, VA_NULL = 0xff;
 const DIRECT = 1, INDEX8 = 2, INDEX16 = 3;
 const GX_TEXCOORD_SOURCE0 = 4, GX_MIRROR = 2;
 // Display list primitives
@@ -115,34 +119,60 @@ function readTexture(dat, at, textures, cache) {
   return index;
 }
 
-// The layer of a material that its colour comes from: a texture on the mesh's own
-// coordinates, not a reflection or a mask.
-function pickLayer(dat, material) {
-  for (let at = dat.pointer(material + 8); at; at = dat.pointer(at + 4)) {
-    const flags = dat.u32(at + 0x40);
-    if ((flags & COORD_MASK) !== COORD_UV || (flags & COLORMAP_MASK) === COLORMAP_ALPHA_MASK) continue;
-    if ((flags & LIGHTMAP_MASK) && !(flags & LIGHTMAP_DIFFUSE)) continue;
-    if (dat.pointer(at + 0x4c)) return at;
+// A texture layer's own colour stage (HSD_TObjTev): its inputs, ops and three colours, used when `active` says so.
+function readTev(dat, at) {
+  const bytes = i => dat.u8(at + i), color = i => [bytes(i), bytes(i + 1), bytes(i + 2), bytes(i + 3)].map(v => v / 255);
+  return { colorOp: bytes(0), alphaOp: bytes(1), colorBias: bytes(2), alphaBias: bytes(3), colorScale: bytes(4), alphaScale: bytes(5),
+    colorClamp: bytes(6), alphaClamp: bytes(7), colorIn: [bytes(8), bytes(9), bytes(10), bytes(11)], alphaIn: [bytes(12), bytes(13), bytes(14), bytes(15)],
+    konst: color(16), tev0: color(20), tev1: color(24), active: dat.u32(at + 28) };
+}
+
+// A material's texture layers in their order, as the game combines them (TObjMakeTExp): each one's map and
+// coordinates, where it goes (its lightmap: diffuse, specular or after lighting), and how it mixes in.
+// The texture layers (TObjs) a material draws with, in order: those with an image, on the mesh's coordinates or its
+// normals (shadows, toon and gradation: none of the Pokémon have them).
+function layerObjects(dat, material) {
+  const layers = [];
+  for (let at = dat.pointer(material + 8); at; at = dat.pointer(at + 4))
+    if ((dat.u32(at + 0x40) & COORD_MASK) <= COORD_HILIGHT && dat.pointer(at + 0x4c)) layers.push(at);
+  return layers;
+}
+
+function readLayers(dat, material, textures, cache) {
+  const layers = [];
+  for (const at of layerObjects(dat, material)) {
+    const flags = dat.u32(at + 0x40), coord = flags & COORD_MASK, tev = dat.pointer(at + 0x58);
+    // -1: a format this can't read, which draws as white
+    const texture = readTexture(dat, at, textures, cache);
+    layers.push({ texture, id: dat.u32(at + 8), source: Math.max(dat.u32(at + 0x0c) - GX_TEXCOORD_SOURCE0, 0), coord,
+      lightmap: flags & LIGHTMAP_MASK, colorOp: (flags >> 16) & 0x0f, alphaOp: (flags >> 20) & 0x0f, bump: Boolean(flags & TEX_BUMP),
+      blending: dat.f32(at + 0x44), translate: [dat.f32(at + 0x28), dat.f32(at + 0x2c)], scale: [dat.f32(at + 0x1c), dat.f32(at + 0x20)],
+      repeat: [dat.u8(at + 0x3c) || 1, dat.u8(at + 0x3d) || 1], mirrorT: dat.u32(at + 0x38) === GX_MIRROR, tev: tev ? readTev(dat, tev) : null });
   }
-  return 0;
+  return layers;
+}
+
+// How a material is drawn when it says (HSD_PEDesc): blending, depth and alpha test.
+function readPixelEngine(dat, at) {
+  if (!at) return null;
+  const b = i => dat.u8(at + i);
+  return { flags: b(0), ref0: b(1), ref1: b(2), blendType: b(4), srcFactor: b(5), dstFactor: b(6), zCompare: b(8),
+    alphaCompare0: b(9), alphaOp: b(10), alphaCompare1: b(11) };
 }
 
 function readMaterial(dat, at, textures, cache) {
-  const blank = { texture: -1, source: 0, diffuse: [1, 1, 1], alpha: 1, translucent: false, vertexColors: false, tint: false,
-    translate: [0, 0], scale: [1, 1], repeat: [1, 1], mirrorT: false };
-  if (!at) return blank;
-  const colors = dat.pointer(at + 0x0c), mode = dat.u32(at + 4), alpha = colors ? dat.f32(colors + 0x0c) : 1;
-  const material = { ...blank, alpha, translucent: Boolean(mode & RENDER_XLU) || alpha < 1, vertexColors: Boolean(mode & RENDER_DIFFUSE_VERTEX) };
-  if (colors) material.diffuse = [dat.u8(colors + 4) / 255, dat.u8(colors + 5) / 255, dat.u8(colors + 6) / 255];
-  const layer = pickLayer(dat, at);
-  if (!layer) return material;
-  material.texture = readTexture(dat, layer, textures, cache);
-  material.source = Math.max(dat.u32(layer + 0x0c) - GX_TEXCOORD_SOURCE0, 0);
-  material.tint = (dat.u32(layer + 0x40) & COLORMAP_MASK) === COLORMAP_MODULATE;
-  material.translate = [dat.f32(layer + 0x28), dat.f32(layer + 0x2c)];
-  material.scale = [dat.f32(layer + 0x1c), dat.f32(layer + 0x20)];
-  material.repeat = [dat.u8(layer + 0x3c), dat.u8(layer + 0x3d)];
-  material.mirrorT = dat.u32(layer + 0x38) === GX_MIRROR;
+  const material = { lit: false, diffuseSource: 1, alphaSource: 1, specular: false, xlu: false, zUpdate: true, zAlways: false,
+    ambient: [0.5, 0.5, 0.5], diffuse: [1, 1, 1], specularColor: [1, 1, 1], alpha: 1, shininess: 50, pe: null, layers: [] };
+  if (!at) return material;
+  const mode = dat.u32(at + 4), colors = dat.pointer(at + 0x0c), diffuseSource = mode & RENDER_DIFFUSE_BITS || 1;
+  Object.assign(material, { lit: Boolean(mode & RENDER_LIT), diffuseSource, alphaSource: (mode >> RENDER_ALPHA_SHIFT) & 3 || diffuseSource,
+    specular: Boolean(mode & RENDER_SPECULAR), xlu: Boolean(mode & RENDER_XLU), zUpdate: !(mode & RENDER_NO_ZUPDATE), zAlways: Boolean(mode & RENDER_ZMODE_ALWAYS),
+    pe: readPixelEngine(dat, dat.pointer(at + 0x14)), layers: readLayers(dat, at, textures, cache) });
+  if (colors) {
+    const rgb = from => [dat.u8(from) / 255, dat.u8(from + 1) / 255, dat.u8(from + 2) / 255];
+    Object.assign(material, { ambient: rgb(colors), diffuse: rgb(colors + 4), specularColor: rgb(colors + 8),
+      alpha: Math.min(1, Math.max(0, dat.f32(colors + 0x0c))), shininess: dat.f32(colors + 0x10) });
+  }
   return material;
 }
 
@@ -180,7 +210,7 @@ function readColor(data, at, type) {
 const COLOR_SIZE = [2, 3, 4, 2, 3, 4];
 function positionCount(attribute) {
   if (attribute.name === VA_POS) return attribute.components === 0 ? 2 : 3;
-  if (attribute.name === VA_NRM) return attribute.components === 0 ? 3 : 9;
+  if (attribute.name === VA_NRM || attribute.name === VA_NBT) return attribute.components === 0 ? 3 : 9;
   return attribute.components === 0 ? 1 : 2;
 }
 
@@ -265,8 +295,12 @@ function readShape(dat, pobj, owner, material, materialIndex, model, table) {
   const triangles = readTriangles(dat, dat.pointer(pobj + 0x10), dat.u16(pobj + 0x0e) * 32, attributes);
   if (!triangles.length) return null;
   const find = name => attributes.findIndex(attribute => attribute.name === name);
-  const position = find(VA_POS), normal = find(VA_NRM), matrix = find(VA_PNMTXIDX), color = find(VA_CLR0);
-  const uvAttribute = find(VA_TEX0 + material.source);
+  const position = find(VA_POS), matrix = find(VA_PNMTXIDX), color = find(VA_CLR0);
+  // A bump-mapped mesh holds its normals with binormals and tangents (NBT) instead of alone
+  const nbt = find(VA_NRM) < 0 ? find(VA_NBT) : -1, normal = nbt >= 0 ? nbt : find(VA_NRM);
+  const bumped = nbt >= 0 && attributes[nbt].components === 1 && material.layers.some(layer => layer.bump);
+  // Each texture coordinate set its layers read
+  const sources = [...new Set(material.layers.filter(layer => layer.coord === COORD_UV).map(layer => layer.source))];
   if (position < 0) return null;
 
   const enveloped = (flags & POBJ_TYPE) === POBJ_ENVELOPE, { joints } = model, node = enveloped ? nodeOf(joints, owner) : null;
@@ -280,24 +314,26 @@ function readShape(dat, pobj, owner, material, materialIndex, model, table) {
     return table.add((single ? parts.slice(0, 1) : parts).map(({ joint, weight }) => ({ joint, weight: single ? 1 : weight, inverse: !(single && !node) })), node);
   };
 
-  const vertices = new Map(), positions = [], normals = [], uvs = [], colors = [], draws = [], index = [];
-  const { data } = dat, positionAttribute = attributes[position], normalAttribute = attributes[normal], uvAttr = attributes[uvAttribute], colorAttribute = attributes[color];
+  const vertices = new Map(), positions = [], normals = [], binormals = [], tangents = [], uvs = sources.map(() => []), colors = [], draws = [], index = [];
+  const { data } = dat, positionAttribute = attributes[position], normalAttribute = attributes[normal], colorAttribute = attributes[color];
+  const uvAttributes = sources.map(source => find(VA_TEX0 + source));
   const positionSize = COMPONENT_SIZE[positionAttribute.type], normalSize = normalAttribute ? COMPONENT_SIZE[normalAttribute.type] : 0;
+  const vector = (at, first) => [0, 1, 2].map(k => component(data, at + (first + k) * normalSize, normalAttribute.type, normalAttribute.scale));
   const add = vertex => {
     const key = vertex.join(',');
     const known = vertices.get(key);
     if (known !== undefined) return known;
     const id = draws.length, at = vertex[position];
     for (let k = 0; k < 3; k++) positions.push(k < positionCount(positionAttribute) ? component(data, at + k * positionSize, positionAttribute.type, positionAttribute.scale) : 0);
-    if (normalAttribute) for (let k = 0; k < 3; k++) normals.push(component(data, vertex[normal] + k * normalSize, normalAttribute.type, normalAttribute.scale));
+    if (normalAttribute) normals.push(...vector(vertex[normal], 0));
     else normals.push(0, 1, 0);
-    let u = 0, v = 0;
-    if (uvAttr) {
+    if (bumped) { binormals.push(...vector(vertex[normal], 3)); tangents.push(...vector(vertex[normal], 6)); }
+    uvAttributes.forEach((uvAttribute, i) => {
+      const uvAttr = attributes[uvAttribute];
+      if (!uvAttr) { uvs[i].push(0, 0); return; }
       const size = COMPONENT_SIZE[uvAttr.type];
-      u = component(data, vertex[uvAttribute], uvAttr.type, uvAttr.scale);
-      v = uvAttr.components ? component(data, vertex[uvAttribute] + size, uvAttr.type, uvAttr.scale) : 0;
-    }
-    uvs.push(u, v);
+      uvs[i].push(component(data, vertex[uvAttribute], uvAttr.type, uvAttr.scale), uvAttr.components ? component(data, vertex[uvAttribute] + size, uvAttr.type, uvAttr.scale) : 0);
+    });
     if (colorAttribute) colors.push(...readColor(data, vertex[color], colorAttribute.type));
     draws.push(drawOf(matrix >= 0 ? vertex[matrix] : undefined));
     vertices.set(key, id);
@@ -306,8 +342,12 @@ function readShape(dat, pobj, owner, material, materialIndex, model, table) {
   // The GameCube's triangles wind the other way round from WebGL's.
   for (const [a, b, c] of triangles) index.push(add(a), add(c), add(b));
 
-  return { position: Float32Array.from(positions), normal: Float32Array.from(normals), uv: Float32Array.from(uvs),
-    color: colorAttribute && material.vertexColors ? Float32Array.from(colors) : null,
+  const usesVertices = (material.diffuseSource | material.alphaSource) & 2;
+  return { position: Float32Array.from(positions), normal: Float32Array.from(normals),
+    // uv: each coordinate set by its number (TEX0 is 0), for the layers that read it
+    uv: Object.fromEntries(sources.map((source, i) => [source, Float32Array.from(uvs[i])])),
+    binormal: bumped ? Float32Array.from(binormals) : null, tangent: bumped ? Float32Array.from(tangents) : null,
+    color: colorAttribute && usesVertices ? Float32Array.from(colors) : null,
     index: draws.length > 0xffff ? Uint32Array.from(index) : Uint16Array.from(index), drawIndex: Uint16Array.from(draws),
     material: materialIndex, doubleSided: !(flags & (CULL_FRONT | CULL_BACK)) };
 }
@@ -561,7 +601,7 @@ function bakeClip(dat, joints, firstJoint, root, textureRoot) {
     for (const material of textures.materials) material.values.set(material.current, frame * 4);
     for (const alpha of textures.alphas) alpha.values[frame] = alpha.current[0];
   }
-  return { frames, fps: FRAME_RATE, values, materials: textures.materials.map(({ material, values: tracked }) => ({ material, values: tracked })),
+  return { frames, fps: FRAME_RATE, values, materials: textures.materials.map(({ material, layer, values: tracked }) => ({ material, layer, values: tracked })),
     alphas: textures.alphas.map(({ material, values: tracked }) => ({ material, values: tracked })) };
 }
 
@@ -574,18 +614,20 @@ function bakeTextureTracks(dat, joints, firstJoint, root, frames) {
   const addTrack = (dobj, textureAnimation) => {
     const known = ownerMaterials.get(dobj), aobj = dat.pointer(textureAnimation + 8);
     if (!known || !aobj) return;
-    const layer = pickLayer(dat, known.at);
-    if (!layer || dat.u32(layer + 8) !== dat.u32(textureAnimation + 4)) return;
-    if (!materials.has(known.index)) materials.set(known.index, { material: known.index, values: new Float32Array(frames * 4),
+    // The layer it moves: the one whose texture map is the animation's (lookupTextureAnim)
+    const layers = layerObjects(dat, known.at), index = layers.findIndex(at => dat.u32(at + 8) === dat.u32(textureAnimation + 4));
+    if (index < 0) return;
+    const layer = layers[index], key = `${known.index}:${index}`;
+    if (!materials.has(key)) materials.set(key, { material: known.index, layer: index, values: new Float32Array(frames * 4),
       current: Float32Array.of(dat.f32(layer + 0x28), dat.f32(layer + 0x2c), dat.f32(layer + 0x1c), dat.f32(layer + 0x20)) });
-    const { current } = materials.get(known.index);
+    const { current } = materials.get(key);
     for (let at = dat.pointer(aobj + 8); at; at = dat.pointer(at)) {
       const slot = TEXTURE_CHANNEL[dat.u8(at + 0x0c)], data = dat.pointer(at + 0x10);
       if (slot === undefined || !data) continue;
       tracks.push(new Track(dat.data, data, dat.u32(at + 4), dat.f32(at + 8), dat.u8(at + 0x0d), dat.u8(at + 0x0e), value => { current[slot] = value; }));
     }
   };
-  // The material's own tracks (its animation at +4): its alpha, on each frame
+  // The material's own tracks (its animation at +4): its alpha, on each frame, as the game sets it
   const addAlpha = (dobj, item) => {
     const known = ownerMaterials.get(dobj), aobj = dat.pointer(item + 4);
     if (!known || !aobj) return;
@@ -594,7 +636,8 @@ function bakeTextureTracks(dat, joints, firstJoint, root, frames) {
       if (dat.u8(at + 0x0c) !== MATERIAL_ALPHA || !data) continue;
       if (!alphas.has(known.index)) alphas.set(known.index, { material: known.index, values: new Float32Array(frames).fill(1), current: Float32Array.of(1) });
       const { current } = alphas.get(known.index);
-      tracks.push(new Track(dat.data, data, dat.u32(at + 4), dat.f32(at + 8), dat.u8(at + 0x0d), dat.u8(at + 0x0e), value => { current[0] = value; }));
+      // The game takes the track's value from 1 (MObjUpdateFunc): 0 is solid, 1 clear
+      tracks.push(new Track(dat.data, data, dat.u32(at + 4), dat.f32(at + 8), dat.u8(at + 0x0d), dat.u8(at + 0x0e), value => { current[0] = Math.min(1, Math.max(0, 1 - value)); }));
     }
   };
   const walk = (start, jointStart) => {
@@ -622,16 +665,59 @@ function open(pkx) {
   return { dat, set, firstJoint: dat.pointer(set) };
 }
 
-// The model as model-rig.js draws it, with each animation's length.
+// --- The pkx's own header ---------------------------------------------------------
+// What the game reads around the model (sequence.c fn_801DD5E8 in the decompilation): a 0x40-byte header, the model,
+// its particles, then a 0xD0-byte entry for each battle motion slot, then the shiny colour filter.
+const LOAD_MODE = 5, SLOT_SIZE = 0xd0, SLOT_MOTIONS = 0x8c, SHINY_SIZE = 0x14, HAS_SHINY = 0x80000000;
+// The slots, in order: idle, a special move, four physical moves, a special move, a physical move, hit, hit then
+// faint, faint, then extras. Read with the hit-then-faint slot last, so each motion is named by a slot of its own.
+const SLOT_KIND = ['idle', 'special', 'physical', 'physical', 'physical', 'physical', 'special', 'physical', 'hit', 'extra', 'faint'];
+const SLOT_ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 9];
+const align32 = n => (n + 31) & ~31;
+
+function readHeader(pkx, animationCount) {
+  const header = { motions: [], sleep: -1, wake: -1, blink: -1, shiny: null };
+  if (pkx.length < PKX_HEADER || pkx.readUInt32BE(0x10) !== LOAD_MODE) return header;
+  const ref = at => { const value = pkx.readInt32BE(at); return value >= 0 && value < animationCount ? value : -1; };
+  Object.assign(header, { sleep: ref(0x18), wake: ref(0x1c), blink: ref(0x20) });
+  const count = pkx.readUInt32BE(8), slots = PKX_HEADER + align32(pkx.readUInt32BE(0)) + align32(pkx.readUInt32BE(4));
+  if (count > 32 || slots + count * SLOT_SIZE > pkx.length) return header;
+  // Each slot's motions, the first time one is named: Colosseum marks a slot in use with motion type 0
+  const overlays = new Set([header.sleep, header.wake, header.blink]), seen = new Set();
+  for (let i = 0; i < count; i++) {
+    const slot = SLOT_ORDER[i] ?? i, at = slots + slot * SLOT_SIZE, n = Math.min(pkx.readUInt32BE(at + 4), 8);
+    for (let k = 0; k < n; k++) {
+      const type = pkx.readUInt32BE(at + SLOT_MOTIONS + k * 8), index = pkx.readUInt32BE(at + SLOT_MOTIONS + k * 8 + 4);
+      if (type || index >= animationCount || seen.has(index) || overlays.has(index)) continue;
+      seen.add(index);
+      header.motions.push({ index, kind: SLOT_KIND[slot] || 'extra' });
+    }
+  }
+  // The shiny filter (fn_801DCE0C): which channel each of red, green, blue and alpha reads, and a brightness to scale
+  // red, green and blue by twice over (its low byte is red). A model with its own shiny model doesn't use it.
+  const shiny = slots + align32(count * SLOT_SIZE);
+  if ((pkx.readUInt32BE(0x14) & HAS_SHINY) && shiny + SHINY_SIZE <= pkx.length) {
+    const route = [0, 1, 2, 3].map(i => pkx.readUInt32BE(shiny + i * 4) & 3), word = pkx.readUInt32BE(shiny + 0x10);
+    const scale = [word & 0xff, (word >> 8) & 0xff, (word >> 16) & 0xff].map(v => v / 255 * 2);
+    const plain = route.every((channel, i) => channel === i) && [word & 0xff, (word >> 8) & 0xff, (word >> 16) & 0xff].every(v => v === 0x7f);
+    if (!plain) header.shiny = { route, scale };
+  }
+  return header;
+}
+
+// The model as model-rig.js draws it, with each animation's length, its battle motions, the eye animations the
+// game plays over them (sleep, wake and blink), and its shiny filter.
 function parseModel(pkx) {
   const { dat, set, firstJoint } = open(pkx);
   const { joints, byOffset } = readJoints(dat, firstJoint);
   const table = makeDrawTable(), textures = [];
   const { shapes, materials } = readShapes(dat, { joints, byOffset }, table, textures);
   if (!shapes.length) throw new Error('A Pokémon\'s model has nothing to draw.');
-  return { joints: joints.map(({ parent, flags, scale, rotation, translation }) => ({ parent, classicalScale: Boolean(flags & CLASSICAL_SCALE), scale, rotation, translation })),
-    inverseBind: joints.map(joint => joint.inverseBind), draw: table.draw, shapes, materials, textures,
-    animations: readClipRoots(dat, set).map(root => Math.ceil(clipLength(dat, root))) };
+  const animations = readClipRoots(dat, set).map(root => Math.ceil(clipLength(dat, root)));
+  return { joints: joints.map(({ parent, flags, scale, rotation, translation }) => ({ parent, classicalScale: Boolean(flags & CLASSICAL_SCALE), scale, rotation, translation,
+      // a joint whose meshes face the camera (displayfunc.c mkBillBoardMtx): 1 all round, 2 upright, 3 level, 4 turning in the view
+      billboard: (flags >> BILLBOARD_SHIFT) & BILLBOARD_MASK, perspective: Boolean(flags & PERSPECTIVE_BILLBOARD) })),
+    inverseBind: joints.map(joint => joint.inverseBind), draw: table.draw, shapes, materials, textures, animations, ...readHeader(pkx, animations.length) };
 }
 
 // One of the model's animations, baked to frames.

@@ -38,6 +38,8 @@ const formats = require('./formats');
 const storyParty = require('./story-party');
 const pokedexNames = require('./pokedex');
 const pokedexData = pokedexNames.create();
+const pokemonCries = require('./pokemon-cries');
+const pokedexCries = pokemonCries.create();
 const texturePackLookup = require('./texture-pack-lookup');
 const { pathToFileURL } = require('node:url');
 const battleData = require('./battle-data').create();
@@ -1091,7 +1093,8 @@ function pokedexList(rom) {
       pokedexPacks = new Map();
       packs = entries.map((entry, i) => {
         const each = all[i], base = species.find(item => item.national === each.base.national);
-        pokedexPacks.set(entry.pack.key, { base: each.base.national, files: { model: each.assets.model, modelShiny: each.assets.modelShiny } });
+        pokedexPacks.set(entry.pack.key, { base: each.base.national, files: { model: each.assets.model, modelShiny: each.assets.modelShiny },
+          cry: each.row.readUInt16BE(pokemonCries.VOICE) });
         return { ...entry, key: `pack:${entry.pack.key}`,
           sprite: each.images.body ? `data:image/png;base64,${each.images.body.toString('base64')}` : base?.sprite || null,
           forms: each.assets.model ? [{ id: 'model', label: 'Normal' }, ...(each.assets.modelShiny ? [{ id: 'modelShiny', label: 'Shiny' }] : [])] : base?.forms || [] };
@@ -1111,7 +1114,16 @@ function pokedexList(rom) {
       }
     }
   } catch (error) { problems = [error.message]; }
-  return { species, packs, problems };
+  const hasCry = key => { try { return pokedexCries.has(rom, pokedexCry(rom, key)); } catch (_) { return false; } };
+  return { species: species.map(entry => ({ ...entry, hasCry: hasCry(entry.national) })), packs: packs.map(entry => ({ ...entry, hasCry: hasCry(entry.key) })), problems };
+}
+
+// The sound id of a Pokédex entry's cry: a disc Pokémon's own, or what its pack's row has (its base's, unless the pack
+// names another's). The game plays a pack Pokémon's from its row too, so this is the cry it has in the game.
+function pokedexCry(rom, key) {
+  const name = String(key);
+  if (!name.startsWith('pack:')) return pokedexCries.soundOf(rom, Number(name));
+  return pokedexPacks.get(name.slice('pack:'.length))?.cry ?? null;
 }
 
 // Where a Pokédex entry's look is: a model file of its pack's, or a model on the disc (its base's, for a pack Pokémon
@@ -1904,6 +1916,11 @@ function registerHandlers() {
   ipcMain.handle('pokedex-model', (_event, key, form) => {
     const look = pokedexLook(key, String(form));
     return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form)));
+  });
+  ipcMain.handle('pokedex-cry', (_event, key) => {
+    const rom = port.validateRom(config.rom), wav = pokedexCries.wav(rom, pokedexCry(rom, key));
+    if (!wav) throw new Error('That Pokémon has no cry on this disc.');
+    return wav;
   });
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));

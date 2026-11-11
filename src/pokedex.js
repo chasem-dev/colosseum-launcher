@@ -50,6 +50,8 @@ const STATUS = {
 const CASTFORM = [['powalen_f', 'Sunny'], ['powalen_w', 'Rainy'], ['powalen_i', 'Snowy']];
 const UNOWN_FORMS = [...'abcdefghijklmnopqrstuvwxyz'].map(letter => [`unknown_${letter}`, letter.toUpperCase()]).concat([['unknown_ex', '!'], ['unknown_qu', '?']]);
 const NATIONAL_CASTFORM = 351, NATIONAL_UNOWN = 201;
+// A shiny look drawn with the model's colour filter: its form is this and the model's own stem
+const SHINY_FILTER = 'shiny:';
 // Unown's sprites are one for each letter, so its row names none.
 const UNOWN_SPRITE = 'body201a';
 
@@ -185,7 +187,9 @@ function formsOf(entry, file, disc) {
   if (!file) return [];
   const stem = file.slice('pkx_'.length, -'.fsys'.length), forms = [{ id: stem, label: 'Normal' }];
   if (entry.national === NATIONAL_CASTFORM) forms.push(...CASTFORM.filter(([form]) => has(form)).map(([id, label]) => ({ id, label })));
-  if (has(`rare_${stem}`)) forms.push({ id: `rare_${stem}`, label: 'Shiny' });
+  // Its shiny model when it has one (fn_801DE190's table of them); the rest are drawn with the colour filter in the
+  // model's own file (fn_801DCE0C)
+  forms.splice(1, 0, has(`rare_${stem}`) ? { id: `rare_${stem}`, label: 'Shiny' } : { id: `${SHINY_FILTER}${stem}`, label: 'Shiny' });
   return forms;
 }
 
@@ -256,8 +260,8 @@ function create() {
     const entry = read(rom).find(item => item.national === national);
     if (!entry?.forms.some(item => item.id === form)) throw new Error('That Pokémon has no such model on this disc.');
     if (shown?.rom === rom && shown.form === form) return shown;
-    const disc = new Disc(rom);
-    try { shown = { rom, form, pkx: Buffer.from(fsys.entries(disc.file(`pkx_${form}.fsys`))[0].data()) }; }
+    const disc = new Disc(rom), file = form.startsWith(SHINY_FILTER) ? form.slice(SHINY_FILTER.length) : form;
+    try { shown = { rom, form, pkx: Buffer.from(fsys.entries(disc.file(`pkx_${file}.fsys`))[0].data()) }; }
     finally { disc.close(); }
     return shown;
   };
@@ -265,7 +269,8 @@ function create() {
     list: read,
     // A Pokémon's sprite as the disc has it, for its HD replacement.
     spriteTexture: (rom, national) => (read(rom), list.sprites.get(national) || null),
-    model: (rom, national, form) => hsd.parseModel(pkxOf(rom, national, form).pkx),
+    // shinyFilter: drawn with its shiny filter, for a shiny look without a model of its own
+    model: (rom, national, form) => ({ ...hsd.parseModel(pkxOf(rom, national, form).pkx), shinyFilter: form.startsWith(SHINY_FILTER) }),
     clip: (rom, national, form, index) => hsd.parseClip(pkxOf(rom, national, form).pkx, index)
   };
 }

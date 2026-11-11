@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('colo', {
   battleData: () => ipcRenderer.invoke('battle-data'),
   pokedexModel: (key, form) => ipcRenderer.invoke('pokedex-model', key, form),
   pokedexClip: (key, form, index) => ipcRenderer.invoke('pokedex-clip', key, form, index),
+  pokedexCry: key => ipcRenderer.invoke('pokedex-cry', key),
   openPokemonPacks: () => ipcRenderer.invoke('open-pokemon-packs'),
   changelog: () => ipcRenderer.invoke('changelog'),
   markChangelogSeen: () => ipcRenderer.invoke('changelog-seen'),
