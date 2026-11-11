@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Online: with team preview you now pick your Pokémon in the game, on Battle Mode's own selection screen with its music, instead of in the launcher. You have 90 seconds, then the first of your party go. Both players need this launcher.",
       "Choose starters: a New Game can begin with any two Pokémon instead of Espeon and Umbreon, picked in the game after you enter your name. It's on by default; turn it off under Gameplay to skip the question.",
       "Fixed the team builder offering only the moves a Pokémon learns in Colosseum: it now lists every move it can learn in Generation 3, as Pokémon Showdown does, with move tutor, Ruby and Sapphire, FireRed and LeafGreen, XD and event moves, and says how each is learned.",
       "Online timers: a turn timer gives each player up to 99 seconds a choice, and when it runs out the game chooses for them, as Battle Mode does; a battle timer ends the battle after its minutes, won by whoever has more Pokémon left, then more HP. Set them under Turn timer and Battle timer when you create a room: Orre Colosseum, Hoenn Stadium and Gen 3 OU have a minute a turn and 20 minutes a battle (30 for Gen 3 OU), Casual none unless you choose. A player whose game stops choosing loses, and the room list shows a room's timers. Both players need this launcher.",
@@ -36,6 +37,7 @@
       "Quick moves: in battle, press Z (R1 or RB, the right bumper, on other controllers) to open your moves (the battle menu shows that button beside FIGHT), each shown with its button, then A, B, X or Y to use the first, second, third or fourth move at once, as in Pokémon Stadium. The buttons look like the controller or keyboard you're using, as you've bound them; choose another look under Controls → Button prompts. Quick status effects: a status condition or stat change shows right where the move hit, without its own camera shot, and the battle moves on once its message closes. Turn them on under Gameplay."
     ],
     "game": [
+      "Online battles now have Battle Mode's screens around them: both trainers and their Pokémon with the VS before the battle, and the results after it with each Pokémon's HP and who won. Press A on the results to go back to the launcher.",
       "Choose your starters: after you enter your name for a New Game, the game asks whether to begin with Espeon and Umbreon. Say No to pick any two Pokémon from a grid of their faces in alphabetical order, with a row of letters to jump between (L and R), and each one's number, types and level shown; they start at Umbreon's and Espeon's levels with the moves they know there. Generation 4 Pokémon can be picked too when they're turned on.",
       "Online battles can have Battle Mode's choice and battle timers, shown on screen as in Battle Mode, with both games keeping the battle's time alike so the battle ends on the same turn for both. A battle that runs out of time with both sides even is a draw.",
       "Pokémon from your Pokémon packs appear in the game with their own names, stats, moves, models, shiny models, face icons and PC sprites. Nothing in the game hands them out yet.",

@@ -1365,6 +1365,8 @@ function onlineFeatures(root) {
         rules: bytes.includes('battle, rules: '),
         // turn and battle timers, with the battle's clock shared between the games
         timers: bytes.includes('online: turn timer'),
+        // the screens around a battle, where the players pick their Pokémon with team preview
+        picks: bytes.includes('online: picks, '),
         // the randomizer's fourth generation (host/randomizer.c)
         randomizerGenerations: bytes.includes('randomizer: later generations') };
     }
@@ -1581,7 +1583,7 @@ async function createRoom() {
   // a game from before timers would play without them: the room says so
   const rules = onlineFeatures(config.repo).timers ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
   const chosen = partyFor(rules);
-  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules } });
+  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules, picks: onlineFeatures(config.repo).picks } });
   battleResult = null;
   battle = { session, status: 'connecting', role: 'host', rules, bestOf: setup.bestOf, code: null, opponent: null };
   broadcastOnline();
@@ -1606,7 +1608,7 @@ async function joinRoom(input) {
   const code = online.parseRoomCode(input);
   if (!code) throw new Error('A room code looks like KQ7-M2D.');
   const setup = config.online;
-  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules } });
+  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules, picks: onlineFeatures(config.repo).picks } });
   battleResult = null;
   const info = await online.lookup(code);
   if (info.status !== 'waiting') throw new Error('That battle has already started.');
