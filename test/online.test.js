@@ -139,6 +139,39 @@ test('a game that knows rules gets them first, and a waiting one is told to clos
   session.close();
 });
 
+test('team preview on the game\'s screen: the room has no picks, the game gets both parties and passes its picks on', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, features: { rules: true, picks: true } });
+  const HOENN = formats.normalize({ format: 'hoenn', stage: 1 });
+  const opened = session.host({ ...details, rules: HOENN, bestOf: 1, listed: true });
+  await new Promise(resolve => setImmediate(resolve));
+  const ws = FakeSocket.last;
+  ws.receive({ type: 'room', code: 'KQ7M2D', key: 'k'.repeat(32) });
+  await opened;
+  assert.equal(ws.messages()[0].gamePicks, true);
+  const make = fakeBridge();
+  await session.attachGame(make);
+  const bridge = make({});
+  session.prepareGame();
+  ws.receive({ ...START, rules: HOENN, bestOf: 1, game: 1, wins: [0, 0], gamePicks: true });
+  assert.equal(bridge.lines.at(-1), 'close');
+  bridge.onClose();
+  assert.equal(await session.again(), true);
+  assert.deepEqual(bridge.lines.slice(-3), ['rules double=0 sleep=1 freeze=1 selfko=1 lastmon=1 hp=0 turn=60 battle=20 pick=1', 'config 0 100 3 1',
+    'start 42 Ash Misty 1 2 3 4 5 6 7 8 9 10 11 12']);
+  bridge.onLine('pick 3 4 0 2');
+  assert.deepEqual(ws.messages().at(-1), { type: 'game', game: 1, seq: 1, line: 'pick 3 4 0 2' });
+  ws.receive({ type: 'game', game: 1, seq: 1, line: 'pick 3 5 1 0' });
+  assert.equal(bridge.lines.at(-1), 'pick 3 5 1 0');
+  session.close();
+});
+
+test('a game without the screen leaves the picks to the room, and says nothing of them', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, features: { rules: true } });
+  const ws = await hosted(session);
+  assert.equal('gamePicks' in ws.messages()[0], false);
+  session.close();
+});
+
 test('a set: each game starts the game again, until the set is over', async () => {
   const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, features: { rules: true } });
   const joined = session.join({ ...details, code: 'KQ7M2D' });

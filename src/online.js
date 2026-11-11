@@ -27,7 +27,10 @@ const formats = require('./formats');
 // its game without them, and the two games would end the battle at different turns.
 // 6: under Platinum's rules four moves' rows changed (Astonish, Extrasensory and Needle Arm only flinch; Acupressure is
 //    aimed), and both games must be given the same rows.
-const PROTOCOL = 6;
+// 7: with team preview the players pick on the game's own screen when the game has it (gamePicks): the room sends no
+//    preview, each start carries both parties whole, and the games pass each other's picks. A launcher before 7 would
+//    start its game with six where the other's has the picked few.
+const PROTOCOL = 7;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list
@@ -165,7 +168,8 @@ class Session extends EventEmitter {
     this.url = url;
     this.WebSocket = WebSocket;
     this.later = later;
-    this.features = features;  // rules: the game takes a rules line, and `close` for a game waiting in the stadium
+    this.features = features;  // rules: the game takes a rules line, and `close` for a game waiting in the stadium;
+                               // picks: its own screen has the players pick, with team preview
     this.ws = null;
     this.bridge = null;
     this.code = null;
@@ -193,7 +197,8 @@ class Session extends EventEmitter {
     this.rules = { ...rules, stage: Number.isInteger(rules.stage) ? rules.stage : Math.floor(Math.random() * STAGES) };
     await this.connect(`${socketUrl(this.url)}/v1/rooms/new`);
     this.ws.send(JSON.stringify({ type: 'hello', name, build, version, launcher, protocol: PROTOCOL,
-      rules: this.rules, bestOf: bestOf || 1, party, ...(members ? { members } : {}), public: listed !== false }));
+      rules: this.rules, bestOf: bestOf || 1, party, ...(members ? { members } : {}), public: listed !== false,
+      ...(this.features.picks ? { gamePicks: true } : {}) }));
     return this.answer('room', () => this.code);
   }
 
@@ -257,7 +262,9 @@ class Session extends EventEmitter {
   prepareGame() {
     this.bridge.reset?.();
     const rules = this.start ? this.start.rules : this.rules;
-    const line = this.features.rules ? formats.rulesLine(rules) : null;
+    let line = this.features.rules ? formats.rulesLine(rules) : null;
+    // the players pick on the game's screen: it gets both parties whole, and is told to ask
+    if (this.start?.gamePicks && this.features.picks && rules.preview) line = `${line || 'rules'} pick=1`;
     if (line) this.bridge.send(line);
     this.bridge.send(this.start ? configLine(this.start) : configLine({ side: 0, rules: this.rules, code: this.code }));
     if (this.start) for (const each of startLines(this.start)) this.bridge.send(each);
@@ -301,7 +308,7 @@ class Session extends EventEmitter {
     // how the battle is ending: the other player's game stopped choosing, or the battle's time ran out
     else if (word === 'stalled') this.stalled = true;
     else if (word === 'timeup') this.timeUp = true;
-    else if (word === 'act' || word === 'irekae') {
+    else if (word === 'act' || word === 'irekae' || word === 'pick') {
       this.outbox.push(line);
       this.sendJson({ type: 'game', game: this.game, seq: this.outbox.length, line });
     } else if (word === 'desync') this.finish({ reason: 'desync' }, true);
