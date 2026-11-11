@@ -158,6 +158,8 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     // A Shadow Pokémon looks in battle as it will once snagged; Espeon and Umbreon can be shiny. Both on unless turned off.
     shinyShadow: input.shinyShadow !== false,
     shinyStarters: input.shinyStarters !== false,
+    // A New Game asks whether to begin with Espeon and Umbreon, or two Pokémon the player picks. On unless turned off.
+    chooseStarters: input.chooseStarters !== false,
     // The frame-time overlay at start.
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
@@ -312,6 +314,7 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   // Unset is on in the game, as it is in a game built before these settings.
   if (settings.shinyShadow === false) env.COLO_SHINY_SHADOW = '0';
   if (settings.shinyStarters === false) env.COLO_SHINY_STARTERS = '0';
+  if (settings.chooseStarters === false) env.COLO_CHOOSE_STARTERS = '0';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   if (settings.quickMoves) env.COLO_QUICK_MOVES = '1';
