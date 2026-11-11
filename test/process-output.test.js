@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const { createActivityLog } = require('../src/activity-log');
-const { observeProcess, exitDescription, failureMessage, codePageDecoder } = require('../src/process-output');
+const { observeProcess, exitDescription, failureMessage, gameStopReason, codePageDecoder } = require('../src/process-output');
 
 function start(script, output, options = {}, stdio = ['ignore', 'pipe', 'pipe']) {
   const child = spawn(process.execPath, ['-e', script], { stdio });
@@ -150,4 +150,16 @@ test('game exit codes that stand for an abort or a signal say so', () => {
     'Game exited with code 1. See the activity log.');
   assert.equal(failureMessage('Game', { code: 3, signal: null }, [], { game: true, platform: 'linux' }),
     'Game exited with code 3. See the activity log.');
+});
+
+test('a game that stopped itself gives its reason, from the FATAL line of its crash report', () => {
+  const reason = 'The game couldn\'t read its disc file (32 bytes at 0: Input/output error). Move it to a folder on this computer.';
+  assert.equal(gameStopReason(`FATAL: ${reason}`), reason);
+  assert.equal(gameStopReason('FATAL: module homes exhausted\r'), 'module homes exhausted');
+  for (const other of ['The game crashed.', 'fatal: no such file', 'warning: FATAL: x', 'FATAL: ', '']) assert.equal(gameStopReason(other), '');
+  assert.equal(failureMessage('Game', { code: 134, signal: null }, [], { game: true, platform: 'win32', stopReason: reason }), reason);
+  assert.equal(failureMessage('Game', { code: 134, signal: null }, [], { game: true, platform: 'linux', stopReason: 'module homes exhausted' }),
+    'module homes exhausted.');
+  // only the game's: a build's FATAL line is its own output
+  assert.equal(failureMessage('Build', { code: 1, signal: null }, [], { platform: 'linux', stopReason: reason }), 'Build exited with code 1. See the activity log.');
 });
