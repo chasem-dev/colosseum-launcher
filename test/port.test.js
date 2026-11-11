@@ -194,6 +194,20 @@ test('quick moves and quick status effects are off unless chosen, and off leaves
   }
 });
 
+test('choosing starters is on unless turned off, and on leaves it to the game', () => {
+  const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
+  const saved = process.env.COLO_CHOOSE_STARTERS;
+  delete process.env.COLO_CHOOSE_STARTERS;
+  try {
+    assert.equal(port.normalizeSettings({}).chooseStarters, true);
+    assert.equal(env({}).COLO_CHOOSE_STARTERS, undefined);
+    assert.equal(env({ chooseStarters: true }).COLO_CHOOSE_STARTERS, undefined);
+    assert.equal(env({ chooseStarters: false }).COLO_CHOOSE_STARTERS, '0');
+  } finally {
+    if (saved !== undefined) process.env.COLO_CHOOSE_STARTERS = saved;
+  }
+});
+
 test('HD models are on unless turned off, and on leaves it to the game', () => {
   const env = hdModels => port.buildEnvironment(port.normalizeSettings({ hdModels }), 'disc', '/port').COLO_HD_MODELS;
   const saved = process.env.COLO_HD_MODELS;
