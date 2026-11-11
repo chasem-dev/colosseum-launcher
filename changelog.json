@@ -38,6 +38,7 @@
       "When the game stops itself after an error, the launcher's message says why, in the game's own words, instead of only its exit code."
     ],
     "game": [
+      "Fixed the arrow keys picking nothing on the Pokémon selection screen before a battle: on a keyboard, the arrows and WASD now pick as the Control Pad does, with F and V for the Y and X Pokémon.",
       "Online battles now have Battle Mode's screens around them: both trainers and their Pokémon with the VS before the battle, and the results after it with each Pokémon's HP and who won. Press A on the results to go back to the launcher.",
       "Choose your starters: after you enter your name for a New Game, the game asks whether to begin with Espeon and Umbreon. Say No to pick any two Pokémon from a grid of their faces in alphabetical order, with a row of letters to jump between (L and R), and each one's number, types and level shown; they start at Umbreon's and Espeon's levels with the moves they know there. Generation 4 Pokémon can be picked too when they're turned on.",
       "Online battles can have Battle Mode's choice and battle timers, shown on screen as in Battle Mode, with both games keeping the battle's time alike so the battle ends on the same turn for both. A battle that runs out of time with both sides even is a draw.",
