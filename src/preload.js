@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('colo', {
   pokedexModel: (key, form) => ipcRenderer.invoke('pokedex-model', key, form),
   pokedexClip: (key, form, index) => ipcRenderer.invoke('pokedex-clip', key, form, index),
   pokedexCry: key => ipcRenderer.invoke('pokedex-cry', key),
+  jukeboxTracks: () => ipcRenderer.invoke('jukebox-tracks'),
+  jukeboxPlay: id => ipcRenderer.invoke('jukebox-play', id),
+  jukeboxControl: (action, value) => ipcRenderer.invoke('jukebox-control', action, value),
   openPokemonPacks: () => ipcRenderer.invoke('open-pokemon-packs'),
   changelog: () => ipcRenderer.invoke('changelog'),
   markChangelogSeen: () => ipcRenderer.invoke('changelog-seen'),
@@ -88,5 +91,6 @@ contextBridge.exposeInMainWorld('colo', {
   onActivity: callback => ipcRenderer.on('activity', (_event, value) => callback(value)),
   onAppUpdate: callback => ipcRenderer.on('app-update', (_event, value) => callback(value)),
   onUsage: callback => ipcRenderer.on('usage', (_event, value) => callback(value)),
+  onJukebox: callback => ipcRenderer.on('jukebox', (_event, value) => callback(value)),
   onOnline: callback => ipcRenderer.on('online', (_event, value) => callback(value)),
 });

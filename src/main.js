@@ -40,6 +40,7 @@ const pokedexNames = require('./pokedex');
 const pokedexData = pokedexNames.create();
 const pokemonCries = require('./pokemon-cries');
 const pokedexCries = pokemonCries.create();
+const jukebox = require('./jukebox');
 const texturePackLookup = require('./texture-pack-lookup');
 const { pathToFileURL } = require('node:url');
 const battleData = require('./battle-data').create();
@@ -1168,7 +1169,46 @@ function noteCrashReport(error, since) {
   error.message += ' Settings → Launcher can copy its crash report for a bug report.';
 }
 
+// --- The Jukebox (jukebox.js): the game itself, started without a window, plays the songs; the page only asks.
+// COLO_JUKEBOX_MOCK=1 uses a silent stand-in (scripts/mock-jukebox.js) when there is no game build to try it with.
+const jukeboxPlayer = jukebox.create({ spawn });
+jukeboxPlayer.on('state', value => broadcast('jukebox', value));
+const jukeboxMock = () => process.env.COLO_JUKEBOX_MOCK === '1';
+const jukeboxTracks = () => jukeboxMock() ? jukebox.mockTracks() : jukebox.tracks();
+
+function jukeboxRun() {
+  if (jukeboxMock()) return { command: process.execPath, args: [path.join(__dirname, '..', 'scripts', 'mock-jukebox.js'), jukebox.FLAG],
+    cwd: __dirname, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } };
+  if (active) throw new Error('Close the game before opening the Jukebox.');
+  const root = requireRepo(), rom = port.validateRom(config.rom);
+  if (!binaryReady(root)) throw new Error('Set up this version of the game before using the Jukebox.');
+  const playEnv = { ...port.buildEnvironment(config.settings, rom, root, { customTextures: customTextureDirectory() }), ...saves.gameDataEnvironment() };
+  const recordedTools = game.toolRoot(root);
+  const env = recordedTools ? buildTools.environmentAtRoot(recordedTools, playEnv) : toolEnv(playEnv);
+  return jukebox.command(port.gameRunCommand(root, rom, process.platform, env));
+}
+
+async function jukeboxPlay(id) {
+  const track = jukeboxTracks().find(each => each.id === id);
+  if (!track) throw new Error('That song is not on the list.');
+  if (!jukeboxPlayer.state().ready) await jukeboxPlayer.start(jukeboxRun());
+  jukeboxPlayer.play(track);
+  return jukeboxPlayer.state();
+}
+
+function jukeboxControl(action, value) {
+  if (action === 'close') jukeboxPlayer.quit();
+  else if (jukeboxPlayer.state().ready) {
+    if (action === 'pause') jukeboxPlayer.pause();
+    else if (action === 'resume') jukeboxPlayer.resume();
+    else if (action === 'stop') jukeboxPlayer.stop();
+    else if (action === 'volume') jukeboxPlayer.setVolume(value);
+  }
+  return jukeboxPlayer.state();
+}
+
 async function play(installation = null, battle = null) {
+  jukeboxPlayer.quit();  // the Jukebox and the game would share the sound device
   const root = installation?.repo || requireRepo();
   // The player's choices, not the build's: an earlier install plays with them too.
   const settings = installation ? { ...config.settings, textures: installation.settings?.textures ?? config.settings.textures } : config.settings;
@@ -1922,6 +1962,9 @@ function registerHandlers() {
     if (!wav) throw new Error('That Pokémon has no cry on this disc.');
     return wav;
   });
+  ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
+  ipcMain.handle('jukebox-play', (_event, id) => jukeboxPlay(String(id)));
+  ipcMain.handle('jukebox-control', (_event, action, value) => jukeboxControl(String(action), value));
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));
     return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom), look.national, String(form), Number(index));
@@ -2238,6 +2281,7 @@ app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) creat
 
 app.on('before-quit', () => {
   flushPartialOutput();
+  jukeboxPlayer.quit();
   // Stop an in-flight compiler before another launcher process can recover it.
   if (!active?.child || active.label === PLAY_LABEL) return;
   if (process.platform === 'win32') spawn('taskkill', ['/PID', String(active.child.pid), '/T', '/F'], { windowsHide: true });
