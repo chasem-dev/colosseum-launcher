@@ -75,7 +75,8 @@
       "With Generation 4 Pokémon, a Pokémon evolves by knowing a move (Yanma, Aipom, Piloswine, Tangela, Lickitung), with another Pokémon in the party (Mantyke) or by level for one gender (Kirlia into Gallade, Snorunt into Froslass, Burmy, Combee), as in Pokémon Platinum.",
       "With Generation 4 Pokémon, the Move Deleter in Mt. Battle's Pokémon Center can also make a Pokémon remember a move it learns by level up to its level, so a Shadow Pokémon caught past the level it learns a move at can still evolve by knowing it.",
       "Battles can open the moves with one button, Z (the right bumper on other controllers), shown beside FIGHT, each move shown with its button as your controller or keyboard has it, and use one with A, B, X or Y, and can show status conditions and stat changes without their own camera shot and the wait after them.",
-      "Fixed the game crashing at start-up, with no reason given, when it couldn't read part of its disc file (as with a disc in OneDrive that can't be downloaded) or the disc had been changed by another tool. It now says which, and what to do."
+      "Fixed the game crashing at start-up, with no reason given, when it couldn't read part of its disc file (as with a disc in OneDrive that can't be downloaded) or the disc had been changed by another tool. It now says which, and what to do.",
+      "Fixed PlayStation controllers, such as the DualSense, stopping in the game on Windows a few seconds after it started, even though they worked in the launcher."
     ]
   },
   "releases": [
