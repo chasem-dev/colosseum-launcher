@@ -74,7 +74,7 @@ The defaults are **HD textures on**, **4×** picture sharpness, **60 fps** and a
 
 The launcher also works with a game controller: move with the left stick or d-pad and press **A** to select, **B** to go back and **Start** for Settings. The launcher ignores the controller while the game is running.
 
-In the game, hold **L + R** (Q + E on the keyboard) to fast-forward at 4×, and **A** skips a movie.
+In the game, hold **L + R** (Q + E on the keyboard) to fast-forward at 4×, and **A** skips a movie. Under Settings → Gameplay, fast-forward can instead turn on with one press and off with the next, and run at 2× to 8×.
 
 ### Controllers
 

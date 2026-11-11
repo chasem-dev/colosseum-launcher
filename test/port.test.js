@@ -194,6 +194,29 @@ test('quick moves and quick status effects are off unless chosen, and off leaves
   }
 });
 
+test('fast-forward is held at 4x unless chosen, and the default leaves it to the game', () => {
+  const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
+  const saved = [process.env.COLO_FAST_FORWARD, process.env.COLO_FAST_FORWARD_SPEED];
+  delete process.env.COLO_FAST_FORWARD;
+  delete process.env.COLO_FAST_FORWARD_SPEED;
+  try {
+    assert.equal(port.normalizeSettings({}).fastForward, 'hold');
+    assert.equal(port.normalizeSettings({}).fastForwardSpeed, 4);
+    assert.equal(env({}).COLO_FAST_FORWARD, undefined);
+    assert.equal(env({}).COLO_FAST_FORWARD_SPEED, undefined);
+    assert.equal(env({ fastForward: 'toggle' }).COLO_FAST_FORWARD, 'toggle');
+    assert.equal(env({ fastForward: 'sideways' }).COLO_FAST_FORWARD, undefined);
+    // the Settings list saves its value as text
+    assert.equal(env({ fastForwardSpeed: '3' }).COLO_FAST_FORWARD_SPEED, '3');
+    assert.equal(env({ fastForwardSpeed: '8' }).COLO_FAST_FORWARD_SPEED, '8');
+    assert.equal(env({ fastForwardSpeed: '4' }).COLO_FAST_FORWARD_SPEED, undefined);
+    assert.equal(port.normalizeSettings({ fastForwardSpeed: '5' }).fastForwardSpeed, 4);
+  } finally {
+    if (saved[0] !== undefined) process.env.COLO_FAST_FORWARD = saved[0];
+    if (saved[1] !== undefined) process.env.COLO_FAST_FORWARD_SPEED = saved[1];
+  }
+});
+
 test('choosing starters is on unless turned off, and on leaves it to the game', () => {
   const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
   const saved = process.env.COLO_CHOOSE_STARTERS;

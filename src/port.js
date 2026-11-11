@@ -145,6 +145,9 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
       : choiceSetting(input.display, ['launcher', 'primary'], 'launcher'),
     vsync: choiceSetting(input.vsync, ['off', 'on', 'adaptive'], 'off'),
     skipMovies: Boolean(input.skipMovies),
+    // Fast-forward (L + R, or its own binding) runs while held, or a press turns it on and the next off; and how fast.
+    fastForward: choiceSetting(input.fastForward, ['hold', 'toggle'], 'hold'),
+    fastForwardSpeed: [2, 3, 4, 6, 8].includes(Number(input.fastForwardSpeed)) ? Number(input.fastForwardSpeed) : 4,
     // A battle's animations skipped, or else played at battleSpeed: 1 is as on the disc.
     skipBattleAnimations: input.battleSpeed === 'skip' || Boolean(input.skipBattleAnimations),
     battleSpeed: battleSpeedSetting(input.battleSpeed),
@@ -308,6 +311,9 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
     SMS_GX_SHADER_WARMUP: settings.shaderWarmup === false ? '0' : '1'
   };
   if (settings.skipMovies) env.COLO_SKIP_MOVIES = '1';
+  // Unset is hold at 4x, as in a game built before these settings.
+  if (settings.fastForward === 'toggle') env.COLO_FAST_FORWARD = 'toggle';
+  if (settings.fastForwardSpeed && settings.fastForwardSpeed !== 4) env.COLO_FAST_FORWARD_SPEED = String(settings.fastForwardSpeed);
   const run = randomizer.environmentValue(settings, { laterGenerations });
   if (run) env.COLO_RANDOMIZER = run;
   if (settings.hdModels === false) env.COLO_HD_MODELS = '0';
