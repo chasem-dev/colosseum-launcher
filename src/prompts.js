@@ -5,12 +5,18 @@
 // strip of 64x64 icons, in the order A B X Y Z L R C-stick, saved as <style>.png in the folder named by
 // SMS_BUTTON_PROMPT_DIR. Each icon shows what that GameCube button is bound to (src/bindings.js), so a
 // remapped key or controller button shows as the player set it; GameCube shows the GameCube's own buttons.
+// After those eight come two empty cells (the renderer's save state hint in the Sunshine port) and the four
+// directions, up, down, left and right, which the game's Pokémon selection screen picks with: the D-pad as a
+// controller has it, or on a keyboard the key that moves that way (an arrow key when one is bound).
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./bindings'));
   else root.ColoPrompts = factory(root.ColoBindings);
 })(typeof self !== 'undefined' ? self : this, bindings => {
   const CELL = 64;
   const GLYPHS = ['A', 'B', 'X', 'Y', 'Z', 'L', 'R', 'CSTICK'];
+  const DIRECTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
+  // every cell of a strip, in order: null is an empty one
+  const CELLS = [...GLYPHS, null, null, ...DIRECTIONS];
   // The choices for the setting: auto follows the device in use (keyboard, or the kind of controller);
   // the others always show that style, whatever is plugged in.
   const STYLES = [
@@ -79,7 +85,12 @@
   function keyLabel(key) { return KEY_LABELS[key] || key.replace(/^KP_/, 'Num'); }
   // A key cap, or for a mouse button (MOUSE_LEFT ...) a mouse with that button dark.
   const MOUSE = { MOUSE_LEFT: 'left', MOUSE_MIDDLE: 'middle', MOUSE_RIGHT: 'right', MOUSE_BACK: 'back', MOUSE_FORWARD: 'forward' };
-  function keyIcon(key) { return MOUSE[key] ? { kind: 'mouse', button: MOUSE[key] } : { kind: 'key', text: keyLabel(key) }; }
+  // An arrow key's arrow is drawn, not written: a font's is too thin to read at the game's size.
+  const ARROWS = { UP: 'up', DOWN: 'down', LEFT: 'left', RIGHT: 'right' };
+  function keyIcon(key) {
+    if (MOUSE[key]) return { kind: 'mouse', button: MOUSE[key] };
+    return { kind: 'key', text: keyLabel(key), ...(ARROWS[key] ? { arrow: ARROWS[key] } : {}) };
+  }
 
   // A controller button as that style shows it.
   function padIcon(style, pad) {
@@ -94,6 +105,19 @@
   // What to draw for one glyph: a key cap, a mouse, a controller button, the
   // right stick, the GameCube's own button, or (nothing bound) the GameCube letter greyed out.
   function icon(style, glyph, keyBindings, padBindings, options = {}) {
+    if (!glyph) return { kind: 'empty' };
+    if (DIRECTIONS.includes(glyph)) {
+      const direction = glyph.toLowerCase();
+      if (style === 'gamecube') return { kind: 'dpad', direction };
+      if (style === 'keyboard') {
+        // the stick's keys pick on that screen as the D-pad's do: the arrow key says which way by itself
+        const keys = [...bindings.keysFor(keyBindings, `STICK_${glyph}`), ...bindings.keysFor(keyBindings, `DPAD_${glyph}`)];
+        const key = keys.includes(glyph) ? glyph : keys[0];
+        return key ? keyIcon(key) : { kind: 'dpad', direction };
+      }
+      const pad = bindings.padsFor(padBindings, `DPAD_${glyph}`)[0];
+      return pad ? padIcon(style, pad) : { kind: 'dpad', direction };
+    }
     if (style === 'gamecube') return GAMECUBE[glyph];
     if (style === 'keyboard') {
       if (glyph === 'CSTICK') {
@@ -112,7 +136,7 @@
   }
 
   function icons(style, keyBindings, padBindings, options) {
-    return GLYPHS.map(glyph => icon(style, glyph, keyBindings, padBindings, options));
+    return CELLS.map(glyph => icon(style, glyph, keyBindings, padBindings, options));
   }
 
   // ---- drawing (a CanvasRenderingContext2D; the browser side only)
@@ -200,7 +224,15 @@
     case 'key':
       roundRect(ctx, x + 4, 6, CELL - 8, CELL - 12, 9); outlined(ctx, '#f2f4f6', '#1b1f24');
       roundRect(ctx, x + 9, 10, CELL - 18, CELL - 24, 6); ctx.fillStyle = '#ffffff'; ctx.fill();
-      label(ctx, item.text, cx, 29, item.text.length > 2 ? 22 : 30, CELL - 16, '#1b1f24');
+      if (item.arrow) {
+        // pointing up, turned to its direction: a head and a stem
+        ctx.translate(cx, 29);
+        ctx.rotate({ up: 0, right: Math.PI / 2, down: Math.PI, left: -Math.PI / 2 }[item.arrow]);
+        ctx.beginPath();
+        ctx.moveTo(0, -15); ctx.lineTo(13, 0); ctx.lineTo(5, 0); ctx.lineTo(5, 14); ctx.lineTo(-5, 14); ctx.lineTo(-5, 0); ctx.lineTo(-13, 0);
+        ctx.closePath();
+        ctx.fillStyle = '#1b1f24'; ctx.fill();
+      } else label(ctx, item.text, cx, 29, item.text.length > 2 ? 22 : 30, CELL - 16, '#1b1f24');
       break;
     case 'empty':
       break;
@@ -227,7 +259,7 @@
   }
 
   // One style's strip of icons on a new canvas (document.createElement): all of them, or the first count.
-  function drawStrip(doc, style, keyBindings, padBindings, options, count = GLYPHS.length) {
+  function drawStrip(doc, style, keyBindings, padBindings, options, count = CELLS.length) {
     const canvas = doc.createElement('canvas');
     canvas.width = CELL * count;
     canvas.height = CELL;
@@ -236,5 +268,5 @@
     return canvas;
   }
 
-  return { CELL, GLYPHS, STYLES, PAD_STYLES, DRAWN, normalizeStyle, normalizePad, keyLabel, icon, icons, drawStrip };
+  return { CELL, GLYPHS, DIRECTIONS, CELLS, STYLES, PAD_STYLES, DRAWN, normalizeStyle, normalizePad, keyLabel, icon, icons, drawStrip };
 });
