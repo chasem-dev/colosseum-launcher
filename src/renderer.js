@@ -1139,7 +1139,7 @@ function renderPbr(data) {
   $('pbr-note').textContent = pbrProgress(data.active)
     || (!pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
       : !pbr.wanted ? 'Turn on Generation 4 Pokémon above, then make their models from your own Pokémon Battle Revolution disc. No Blender needed.'
-        : !pbr.disc ? `Their models and icons, made from your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS). ${pbr.made} of ${pbr.wanted} made.`
+        : !pbr.disc ? `Choose your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS) and their models and icons are made from it. Until then, each has a Colosseum Pokémon standing in. ${pbr.made} of ${pbr.wanted} made.`
           : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make models to make ${pbr.outdated === 1 ? 'it' : 'them'} again.`
             : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
   $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
@@ -1163,6 +1163,28 @@ function renderPbrBanner(data) {
       : `${count(missing, 'Generation 4 Pokémon has', 'Generation 4 Pokémon have')} no model of its own yet.`);
   $('pbr-banner-make').textContent = pbr.discFound ? 'Make models' : 'Open Settings';
   $('pbr-banner-make').disabled = Boolean(data.active);
+}
+
+// Choosing the disc starts making the models it has for the Pokémon still without theirs, so it's one step.
+async function choosePbrDisc() {
+  const before = current?.pbr?.disc;
+  await action('choosePbrDisc');
+  const pbr = current?.pbr || {};
+  if (!current?.active && pbr.discFound && pbr.disc !== before && pbr.supported && pbr.made < pbr.wanted) action('makePbrModels');
+}
+
+// Turning on Generation 4 Pokémon asks for the Battle Revolution disc their models come from, and says what they look
+// like without it. Not asked when they all have models already, or when this game can't make them.
+function offerPbrModels() {
+  const pbr = current?.pbr || {};
+  if (current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
+  const remake = pbr.made > 0 || pbr.outdated > 0;
+  $('pbr-offer-lead').textContent = pbr.discFound
+    ? `Your Battle Revolution disc is chosen: ${pbr.disc}. Make ${remake ? 'the models still missing' : 'their models and icons'} from it now? It takes a few minutes.`
+    : 'Each one can have its own model and icons, as in Pokémon Battle Revolution, made from a file of your own Wii disc (RVZ, ISO or WBFS). Choose it and they\'re made in a few minutes. No Blender needed.';
+  $('pbr-offer-confirm').textContent = pbr.discFound ? 'Make models' : 'Choose disc';
+  closeModal();
+  $('pbr-offer').showModal();
 }
 
 // What the randomizer will do, and what the save on the card already is: the save wins.
@@ -1657,14 +1679,22 @@ dolphinDrop.addEventListener('drop', event => {
 // Prevent dropped files from navigating away from the launcher.
 for (const type of ['dragover', 'drop']) window.addEventListener(type, event => event.preventDefault());
 $('open-custom-textures').addEventListener('click', () => window.colo.openCustomTextures().catch(showError));
-$('choose-pbr-disc').addEventListener('click', () => action('choosePbrDisc'));
+$('choose-pbr-disc').addEventListener('click', choosePbrDisc);
 $('make-pbr-models').addEventListener('click', () => action('makePbrModels'));
 $('pbr-banner-make').addEventListener('click', () => {
   if (current?.pbr?.discFound) action('makePbrModels');
   else { showPage('settings'); showSettingsTab('gameplay'); }
 });
 $('open-languages').addEventListener('click', () => window.colo.openLanguages().catch(showError));
-for (const key of [...SELECTS, ...SWITCHES]) $(key).addEventListener('change', saveSettings);
+for (const key of [...SELECTS, ...SWITCHES]) if (key !== 'generation4Pokemon') $(key).addEventListener('change', saveSettings);
+$('generation4Pokemon').addEventListener('change', async () => {
+  await saveSettings();
+  if (current?.config.settings.generation4Pokemon) offerPbrModels();
+});
+$('pbr-offer-confirm').addEventListener('click', () => {
+  $('pbr-offer').close();
+  if (current?.pbr?.discFound) action('makePbrModels'); else choosePbrDisc();
+});
 $('randomizer-reroll').addEventListener('click', async () => {
   try {
     $('randomizerSeed').value = await window.colo.randomizerNewSeed();
