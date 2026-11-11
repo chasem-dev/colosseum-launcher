@@ -487,6 +487,13 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .path-why { margin-top: 10px; color: #7f6476; font-size: 12px; line-height: 1.5; }
 .path-actions { justify-content: flex-end; margin-top: 12px; }
 .dark .path-box { border-color: #8a3b35; background: #260b19; }
+.pbr-offer { width: min(560px, calc(100% - 36px)); }
+.pbr-offer-lead { font-size: 14.5px; line-height: 1.5; }
+.pbr-offer-warning { margin-top: 12px; padding: 10px 14px; border: 1px solid #e9c27a; border-radius: 10px; background: #fff6e2; color: #5a3a06; font-size: 13px; line-height: 1.5; }
+.pbr-offer-warning strong { display: block; color: #4b2a00; }
+.pbr-offer-actions { justify-content: flex-end; margin-top: 14px; }
+.dark .pbr-offer-warning { border-color: #8a6a2a; background: #3a2610; color: #ffe2a3; }
+.dark .pbr-offer-warning strong { color: #fff3d6; }
 .dark .path-box mark { background: #7a2a24; color: #ffd9d4; }
 .dark .path-legend { color: #ffb4aa; }
 .dark .path-legend-over { background: #7a2a24; }

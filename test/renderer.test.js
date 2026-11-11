@@ -78,7 +78,7 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
       addEventListener(event, callback) { (listeners.window ||= {})[event] = [...(listeners.window[event] || []), callback]; }, removeEventListener() {} }, document: {
     getElementById(id) { assert.ok(elements.has(id), `Missing HTML element ${id}`); return elements.get(id); },
     querySelectorAll(selector) {
-      const modals = ['mac-tools-help', 'path-too-long'].map(id => elements.get(id));
+      const modals = ['mac-tools-help', 'path-too-long', 'pbr-offer'].map(id => elements.get(id));
       return selector === '.launcher-modal' ? modals : selector === '.launcher-modal[open]' ? modals.filter(modal => modal.open) : [];
     }, createElement: () => element()
   } });
@@ -308,6 +308,62 @@ test('a fresh Play clears rendered history and ignores delayed output from the p
   await ui.emitLog(old);
   await ui.emitLog({ id: 2, sequence: 3, stream: 'stdout', text: 'new run' });
   assert.equal(ui.elements.get('log').textContent, '[stdout] new run\n');
+});
+
+// Generation 4 Pokémon on: the launcher asks for the Battle Revolution disc their models come from.
+function gen4State(pbr) {
+  const data = state();
+  data.pbr = { supported: true, wanted: 107, made: 0, outdated: 0, disc: null, discFound: false, ...pbr };
+  return data;
+}
+async function turnOnGen4(ui) {
+  ui.elements.get('generation4Pokemon').checked = true;
+  ui.elements.get('generation4Pokemon').dispatch('change');
+  await new Promise(setImmediate);
+}
+
+test('turning on Generation 4 Pokémon asks for the Battle Revolution disc, and choosing it makes the models', async () => {
+  const data = gen4State();
+  const ui = await renderer(data);
+  ui.window.colo.choosePbrDisc = async () => {
+    ui.calls.push('choosePbrDisc');
+    data.pbr = { ...data.pbr, disc: '/games/pbr.rvz', discFound: true };
+    return data;
+  };
+  ui.window.colo.makePbrModels = async () => { ui.calls.push('makePbrModels'); return data; };
+  await turnOnGen4(ui);
+  assert.equal(ui.calls.at(-1)[1].generation4Pokemon, true);
+  assert.equal(ui.elements.get('pbr-offer').open, true);
+  assert.equal(ui.elements.get('pbr-offer-confirm').textContent, 'Choose disc');
+  assert.match(ui.elements.get('pbr-offer-lead').textContent, /your own Wii disc/);
+  await ui.click('pbr-offer-confirm');
+  await new Promise(setImmediate);
+  assert.equal(ui.elements.get('pbr-offer').open, false);
+  assert.deepEqual(ui.calls.filter(call => typeof call === 'string'), ['choosePbrDisc', 'makePbrModels']);
+});
+
+test('a disc chosen before is offered straight away, and nothing is asked once every model is made', async () => {
+  const ui = await renderer(gen4State({ disc: '/games/pbr.rvz', discFound: true }));
+  ui.window.colo.makePbrModels = async () => { ui.calls.push('makePbrModels'); return ui.run('current'); };
+  await turnOnGen4(ui);
+  assert.equal(ui.elements.get('pbr-offer-confirm').textContent, 'Make models');
+  assert.match(ui.elements.get('pbr-offer-lead').textContent, /\/games\/pbr\.rvz/);
+  await ui.click('pbr-offer-confirm');
+  assert.ok(ui.calls.includes('makePbrModels'));
+
+  const done = await renderer(gen4State({ disc: '/games/pbr.rvz', discFound: true, made: 107 }));
+  await turnOnGen4(done);
+  assert.equal(done.elements.get('pbr-offer').open, false);
+});
+
+test('cancelling the disc picker makes nothing, and the models stay stand-ins', async () => {
+  const ui = await renderer(gen4State());
+  ui.window.colo.choosePbrDisc = async () => { ui.calls.push('choosePbrDisc'); return ui.run('current'); };
+  ui.window.colo.makePbrModels = async () => { ui.calls.push('makePbrModels'); };
+  await turnOnGen4(ui);
+  await ui.click('pbr-offer-confirm');
+  await new Promise(setImmediate);
+  assert.deepEqual(ui.calls.filter(call => typeof call === 'string'), ['choosePbrDisc']);
 });
 
 test('Back up automatically shows the setting and is saved with the others', async () => {
