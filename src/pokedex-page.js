@@ -2,9 +2,10 @@
 // of it stays on the GPU while the page is hidden, and it holds still when left alone.
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { createRig, placeTexture } from './model-rig.js';
+import { createLighting, createMaterial, createTexture } from './hsd-material.js';
+import { createCry } from './pokedex-cry.js';
 
 const $ = id => document.getElementById(id);
-const WRAP = [THREE.ClampToEdgeWrapping, THREE.RepeatWrapping, THREE.MirroredRepeatWrapping];
 const STATS = ['HP', 'Attack', 'Defense', 'Sp. Atk', 'Sp. Def', 'Speed'];
 const MAX_STAT = 255;
 // What the filters offer. Each Pokémon's status (pokedex.js) says where it belongs.
@@ -16,8 +17,18 @@ const FILTERS = [
   { id: 'packs', label: 'Packs', matches: entry => entry.status.kind === 'pack', onlyWhenAny: true },
   { id: 'generations', label: 'Later generations', matches: entry => entry.status.kind === 'generation', onlyWhenAny: true },
 ];
-// Clips this short are held poses the game blends into, not motions to watch.
+// Clips this short are held poses the game blends into, not motions to watch (for a model whose header lists none).
 const SHORTEST_MOTION = 20;
+// What each kind of battle motion (hsd-model.js readHeader) is called here.
+const MOTION_LABEL = { idle: 'Idle', physical: 'Physical move', special: 'Special move', hit: 'Hit', faint: 'Faint', extra: 'Extra' };
+// The scene's lights, as the turntable sees them: an ambient light, the main light from above and in front, and a
+// dim one from behind, below. The game's materials mix ambient and lights the way GX lighting does.
+const AMBIENT_LIGHT = [0.8, 0.8, 0.82];
+const SCENE_LIGHTS = [{ direction: [-0.6, 1.4, 1.6], color: [0.78, 0.78, 0.76] }, { direction: [0.7, -0.5, -1.2], color: [0.22, 0.22, 0.26] }];
+// The game's blink (gs_range_801DE698.c): none for 10 frames after the last, then a chance each 60th of a second
+// that grows to 1 in 60 by the first second and is certain after three; the blink plays at half speed.
+const BLINK_TICK = 1000 / 60, BLINK_RATE = 0.5;
+const blinkChance = ticks => (ticks < 10 ? 0 : ticks < 60 ? ((ticks - 10) / 50) * (2 - (ticks - 10) / 50) / 60 : ticks < 180 ? 1 / 60 : 1);
 const VIEW = { yaw: -0.45, pitch: 0.12 }, FOV = 30;
 // Some drivers give out under a steady load, so the model moves for this long after the
 // player last did something, then holds still until they come back to it.
@@ -47,10 +58,10 @@ function createViewer(canvas) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 1000), turntable = new THREE.Group();
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8f9fb0, 1.7), turntable);
-  const sun = new THREE.DirectionalLight(0xffffff, 1.9);
-  sun.position.set(-0.6, 1.4, 1.6);
-  scene.add(sun);
+  scene.add(turntable);
+  const lighting = createLighting(), sceneLights = SCENE_LIGHTS.map(({ direction }) => new THREE.Vector3(...direction).normalize());
+  lighting.ambientLight.value.setRGB(...AMBIENT_LIGHT);
+  SCENE_LIGHTS.forEach(({ color }, i) => lighting.lightColor.value[i].setRGB(...color));
 
   const view = { ...VIEW, distance: 10, min: 4, max: 30, home: 10 };
   let shown = null, disposed = false, dragging = null;
@@ -59,28 +70,48 @@ function createViewer(canvas) {
     view.pitch = Math.max(-0.7, Math.min(1.1, view.pitch + pitch));
   };
 
+  const toView = new THREE.Matrix4(), centered = new THREE.Matrix4();
   function place() {
     turntable.rotation.y = view.yaw;
     camera.position.set(0, Math.sin(view.pitch) * view.distance, Math.cos(view.pitch) * view.distance);
     camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    turntable.updateMatrixWorld();
+    // The lights stay put in the room while the Pokémon turns; the materials take them in the camera's space
+    sceneLights.forEach((direction, i) => lighting.lightDir.value[i].copy(direction).transformDirection(camera.matrixWorldInverse));
+    // Billboards face the camera wherever it is
+    if (shown?.rig.billboards) {
+      toView.multiplyMatrices(camera.matrixWorldInverse, turntable.matrixWorld).multiply(centered);
+      shown.posed = false;
+    }
+  }
+
+  // The texture tracks of a clip at a frame: each moves one layer of one material
+  function placeLayers(clip, index) {
+    for (const { material, layer, values } of clip.materials) {
+      const source = shown.sources[material].layers[layer];
+      for (const each of shown.materials[material]) {
+        const xform = each.uniforms[`xform${layer}`]?.value;
+        if (xform) placeTexture(xform, source, values[index * 4], values[index * 4 + 1], values[index * 4 + 2], values[index * 4 + 3]);
+      }
+    }
   }
 
   function showFrame(index) {
-    if (!shown?.clip) return;
-    const { rig, clip, jointCount, materials } = shown, at = index * jointCount * 9;
-    rig.pose(clip.values.subarray(at, at + jointCount * 9));
-    for (const { material, values } of clip.materials) {
-      const { map, source } = materials[material];
-      if (map) placeTexture(map, source, values[index * 4], values[index * 4 + 1], values[index * 4 + 2], values[index * 4 + 3]);
+    if (!shown) return;
+    const { rig, clip, jointCount } = shown;
+    if (clip) {
+      const at = index * jointCount * 9;
+      shown.values = clip.values.subarray(at, at + jointCount * 9);
+      placeLayers(clip, index);
+      // A material's alpha track: Battle Revolution models show one mesh of two this way (Honchkrow's folded or open
+      // wings), and Gastly's gas is see-through but for its texture's
+      for (const { material, values } of clip.alphas || [])
+        for (const each of shown.materials[material]) each.uniforms.alpha.value = values[index];
     }
-    // A material's alpha track: Battle Revolution models show one mesh of two this way (Honchkrow's folded or open wings)
-    for (const { material, values } of clip.alphas || []) {
-      for (const { shape, mesh } of rig.meshes) {
-        if (shape.material !== material) continue;
-        mesh.material.opacity = values[index] * materials[material].source.alpha;
-        mesh.visible = values[index] > 0.01;
-      }
-    }
+    if (shown.blinking) placeLayers(shown.blink, shown.blinking.frame);
+    rig.pose(shown.values, rig.billboards ? toView : null);
+    shown.posed = true;
   }
 
   function clearModel() {
@@ -88,9 +119,8 @@ function createViewer(canvas) {
     for (const { mesh, geometry } of shown.rig.meshes) {
       turntable.remove(mesh);
       geometry.dispose();
-      mesh.material.dispose();
     }
-    for (const { map } of shown.materials) map?.dispose();
+    for (const list of shown.materials) for (const material of list) material.dispose();
     for (const texture of shown.textures) {
       texture.dispose();
       if (texture.image instanceof ImageBitmap) texture.image.close();
@@ -98,53 +128,60 @@ function createViewer(canvas) {
     shown = null;
   }
 
-  function setModel(data, clip) {
+  // `data` is hsd-model.js's model, `clip` its opening motion; `blink` the eye animation the game plays over its idle,
+  // and `shiny` the shiny filter to draw it with, if any.
+  function setModel(data, clip, { blink = null, shiny = null } = {}) {
     clearModel();
-    const textures = data.textures.map(source => {
-      // An HD pack's image when it has one (decoded in showModel), else the disc's own; both top row first.
-      const texture = source.bitmap ? new THREE.Texture(source.bitmap) : new THREE.DataTexture(source.rgba, source.width, source.height, THREE.RGBAFormat);
-      texture.flipY = false;
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.wrapS = WRAP[source.wrapS] || THREE.ClampToEdgeWrapping;
-      texture.wrapT = WRAP[source.wrapT] || THREE.ClampToEdgeWrapping;
-      texture.magFilter = THREE.LinearFilter;
-      texture.minFilter = THREE.LinearMipmapLinearFilter;
-      texture.generateMipmaps = true;
-      texture.needsUpdate = true;
-      return texture;
-    });
-    // Each material slides its texture on its own, so each has its own view of it.
-    const materials = data.materials.map(source => {
-      const map = source.texture >= 0 ? textures[source.texture].clone() : null;
-      if (map) {
-        map.needsUpdate = true;
-        placeTexture(map, source, source.translate[0], source.translate[1], source.scale[0], source.scale[1]);
+    // An HD pack's image when it has one (decoded in showModel), else the disc's own; both top row first
+    const textures = data.textures.map(createTexture);
+    // A material's shader depends on its mesh too (vertex colours, bump vectors): one for each kind it's used with
+    const materials = data.materials.map(() => []), variants = new Map();
+    const materialFor = shape => {
+      const key = `${shape.material}:${shape.color ? 1 : 0}:${shape.binormal ? 1 : 0}:${shape.doubleSided ? 1 : 0}`;
+      if (!variants.has(key)) {
+        const source = data.materials[shape.material], material = createMaterial(source, textures, lighting, { shape, shiny });
+        source.layers.forEach((layer, i) => { if (material.uniforms[`xform${i}`]) placeTexture(material.uniforms[`xform${i}`].value, layer, layer.translate[0], layer.translate[1], layer.scale[0], layer.scale[1]); });
+        materials[shape.material].push(material);
+        variants.set(key, material);
       }
-      return { source, map, color: new THREE.Color().setRGB(...(map && !source.tint ? [1, 1, 1] : source.diffuse), THREE.SRGBColorSpace) };
-    });
+      return variants.get(key);
+    };
     const makeMesh = shape => {
-      const geometry = new THREE.BufferGeometry(), { source, map, color } = materials[shape.material];
+      const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(shape.position.length), 3).setUsage(THREE.DynamicDrawUsage));
       geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(shape.normal.length), 3).setUsage(THREE.DynamicDrawUsage));
-      geometry.setAttribute('uv', new THREE.BufferAttribute(shape.uv, 2));
-      if (shape.color) geometry.setAttribute('color', new THREE.BufferAttribute(shape.color, 4));
+      for (const [source, uv] of Object.entries(shape.uv)) geometry.setAttribute(`hsdUv${source}`, new THREE.BufferAttribute(uv, 2));
+      if (shape.color) geometry.setAttribute('hsdColor', new THREE.BufferAttribute(shape.color, 4));
+      if (shape.binormal) {
+        geometry.setAttribute('hsdBinormal', new THREE.BufferAttribute(new Float32Array(shape.binormal.length), 3).setUsage(THREE.DynamicDrawUsage));
+        geometry.setAttribute('hsdTangent', new THREE.BufferAttribute(new Float32Array(shape.tangent.length), 3).setUsage(THREE.DynamicDrawUsage));
+      }
       geometry.setIndex(new THREE.BufferAttribute(shape.index, 1));
-      const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map, color, vertexColors: Boolean(shape.color), opacity: source.alpha,
-        transparent: source.translucent, depthWrite: !source.translucent, alphaTest: source.translucent ? 0 : 0.4,
-        side: shape.doubleSided ? THREE.DoubleSide : THREE.FrontSide }));
+      const mesh = new THREE.Mesh(geometry, materialFor(shape));
       mesh.frustumCulled = false;
       turntable.add(mesh);
       return { shape, mesh, geometry };
     };
     const rig = createRig(data, makeMesh);
-    shown = { rig, clip, jointCount: data.joints.length, materials, textures };
-    if (clip) showFrame(0);
-    else rig.pose();
+    shown = { rig, clip, jointCount: data.joints.length, materials, sources: data.materials, textures, values: undefined, blink, blinking: null, ticks: 0, lastTick: 0 };
+    place();
+    showFrame(0);
 
-    // Framed from its first pose, so the whole Pokémon is in view at any turn.
+    // Framed from its first pose, so the whole Pokémon is in view at any turn: what of it can be seen then (a mesh
+    // whose material is clear, with no texture to give it alpha, is hidden)
+    const seen = ({ shape, mesh }) => {
+      const source = data.materials[shape.material];
+      return mesh.material.uniforms.alpha.value > 0.01 || source.layers.some(layer => layer.alphaOp === 4 || layer.alphaOp === 6 || (layer.alphaOp === 2 && layer.blending > 0.01));
+    };
     const box = new THREE.Box3();
-    for (const { geometry } of rig.meshes) { geometry.computeBoundingBox(); box.union(geometry.boundingBox); }
+    for (const each of rig.meshes) {
+      if (!seen(each)) continue;
+      each.geometry.computeBoundingBox();
+      box.union(each.geometry.boundingBox);
+    }
+    if (box.isEmpty()) for (const { geometry } of rig.meshes) { geometry.computeBoundingBox(); box.union(geometry.boundingBox); }
     const center = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3()), radius = Math.max(size.x, size.y, size.z) / 2;
+    centered.makeTranslation(-center.x, -center.y, -center.z);
     for (const { mesh } of rig.meshes) mesh.position.copy(center).negate();
     const half = THREE.MathUtils.degToRad(FOV / 2);
     view.home = view.distance = radius / Math.tan(Math.min(half, Math.atan(Math.tan(half) * camera.aspect))) * 1.3;
@@ -158,12 +195,36 @@ function createViewer(canvas) {
     redraw();
   }
 
-  function setClip(clip) {
+  // `blinks`: whether the game would blink in this motion (its idle)
+  function setClip(clip, { blinks = false } = {}) {
     if (!shown) return;
     shown.clip = clip;
+    shown.blinks = blinks;
+    shown.blinking = null;
     frame = 0;
     wake();
     redraw();
+  }
+
+  // The game's blink: the chance is rolled each 60th of a second while it isn't blinking
+  function stepBlink(now) {
+    if (!shown?.blink || !shown.blinks) return false;
+    const { blink } = shown;
+    if (shown.blinking) {
+      const at = Math.floor((now - shown.blinking.start) / 1000 * blink.fps * BLINK_RATE);
+      if (at >= blink.frames) { shown.blinking = null; shown.ticks = 0; return true; }
+      if (at !== shown.blinking.frame) { shown.blinking.frame = at; return true; }
+      return false;
+    }
+    if (!shown.lastTick || now - shown.lastTick > 500) shown.lastTick = now;
+    for (; now - shown.lastTick >= BLINK_TICK; shown.lastTick += BLINK_TICK) {
+      shown.ticks++;
+      if (Math.random() < blinkChance(shown.ticks)) {
+        shown.blinking = { start: now, frame: 0 };
+        return true;
+      }
+    }
+    return false;
   }
 
   canvas.addEventListener('pointerdown', event => {
@@ -205,11 +266,10 @@ function createViewer(canvas) {
   const rate = () => shown?.clip?.fps || 30;
   const draw = now => {
     const { clip } = shown || {};
-    if (clip) {
-      frame = Math.floor(((now - started) / 1000 * clip.fps) % clip.frames + clip.frames) % clip.frames;
-      showFrame(frame);
-    }
     place();
+    const blinked = stepBlink(now);
+    if (clip) frame = Math.floor(((now - started) / 1000 * clip.fps) % clip.frames + clip.frames) % clip.frames;
+    if (shown && (clip || blinked || !shown.posed)) showFrame(frame);
     renderer.render(scene, camera);
     lastDraw = now;
   };
@@ -387,16 +447,20 @@ function renderInfo(entry) {
   $('pokedex-height').textContent = entry.height;
   $('pokedex-weight').textContent = entry.weight;
   $('pokedex-abilities').textContent = entry.abilities.join(', ') || '—';
+  const link = target => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'pokedex-evolution';
+    button.textContent = target.name;
+    button.addEventListener('click', () => { select(target); entries.get(target.key).scrollIntoView({ block: 'nearest' }); });
+    return button;
+  };
   const next = entry.evolutions.map(key => entries.has(key) ? species.find(item => item.key === key) : null).filter(Boolean);
+  const previous = species.filter(item => item.key !== entry.key && item.evolutions.includes(entry.key));
   $('pokedex-evolves-label').hidden = $('pokedex-evolves').hidden = !next.length;
-  $('pokedex-evolves').replaceChildren(...next.map(target => {
-    const link = document.createElement('button');
-    link.type = 'button';
-    link.className = 'pokedex-evolution';
-    link.textContent = target.name;
-    link.addEventListener('click', () => { select(target); entries.get(target.key).scrollIntoView({ block: 'nearest' }); });
-    return link;
-  }));
+  $('pokedex-evolves').replaceChildren(...next.map(link));
+  $('pokedex-evolves-from-label').hidden = $('pokedex-evolves-from').hidden = !previous.length;
+  $('pokedex-evolves-from').replaceChildren(...previous.map(link));
 }
 
 function renderForms(entry) {
@@ -405,19 +469,33 @@ function renderForms(entry) {
   $('pokedex-form').value = form;
 }
 
-function renderMotions(animations, chosen) {
-  const motions = animations.map((frames, index) => ({ frames, index })).filter(({ frames }) => frames >= SHORTEST_MOTION);
+// A model's motions to choose from: its battle motions, named by what the game plays them for, from its header; or, for
+// a model whose header lists none, each animation long enough to be one.
+function motionsOf(model) {
+  if (model.motions?.length) {
+    const counts = {}, totals = {};
+    for (const { kind } of model.motions) totals[kind] = (totals[kind] || 0) + 1;
+    return model.motions.map(({ index, kind }) => {
+      counts[kind] = (counts[kind] || 0) + 1;
+      return { index, kind, label: totals[kind] > 1 ? `${MOTION_LABEL[kind]} ${counts[kind]}` : MOTION_LABEL[kind] };
+    });
+  }
+  return model.animations.map((frames, index) => ({ frames, index })).filter(({ frames }) => frames >= SHORTEST_MOTION)
+    .map(({ index }, position) => ({ index, kind: position ? 'extra' : 'idle', label: `Motion ${position + 1}` }));
+}
+
+let motions = [];
+function renderMotions(model, chosen) {
+  motions = motionsOf(model);
   $('pokedex-motion-field').hidden = motions.length < 2;
-  $('pokedex-motion').replaceChildren(...motions.map((motion, position) => new Option(`Motion ${position + 1}`, motion.index)));
+  $('pokedex-motion').replaceChildren(...motions.map(motion => new Option(motion.label, motion.index)));
   $('pokedex-motion').value = chosen;
 }
 
-// The motion a model opens on: its first real one. Its first pose is also how it stands,
-// since some models' joints only make sense animated.
-const openingMotion = animations => {
-  const index = animations.findIndex(frames => frames >= SHORTEST_MOTION);
-  return index >= 0 ? index : animations.length ? 0 : -1;
-};
+// The motion a model opens on: its idle. Its first pose is also how it stands, since some models' joints only make
+// sense animated.
+const openingMotion = model => motionsOf(model)[0]?.index ?? (model.animations.length ? 0 : -1);
+const blinksIn = index => motions.find(motion => motion.index === index)?.kind === 'idle';
 
 // The HD pack's images a model's textures come with, decoded. One that can't be read leaves the disc's.
 async function decodeHdTextures(model) {
@@ -438,13 +516,16 @@ async function showModel(entry) {
   setStatus(`Reading ${entry.name} from your disc…`, { busy: true });
   $('pokedex-stage').classList.remove('ready');
   try {
-    const model = await window.colo.pokedexModel(entry.key, form), motion = openingMotion(model.animations);
+    const model = await window.colo.pokedexModel(entry.key, form), motion = openingMotion(model);
     const clip = motion >= 0 ? await window.colo.pokedexClip(entry.key, form, motion) : null;
+    // The game's blink, played over the idle now and then
+    const blink = model.blink >= 0 ? await window.colo.pokedexClip(entry.key, form, model.blink) : null;
     await decodeHdTextures(model);
     if (mine !== request || !visible || !startViewer()) return closeBitmaps(model);
-    renderMotions(model.animations, motion);
-    viewer.setModel(model, clip);
-    setStatus('');
+    renderMotions(model, motion);
+    viewer.setModel(model, clip, { blink, shiny: model.shinyFilter ? model.shiny : null });
+    viewer.setClip(clip, { blinks: blinksIn(motion) });
+    setStatus(model.shinyFilter && !model.shiny ? `${entry.name} looks the same when shiny.` : '');
     requestAnimationFrame(() => requestAnimationFrame(() => $('pokedex-stage').classList.add('ready')));
   } catch (error) {
     if (mine === request) setStatus(message(error), { retry: true });
@@ -453,6 +534,7 @@ async function showModel(entry) {
 
 function select(entry) {
   selected = entry;
+  cry.show(entry);
   form = entry.forms[0]?.id;
   for (const [key, button] of entries) button.classList.toggle('selected', key === entry.key);
   renderInfo(entry);
@@ -487,6 +569,8 @@ async function load() {
   } finally { loading = null; }
 }
 
+const cry = createCry($('pokedex-cry'), { onError: setStatus });
+
 $('pokedex-search').addEventListener('input', () => { if (species) applyFilter(); });
 $('pokedex-form').addEventListener('change', event => {
   form = event.target.value;
@@ -495,8 +579,8 @@ $('pokedex-form').addEventListener('change', event => {
 $('pokedex-motion').addEventListener('change', async event => {
   const mine = ++request;
   try {
-    const clip = await window.colo.pokedexClip(selected.key, form, Number(event.target.value));
-    if (mine === request) viewer?.setClip(clip);
+    const index = Number(event.target.value), clip = await window.colo.pokedexClip(selected.key, form, index);
+    if (mine === request) viewer?.setClip(clip, { blinks: blinksIn(index) });
   } catch (error) {
     if (mine === request) setStatus(message(error), { retry: true });
   }
@@ -525,6 +609,7 @@ window.coloPokedex = {
   hide() {
     visible = false;
     request++;
+    cry.stop();
     stopViewer();
   },
 };

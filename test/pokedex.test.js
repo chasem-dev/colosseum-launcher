@@ -217,12 +217,105 @@ function fadingModel(data, pointer) {
   return root;
 }
 
-test('an animation bakes its materials\' alpha, frame by frame', () => {
+test('an animation bakes its materials\' alpha, frame by frame, as the game takes it from 1', () => {
   const clip = hsd.parseClip(pkx(fadingModel), 0);
   assert.equal(clip.alphas.length, 1);
   assert.equal(clip.alphas[0].material, 0);
-  assert.deepEqual([...clip.alphas[0].values], [1, 0.5, 0]);
+  // The track runs 1 to 0; MObjUpdateFunc sets alpha to 1 - value
+  assert.deepEqual([...clip.alphas[0].values], [0, 0.5, 1]);
   assert.deepEqual(hsd.parseClip(pkx(triangleModel), 0).alphas, []);
+});
+
+// The triangle with a material: white diffuse, lit, one 8x4 I8 texture laid over it by reflection after lighting
+// (EXT), blended half way, and drawn added on top (a PE desc).
+function texturedModel(data, pointer) {
+  const root = triangleModel(data, pointer);
+  const DOBJ = 0x60, MOBJ = 0x2a0, COLORS = 0x2c0, TOBJ = 0x2e0, IMAGE = 0x350, PIXELS = 0x360, PE = 0x380;
+  pointer(DOBJ + 8, MOBJ);
+  data.writeUInt32BE((1 << 2) | 1 | (1 << 30), MOBJ + 4);  // lit, the material's colour, see-through
+  pointer(MOBJ + 8, TOBJ);
+  pointer(MOBJ + 0x0c, COLORS);
+  pointer(MOBJ + 0x14, PE);
+  data.writeUInt32BE(0x808080ff, COLORS);
+  data.writeUInt32BE(0xff8000ff, COLORS + 4);
+  data.writeFloatBE(0.75, COLORS + 0x0c);
+  data.writeFloatBE(1, TOBJ + 0x1c);
+  data.writeFloatBE(1, TOBJ + 0x20);
+  data.writeUInt32BE(4, TOBJ + 0x0c);  // GX_TG_TEX0
+  data[TOBJ + 0x3c] = 2;
+  data[TOBJ + 0x3d] = 1;
+  data.writeUInt32BE(1 | (1 << 7) | (3 << 16) | (2 << 20), TOBJ + 0x40);  // reflection, after lighting, blend colour and alpha
+  data.writeFloatBE(0.5, TOBJ + 0x44);
+  pointer(TOBJ + 0x4c, IMAGE);
+  pointer(IMAGE, PIXELS);
+  data.writeUInt16BE(8, IMAGE + 4);
+  data.writeUInt16BE(4, IMAGE + 6);
+  data.writeUInt32BE(1, IMAGE + 8);  // I8
+  data.fill(0x80, PIXELS, PIXELS + 32);
+  data.set([0x31, 0, 0, 0, 1, 4, 1, 5, 3, 7, 0, 7], PE);  // blended, source alpha onto one: added
+  return root;
+}
+
+test('a material reads its colours, its texture layers and how they mix, and how it lands on the screen', () => {
+  const { materials: [material], textures } = hsd.parseModel(pkx(texturedModel));
+  assert.equal(material.lit, true);
+  assert.equal(material.xlu, true);
+  assert.deepEqual(material.diffuse, [1, 128 / 255, 0]);
+  assert.equal(material.alpha, 0.75);
+  assert.equal(material.layers.length, 1);
+  const [layer] = material.layers;
+  assert.deepEqual([layer.coord, layer.lightmap, layer.colorOp, layer.alphaOp, layer.blending, layer.repeat], [1, 1 << 7, 3, 2, 0.5, [2, 1]]);
+  assert.equal(layer.texture, 0);
+  assert.deepEqual([...textures[0].rgba.subarray(0, 4)], [128, 128, 128, 128]);
+  assert.deepEqual([material.pe.blendType, material.pe.srcFactor, material.pe.dstFactor, material.pe.alphaCompare0], [1, 4, 1, 7]);
+});
+
+// A pkx's own header around a model: the game's load mode, its sleep, wake and blink animations, a motion slot for
+// each `slots` entry ([motion type, animation] pairs), and its shiny filter.
+function withHeader(file, { refs = [-1, -1, -1], slots = [], shiny = null }) {
+  const align = n => (n + 31) & ~31, dat = file.readUInt32BE(0), body = file.subarray(0, 0x40 + align(dat));
+  const head = Buffer.concat([body, Buffer.alloc(0x40 + align(dat) - body.length)]), table = Buffer.alloc(align(slots.length * 0xd0)), tail = Buffer.alloc(shiny ? 20 : 0);
+  head.writeUInt32BE(slots.length, 8);
+  head.writeUInt32BE(5, 0x10);
+  head.writeUInt32BE(shiny ? 0x80000000 : 0, 0x14);
+  refs.forEach((ref, i) => head.writeInt32BE(ref, 0x18 + i * 4));
+  slots.forEach((pairs, slot) => {
+    table.writeUInt32BE(pairs.length, slot * 0xd0 + 4);
+    pairs.forEach(([type, index], i) => { table.writeUInt32BE(type, slot * 0xd0 + 0x8c + i * 8); table.writeUInt32BE(index, slot * 0xd0 + 0x90 + i * 8); });
+  });
+  if (shiny) { shiny.route.forEach((channel, i) => tail.writeUInt32BE(channel, i * 4)); tail.writeUInt32BE(shiny.word, 16); }
+  return Buffer.concat([head, table, tail]);
+}
+
+test('a model\'s header names its battle motions, its blink and its shiny filter', () => {
+  const base = pkx(triangleModel);
+  // One animation: the idle; the blink names a missing animation and is left out
+  const model = hsd.parseModel(withHeader(base, { refs: [-1, -1, 4], slots: [[[0, 0]], [[1, 0]]], shiny: { route: [2, 1, 0, 3], word: 0x7ff27931 } }));
+  assert.deepEqual(model.motions, [{ index: 0, kind: 'idle' }]);
+  assert.equal(model.blink, -1);
+  assert.deepEqual(model.shiny.route, [2, 1, 0, 3]);
+  // Its low byte is red's brightness, 0x7F leaving a channel as it is
+  assert.deepEqual(model.shiny.scale.map(v => Math.round(v * 255 / 2)), [0x31, 0x79, 0xf2]);
+  // A filter that changes nothing is none
+  assert.equal(hsd.parseModel(withHeader(base, { shiny: { route: [0, 1, 2, 3], word: 0x7f7f7f7f } })).shiny, null);
+  // The eye animations aren't motions, and a slot already named isn't again
+  const eyes = hsd.parseModel(withHeader(base, { refs: [0, -1, -1], slots: [[[0, 0]]] }));
+  assert.deepEqual([eyes.motions, eyes.sleep], [[], 0]);
+  // A file without the game's header has none of these
+  assert.deepEqual(hsd.parseModel(base).motions, []);
+});
+
+test('a billboard keeps its place and scale and faces the camera', async () => {
+  const THREE = await import('../node_modules/three/build/three.module.js');
+  const { billboardMatrix } = await import('../src/model-rig.js');
+  const view = new THREE.Matrix4().makeRotationY(0.7).scale(new THREE.Vector3(2, 2, 2)).setPosition(1, 2, 3), out = new THREE.Matrix4();
+  billboardMatrix(1, false, 0, view, out);
+  const e = out.elements, near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-5, `${actual} is not ${expected}`);
+  [2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 1, 2, 3, 1].forEach((expected, i) => near(e[i], expected));
+  // Turning only about Z (RBillboard)
+  billboardMatrix(4, false, Math.PI / 2, view, out);
+  near(out.elements[1], 2);
+  near(out.elements[10], 2);
 });
 
 test('parseClip turns down an animation the model lacks', () => {
@@ -328,8 +421,10 @@ test('the disc holds every Pokémon, each with a model', withDisc, () => {
   const find = name => list.find(entry => entry.name === name);
   assert.equal(find('Haunter').forms[0].id, 'ghost');  // its row's name key is wrong in the game
   assert.equal(find('Unown').forms.length, 28);
-  assert.deepEqual(find('Castform').forms.map(form => form.label), ['Normal', 'Sunny', 'Rainy', 'Snowy']);
-  assert.ok(find('Charizard').forms.some(form => form.label === 'Shiny'));
+  assert.deepEqual(find('Castform').forms.map(form => form.label), ['Normal', 'Shiny', 'Sunny', 'Rainy', 'Snowy']);
+  // A shiny look: Charizard's own model, Bulbasaur's colour filter
+  assert.equal(find('Charizard').forms[1].id, 'rare_lizardon');
+  assert.equal(find('Bulbasaur').forms[1].id, 'shiny:fushigidane');
   assert.deepEqual(find('Bulbasaur').stats, [45, 49, 49, 65, 65, 45]);
   assert.deepEqual(find('Bulbasaur').abilities, ['Overgrow']);
   assert.equal(find('Bulbasaur').status.kind, 'hidden');
@@ -347,6 +442,21 @@ test('every look of every Pokémon parses, with all its motions', withDisc, () =
       model.animations.forEach((_, index) => assert.ok(dex.clip(disc, entry.national, form.id, index).values.every(Number.isFinite), `${form.id} ${index}`));
     }
   }
+});
+
+test('the disc\'s models read as the game draws them', withDisc, () => {
+  const dex = pokedex.create(), model = (national, form) => dex.model(disc, national, form);
+  // Gastly's gas faces the camera; Onix's rock holds normals with binormals and tangents
+  assert.equal(model(92, 'ghos').joints.filter(joint => joint.billboard).length, 2);
+  assert.ok(model(95, 'iwark').shapes.some(shape => shape.binormal));
+  // Exeggutor idles in its fourth animation; the first three are its eyes and a held pose
+  assert.deepEqual(model(103, 'nassy').motions[0], { index: 3, kind: 'idle' });
+  assert.equal(model(124, 'rougela').blink, 8);
+  // Ditto's colour is a reflection laid over it after lighting
+  assert.equal(model(132, 'metamon').materials.at(-1).layers[0].coord, 1);
+  const shiny = model(1, 'shiny:fushigidane');
+  assert.equal(shiny.shinyFilter, true);
+  assert.ok(shiny.shiny);
 });
 
 test('a form the Pokémon does not have is turned down', withDisc, () => {

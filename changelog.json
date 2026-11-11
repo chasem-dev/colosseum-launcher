@@ -1,6 +1,13 @@
 {
   "beta": {
     "launcher": [
+      "Pokédex: models are drawn the way the game draws them, with every texture layer, reflections, shine, glows and bumps, so Ditto is purple, Gastly has its gas, Onix's rock has its shape and shading, Omanyte's eyes are black and see-through parts blend as they do in battle.",
+      "Pokédex: Pokémon blink now and then while they idle, as they do in battle.",
+      "Pokédex: every Pokémon has a Shiny look. Those without a shiny model of their own are coloured by the game's own shiny filter, as they are in battle.",
+      "Pokédex: motions are named (Idle, Physical move, Special move, Hit, Faint) and each Pokémon starts on its idle. The eye animations that showed as motions where nothing moved, such as Exeggutor's first three, are gone.",
+      "Pokédex: press Cry beside a Pokémon's model to hear its cry, read from your disc, as the game plays it. Pack and Generation 4 Pokémon play the cry they have in the game, that of the Pokémon they're based on.",
+      "Pokédex: a Pokémon shows what it evolves from, next to what it evolves into.",
+      "Pokédex: a model is framed on the parts you can see, so Honchkrow no longer shows small and far away.",
       "Button prompts now cover the Pokémon selection screen before a battle, not only Quick moves, and an arrow key shows as a bold arrow.",
       "Online: with team preview you now pick your Pokémon in the game, on Battle Mode's own selection screen with its music, instead of in the launcher. You have 90 seconds, then the first of your party go. Both players need this launcher.",
       "Choose starters: a New Game can begin with any two Pokémon instead of Espeon and Umbreon, picked in the game after you enter your name. It's on by default; turn it off under Gameplay to skip the question.",
@@ -39,6 +46,7 @@
       "When the game stops itself after an error, the launcher's message says why, in the game's own words, instead of only its exit code."
     ],
     "game": [
+      "Generation 4 models: Combee's, Vespiquen's and Yanmega's wings are see-through, Bonsly has its eyes and mouth, Spiritomb its purple swirl, Infernape's head fire and Dusknoir's eyes their colours, and parts that show and hide as a Pokémon moves, such as Honchkrow's wings and Rotom's arms, now do so the right way round. Press Make models when the launcher asks to make the 34 changed models again.",
       "Fixed the arrow keys picking nothing on the Pokémon selection screen before a battle: on a keyboard, the arrows and WASD now pick as the Control Pad does. The screen also shows your own keys or your controller's buttons beside each Pokémon and for Cancel and Check, as set under Controls → Button prompts.",
       "Online battles now have Battle Mode's screens around them: both trainers and their Pokémon with the VS before the battle, and the results after it with each Pokémon's HP and who won. Press A on the results to go back to the launcher.",
       "Choose your starters: after you enter your name for a New Game, the game asks whether to begin with Espeon and Umbreon. Say No to pick any two Pokémon from a grid of their faces in alphabetical order, with a row of letters to jump between (L and R), and each one's number, types and level shown; they start at Umbreon's and Espeon's levels with the moves they know there. Generation 4 Pokémon can be picked too when they're turned on.",
