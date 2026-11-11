@@ -78,7 +78,12 @@
       "With Generation 4 Pokémon, the Move Deleter in Mt. Battle's Pokémon Center can also make a Pokémon remember a move it learns by level up to its level, so a Shadow Pokémon caught past the level it learns a move at can still evolve by knowing it.",
       "Battles can open the moves with one button, Z (the right bumper on other controllers), shown beside FIGHT, each move shown with its button as your controller or keyboard has it, and use one with A, B, X or Y, and can show status conditions and stat changes without their own camera shot and the wait after them.",
       "Fixed the game crashing at start-up, with no reason given, when it couldn't read part of its disc file (as with a disc in OneDrive that can't be downloaded) or the disc had been changed by another tool. It now says which, and what to do.",
-      "Fixed PlayStation controllers, such as the DualSense, stopping in the game on Windows a few seconds after it started, even though they worked in the launcher."
+      "Fixed PlayStation controllers, such as the DualSense, stopping in the game on Windows a few seconds after it started, even though they worked in the launcher.",
+      "Randomizer: a Shadow Pokémon or trainer's Pokémon that held the item for its own type, such as Shadow Quilava's Charcoal, now holds the one for its new species' type.",
+      "Fixed Shadow Rush doing no damage to Ghost-type Pokémon with Generation 4 battle rules.",
+      "Fixed Hippopotas, Luxio, Shellos, Riolu, Tangrowth, Glaceon and Gallade from Battle Revolution not reacting when hit. Press Make models under Settings → Gameplay to make them again.",
+      "Fixed move sounds such as Sing, Attract and Captivate having a dull echo trailing behind them that the original game doesn't have.",
+      "Fixed a stretched box around Sweet Scent's and Confusion's ripple in widescreen."
     ]
   },
   "releases": [
