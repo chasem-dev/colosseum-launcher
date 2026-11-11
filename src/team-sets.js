@@ -3,12 +3,20 @@
 // A built party's Pokémon, each as a set: its moves, nature, EVs and IVs, held item, ability, nickname, gender and
 // whether it's shiny. Shared by the Online page, which edits them, and the main process, which sends them to the game
 // as a Story party's Pokémon are sent (src/story-party.js wireMember, the game's host/online.c `member` lines).
-// Stats are the third generation's, in the game's order: HP, Attack, Defense, Sp. Atk, Sp. Def, Speed.
+// Stats are the third generation's (the fourth's are the same), in the game's order: HP, Attack, Defense, Sp. Atk,
+// Sp. Def, Speed.
+//
+// A party is of the third generation or the fourth: the fourth's (which plays under Pokémon Platinum's battle rules)
+// may also have that generation's Pokémon and moves, by the game's numbers for them (src/generations.js: Pokémon 26
+// past their National Pokédex number, moves 3 past theirs).
 (function (root) {
   const STATS = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'];
   const STAT_NAMES = ['HP', 'Attack', 'Defense', 'Sp. Atk', 'Sp. Def', 'Speed'];
   const EV_MAX = 252, EV_TOTAL = 510, IV_MAX = 31;
   const MOVE_LAST = 0x162;        // the game's Shadow moves come after
+  const GENERATIONS = [3, 4];
+  // The fourth generation's Pokémon (Turtwig to Arceus) and its last move (Shadow Force), by the game's numbers.
+  const LATER = { 4: { species: [413, 519], lastMove: 470 } };
   const ITEM_LAST = 0xffff;
   const BALLS = 12, BALL = 4;     // Poké Ball
   const NICKNAME_LENGTH = 10;
@@ -34,7 +42,16 @@
   const category = type => PHYSICAL_TYPES.includes(type) ? 'Physical' : 'Special';
 
   const int = (value, low, high, fallback) => Number.isInteger(value) && value >= low && value <= high ? value : fallback;
-  const validSpecies = id => Number.isInteger(id) && ((id >= 1 && id <= 251) || (id >= 277 && id <= 411));
+  const generationOf = value => GENERATIONS.includes(value) ? value : GENERATIONS[0];
+  // The species a party of the generation can have: the game numbers its own up to 411, with a gap between the second
+  // generation and the third.
+  const validSpecies = (id, generation = 3) => Number.isInteger(id) && ((id >= 1 && id <= 251) || (id >= 277 && id <= 411)
+    || (generation >= 4 && id >= LATER[4].species[0] && id <= LATER[4].species[1]));
+  // The last move a party of the generation can have: the third's, or the fourth's new ones after the game's own.
+  const lastMove = generation => generation >= 4 ? LATER[4].lastMove : MOVE_LAST;
+  // Whether the species or move is one only a later generation's party can have: the generation, or 3.
+  const speciesGeneration = id => id >= LATER[4].species[0] && id <= LATER[4].species[1] ? 4 : 3;
+  const moveGeneration = id => id > MOVE_LAST && id <= LATER[4].lastMove ? 4 : 3;
 
   function natureEffect(nature) {
     const up = NATURE_STATS[Math.floor(nature / 5)], down = NATURE_STATS[nature % 5];
@@ -68,10 +85,11 @@
 
   const cleanIvs = ivs => STATS.map((_, i) => int(Array.isArray(ivs) ? ivs[i] : IV_MAX, 0, IV_MAX, IV_MAX));
 
-  function cleanMoves(moves) {
+  function cleanMoves(moves, generation = 3) {
     const out = [];
     for (const move of Array.isArray(moves) ? moves : []) {
-      if (out.length < 4 && int(move, 1, MOVE_LAST, 0) && !out.includes(move)) out.push(move);
+      // Colosseum's own moves 355 to 357 (its Shadow Rush and two unnamed) are no party's
+      if (out.length < 4 && int(move, 1, lastMove(generation), 0) && (move <= MOVE_LAST || move > 357) && !out.includes(move)) out.push(move);
     }
     return out;
   }
@@ -82,13 +100,13 @@
       evs: [0, 0, 0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], friendship: 255, ball: BALL };
   }
 
-  // A set as saved, kept to what the game accepts; anything else is the default.
-  function normalizeSet(input, species) {
+  // A set as saved, kept to what the game accepts for a party of the generation; anything else is the default.
+  function normalizeSet(input, species, generation = 3) {
     const set = defaultSet(species);
     if (!input || typeof input !== 'object' || input.species !== species) return set;
     return { species, nickname: cleanNickname(input.nickname), item: int(input.item, 0, ITEM_LAST, 0), ability: input.ability === 1 ? 1 : 0,
       nature: int(input.nature, 0, 24, 0), gender: input.gender === 'M' || input.gender === 'F' ? input.gender : '',
-      shiny: input.shiny === true, moves: cleanMoves(input.moves), evs: cleanEvs(input.evs), ivs: cleanIvs(input.ivs),
+      shiny: input.shiny === true, moves: cleanMoves(input.moves, generation), evs: cleanEvs(input.evs), ivs: cleanIvs(input.ivs),
       friendship: int(input.friendship, 0, 255, 255), ball: int(input.ball, 1, BALLS, BALL) };
   }
 
@@ -184,8 +202,9 @@
   const SHOWDOWN_NAMES = { faintattack: 'Feint Attack', hijumpkick: 'High Jump Kick', vicegrip: 'Vise Grip', smellingsalt: 'Smelling Salts' };
 
   // dex: { species: [{ id, name }], moves: [{ id, name }], items: [{ id, name }], balls, abilities(id) => [{ slot, name }],
-  // gender(id) => ratio }. Returns { sets, problems }: lines it couldn't use, to show the player.
-  function parseShowdown(text, dex) {
+  // gender(id) => ratio }, with what a party of `generation` can have. Returns { sets, problems }: lines it couldn't
+  // use, to show the player.
+  function parseShowdown(text, dex, generation = 3) {
     const find = (list, name) => {
       const wanted = key(name);
       return list.find(entry => key(entry.name) === wanted || key(entry.name) === RENAMED[wanted]);
@@ -201,7 +220,11 @@
       const speciesName = named ? named[2].trim() : first, nickname = named ? named[1].trim() : '';
       // a form's name (Unown-B, Castform-Sunny) is its species' here
       const species = find(dex.species, speciesName) || find(dex.species, speciesName.replace(/-[^-]*$/, ''));
-      if (!species || !validSpecies(species.id)) { problems.push(`${speciesName}: not a Pokémon this game has.`); continue; }
+      if (!species || !validSpecies(species.id, generation)) {
+        problems.push(species && validSpecies(species.id, 4) ? `${speciesName}: a Generation 4 Pokémon, which only a Generation 4 party can have.`
+          : `${speciesName}: not a Pokémon this game has.`);
+        continue;
+      }
       if (sets.length >= 6) { problems.push(`${speciesName}: a party has six Pokémon at most.`); continue; }
       const set = defaultSet(species.id);
       set.nickname = key(nickname) === key(species.name) ? '' : cleanNickname(nickname);
@@ -273,7 +296,7 @@
     }).join('\n\n');
   }
 
-  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
+  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, GENERATIONS, LATER, generationOf, lastMove, speciesGeneration, moveGeneration, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
     PHYSICAL_TYPES, category, validSpecies, natureEffect, natureLabel, cleanNickname, cleanEvs, defaultSet, normalizeSet, genders, genderOf, stats, hiddenPower,
     hiddenPowerIvs, personality, toWire, parseShowdown, formatShowdown };
   if (typeof module === 'object' && module.exports) module.exports = api;

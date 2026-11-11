@@ -738,6 +738,8 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .party-card:not([aria-disabled=true]):hover { border-color: var(--dex-accent); }
 .party-card[aria-checked=true] { border-color: var(--dex-accent); box-shadow: inset 3px 0 0 var(--dex-accent); }
 .party-card strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+/* a Generation 4 party's tag before its name */
+.party-generation { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; background: var(--dex-accent); color: #fff; font-size: 10px; font-weight: 700; vertical-align: 1px; }
 .party-card-edit { padding: 2px 8px; border: 1px solid var(--dex-line); border-radius: 6px; background: transparent; color: inherit; font-size: 11px; font-weight: 600; }
 .party-card-team { grid-column: 1 / -1; display: flex; gap: 2px; min-height: 36px; }
 .party-card-team img, .party-card-team span { width: 36px; height: 36px; }
@@ -792,6 +794,8 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .tb-name:focus-visible { border-color: var(--tb-accent); outline: none; background: var(--tb-panel); }
 .tb-head-actions { display: flex; align-items: center; gap: 7px; }
 .tb-head-actions .subtle { padding: 7px 13px; }
+.tb-generation { display: flex; align-items: center; gap: 6px; margin-right: 4px; color: var(--tb-muted); font-size: 12px; font-weight: 650; }
+.tb-generation select { padding: 6px 8px; border: 1px solid var(--tb-line); border-radius: 7px; background: var(--tb-panel); color: inherit; font: inherit; }
 .tb-head-actions .modal-close { margin-left: 6px; }
 .dark .tb-name { color: #fff; }
 .dark .tb-name:hover { border-color: #ffffff30; }

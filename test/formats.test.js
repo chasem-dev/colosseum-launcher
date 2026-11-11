@@ -200,3 +200,43 @@ test('any format plays by Colosseum\'s or Pokémon Platinum\'s battle rules, wit
   assert.ok(formats.rulesText({ format: 'hoenn', battleRules: 4 }).includes('Pokémon Platinum\'s battle rules'));
   assert.ok(formats.rulesText({ format: 'casual', battleRules: 4 }).includes('Pokémon Platinum\'s battle rules'));
 });
+
+test('Generation 4 Pokémon and moves play only under Pokémon Platinum\'s battle rules, and not in Gen 3 OU', () => {
+  const GARCHOMP = 471, OUTRAGE = 200, STONE_EDGE = 444 + 3, FIRE_FANG = 424 + 3, BULLET_PUNCH = 418 + 3;
+  const ids = [GARCHOMP, 6, 9, 3, 25, 212];
+  const party = ids.map(id => id === GARCHOMP ? wire(id, { moves: [OUTRAGE, STONE_EDGE, FIRE_FANG] }) : id === 212 ? wire(id, { moves: [BULLET_PUNCH] }) : wire(id));
+  const casual = formats.problems({ format: 'casual' }, ids, party, { species: id => ({ [GARCHOMP]: 'Garchomp', 212: 'Scizor' })[id], move: id => `move ${id}` });
+  assert.deepEqual(casual, [
+    'Garchomp is a Generation 4 Pokémon, which play only under Pokémon Platinum\'s battle rules.',
+    'Garchomp knows move 447, a Generation 4 move, which play only under Pokémon Platinum\'s battle rules.',
+    'Garchomp knows move 427, a Generation 4 move, which play only under Pokémon Platinum\'s battle rules.',
+    'Scizor knows move 421, a Generation 4 move, which play only under Pokémon Platinum\'s battle rules.']);
+  assert.deepEqual(formats.problems({ format: 'casual', battleRules: 4 }, ids, party), []);
+  assert.deepEqual(formats.problems({ format: 'hoenn', battleRules: 4 }, ids, party), []);   // legal in the fourth generation
+  assert.ok(formats.problems({ format: 'gen3ou', battleRules: 4 }, ids, party).some(text => /Gen 3 OU doesn't have/.test(text)));
+  // a species alone too
+  assert.equal(formats.problems({ format: 'casual' }, [GARCHOMP, 6, 9, 3, 25, 1]).length, 1);
+});
+
+test('only legal Pokémon under Platinum\'s rules: what each could learn in the fourth generation, or bring from the third', () => {
+  const rules = { format: 'hoenn', battleRules: 4 }, ids = [143, 474, 6, 9, 3, 25];
+  const check = (slot, member) => formats.problems(rules, ids, ids.map((id, i) => i === slot ? member : wire(id)));
+  assert.deepEqual(check(0, wire(143, { moves: [34, 156, 214, 120] })), []);         // Snorlax: Self-Destruct, a third generation tutor move
+  assert.deepEqual(check(1, wire(474, { moves: [370 + 3, 396 + 3, 245, 242] })), []);   // Lucario: Close Combat, Aura Sphere, Extreme Speed, Riolu's Crunch
+  assert.match(check(0, wire(143, { moves: [437 + 3] }))[0], /can't learn move #440 in the fourth generation/);   // Snorlax: Leaf Storm
+  assert.equal(check(0, wire(143, { moves: [147] })).length, 1);                     // nor Spore
+  assert.equal(check(0, wire(143, { moves: [356] })).length, 1);                     // Colosseum's own Shadow Rush
+  assert.equal(check(0, wire(143, { moves: [471] })).length, 1);                     // past Shadow Force
+  // under Colosseum's rules the third generation's, as before
+  const gen3 = [143, 1, 6, 9, 3, 25];
+  assert.deepEqual(formats.problems({ format: 'hoenn' }, gen3, gen3.map((id, i) => i ? wire(id) : wire(143, { moves: [120] }))), []);
+});
+
+test('the fourth generation\'s legendaries are restricted, mythical or legendary', () => {
+  const party = id => [id, 6, 9, 3, 25, 143];
+  assert.equal(formats.problems({ format: 'orre', battleRules: 4 }, party(509)).length, 1);      // Dialga
+  assert.equal(formats.problems({ format: 'orre', battleRules: 4 }, party(519)).length, 1);      // Arceus
+  assert.deepEqual(formats.problems({ format: 'orre', battleRules: 4 }, party(511)), []);         // Heatran
+  assert.equal(formats.problems({ format: 'orre', pool: 'legends', battleRules: 4 }, party(511)).length, 1);
+  assert.deepEqual(formats.problems({ format: 'orre', battleRules: 4 }, party(471)), []);         // Garchomp
+});

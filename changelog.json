@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Team builder: a party can now be Generation 4. Choose Generation 4 at the top of the team builder and it can have the 107 Generation 4 Pokémon and their moves, each move and ability as Pokémon Platinum plays it, and every move a Pokémon can learn in Diamond, Pearl, Platinum, HeartGold or SoulSilver or bring over from Generation 3. A Generation 4 party battles only in rooms on Platinum's rules, and choosing one picks those rules for your room. In those rooms Only legal Pokémon checks moves against Generation 4, and Dialga, Palkia, Giratina and Generation 4's mythical Pokémon count as restricted, as Mewtwo does. Both players need this launcher.",
       "Pokédex: models are drawn the way the game draws them, with every texture layer, reflections, shine, glows and bumps, so Ditto is purple, Gastly has its gas, Onix's rock has its shape and shading, Omanyte's eyes are black and see-through parts blend as they do in battle.",
       "Pokédex: Pokémon blink now and then while they idle, as they do in battle.",
       "Pokédex: every Pokémon has a Shiny look. Those without a shiny model of their own are coloured by the game's own shiny filter, as they are in battle.",
