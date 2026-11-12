@@ -88,7 +88,7 @@
   function setTitle(set) {
     const data = builder().data(), name = set.nickname || builder().speciesName(set.species);
     if (!data) return name;
-    const item = data.items.find(each => each.id === set.item)?.name, moves = set.moves.map(id => data.moves.find(move => move.id === id)?.name).filter(Boolean);
+    const item = [...data.items, ...(data.generations?.[4]?.items || [])].find(each => each.id === set.item)?.name, moves = set.moves.map(id => data.moves.find(move => move.id === id)?.name).filter(Boolean);
     return `${name}${item ? ` @ ${item}` : ''}\n${moves.length ? moves.join(' · ') : 'Level-up moves'}`;
   }
 
@@ -186,7 +186,8 @@
   function names() {
     const data = builder().data();
     const moves = [...(data?.generations?.[4]?.moves || []), ...(data?.moves || [])];
-    return { species: id => builder().speciesName(id) || undefined, item: id => data?.items.find(item => item.id === id)?.name,
+    const items = [...(data?.items || []), ...(data?.generations?.[4]?.items || [])];
+    return { species: id => builder().speciesName(id) || undefined, item: id => items.find(item => item.id === id)?.name,
       move: id => moves.find(move => move.id === id)?.name };
   }
 

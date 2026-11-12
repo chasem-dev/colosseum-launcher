@@ -1502,7 +1502,7 @@ function partyNames() {
     const later = data.generations?.[4];
     const species = new Map([...Object.entries(later?.species || {}).map(([id, entry]) => [Number(id), entry.name]),
       ...pokedexData.list(rom).map(entry => [entry.id, entry.name])]);
-    const moves = new Map([...(later?.moves || []), ...data.moves].map(move => [move.id, move.name])), items = new Map(data.items.map(item => [item.id, item.name]));
+    const moves = new Map([...(later?.moves || []), ...data.moves].map(move => [move.id, move.name])), items = new Map([...(later?.items || []), ...data.items].map(item => [item.id, item.name]));
     return { species: id => species.get(id), move: id => moves.get(id), item: id => items.get(id) };
   } catch (_) { return {}; }
 }

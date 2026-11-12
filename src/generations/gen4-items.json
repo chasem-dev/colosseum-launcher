@@ -1,0 +1,468 @@
+{
+  "generation": 4,
+  "source": "the game's host/gen4_items.h (pret's decompilation of Pokémon Platinum, res/items)",
+  "items": [
+    {
+      "id": 175,
+      "name": "Enigma Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it restores its HP if it is hit by a foe's supereffective attack.",
+      "berry": true
+    },
+    {
+      "id": 548,
+      "name": "Adamant Orb",
+      "doc": "A brightly gleaming orb to be held by DIALGA. It boosts the power of Dragon- and Steel-type moves."
+    },
+    {
+      "id": 550,
+      "name": "Babiri Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Steel-type attack.",
+      "berry": true
+    },
+    {
+      "id": 551,
+      "name": "Big Root",
+      "doc": "A Pokémon hold item that boosts the power of HP-stealing moves to let the holder recover more HP."
+    },
+    {
+      "id": 552,
+      "name": "Black Sludge",
+      "doc": "A hold item that gradually restores the HP of Poison-type Pokémon. It inflicts damage on all other types."
+    },
+    {
+      "id": 553,
+      "name": "Charti Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Rock-type attack.",
+      "berry": true
+    },
+    {
+      "id": 554,
+      "name": "Chilan Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's Normal-type attack.",
+      "berry": true
+    },
+    {
+      "id": 555,
+      "name": "Choice Scarf",
+      "doc": "An item to be held by a Pokémon. This scarf boosts Speed, but allows the use of only one kind of move."
+    },
+    {
+      "id": 556,
+      "name": "Choice Specs",
+      "doc": "An item to be held by a Pokémon. These distinctive glasses boost Sp. Atk, but allow only one kind of move to be used."
+    },
+    {
+      "id": 557,
+      "name": "Chople Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Fighting-type attack.",
+      "berry": true
+    },
+    {
+      "id": 558,
+      "name": "Coba Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Flying-type attack.",
+      "berry": true
+    },
+    {
+      "id": 559,
+      "name": "Colbur Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Dark-type attack.",
+      "berry": true
+    },
+    {
+      "id": 560,
+      "name": "Custap Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it gets to move first just once in a pinch.",
+      "berry": true
+    },
+    {
+      "id": 562,
+      "name": "Damp Rock",
+      "doc": "A Pokémon hold item that extends the duration of the move Rain Dance used by the holder."
+    },
+    {
+      "id": 564,
+      "name": "Destiny Knot",
+      "doc": "A long, thin, bright red string to be held by a Pokémon. If the holder becomes infatuated, the foe does too."
+    },
+    {
+      "id": 565,
+      "name": "Draco Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Dragon-type moves."
+    },
+    {
+      "id": 566,
+      "name": "Dread Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Dark-type moves."
+    },
+    {
+      "id": 567,
+      "name": "Dubious Disc",
+      "doc": "A transparent device overflowing with dubious data. Its producer is unknown."
+    },
+    {
+      "id": 569,
+      "name": "Earth Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Ground-type moves."
+    },
+    {
+      "id": 570,
+      "name": "Electirizer",
+      "doc": "A box packed with a tremendous amount of electric energy. It is loved by a certain Pokémon."
+    },
+    {
+      "id": 571,
+      "name": "Expert Belt",
+      "doc": "An item to be held by a Pokémon. It is a well-worn belt that slightly boosts the power of supereffective moves."
+    },
+    {
+      "id": 572,
+      "name": "Fist Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Fighting-type moves."
+    },
+    {
+      "id": 573,
+      "name": "Flame Orb",
+      "doc": "An item to be held by a Pokémon. It is a bizarre orb that inflicts a burn on the holder in battle."
+    },
+    {
+      "id": 574,
+      "name": "Flame Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Fire-type moves."
+    },
+    {
+      "id": 575,
+      "name": "Focus Sash",
+      "doc": "An item to be held by a Pokémon. If it has full HP, the holder will endure one potential KO attack, leaving 1 HP."
+    },
+    {
+      "id": 576,
+      "name": "Full Incense",
+      "doc": "An item to be held by a Pokémon. It is an exotic-smelling incense that makes the holder bloated and slow moving."
+    },
+    {
+      "id": 578,
+      "name": "Grip Claw",
+      "doc": "A Pokémon hold item that extends the duration of multiturn attacks like Bind and Wrap."
+    },
+    {
+      "id": 579,
+      "name": "Griseous Orb",
+      "doc": "A glowing orb to be held by GIRATINA. It boosts the power of Dragon- and Ghost-type moves."
+    },
+    {
+      "id": 581,
+      "name": "Haban Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Dragon-type attack.",
+      "berry": true
+    },
+    {
+      "id": 582,
+      "name": "Heat Rock",
+      "doc": "A Pokémon hold item that extends the duration of the move Sunny Day used by the holder."
+    },
+    {
+      "id": 584,
+      "name": "Icicle Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Ice-type moves."
+    },
+    {
+      "id": 585,
+      "name": "Icy Rock",
+      "doc": "A Pokémon hold item that extends the duration of the move Hail used by the holder."
+    },
+    {
+      "id": 586,
+      "name": "Insect Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Bug-type moves."
+    },
+    {
+      "id": 587,
+      "name": "Iron Ball",
+      "doc": "A Pokémon hold item that cuts Speed. It makes Flying-type and levitating holders susceptible to Ground moves."
+    },
+    {
+      "id": 588,
+      "name": "Iron Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Steel-type moves."
+    },
+    {
+      "id": 589,
+      "name": "Jaboca Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, and if a foe's physical attack lands, the foe also takes damage.",
+      "berry": true
+    },
+    {
+      "id": 590,
+      "name": "Kasib Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Ghost-type attack.",
+      "berry": true
+    },
+    {
+      "id": 591,
+      "name": "Kebia Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Poison-type attack.",
+      "berry": true
+    },
+    {
+      "id": 592,
+      "name": "Lagging Tail",
+      "doc": "An item to be held by a Pokémon. It is tremendously heavy and makes the holder move slower than usual."
+    },
+    {
+      "id": 593,
+      "name": "Life Orb",
+      "doc": "An item to be held by a Pokémon. It boosts the power of moves, but at the cost of some HP on each hit."
+    },
+    {
+      "id": 594,
+      "name": "Light Clay",
+      "doc": "A Pokémon hold item that extends the duration of barrier moves like Light Screen and Reflect used by the holder."
+    },
+    {
+      "id": 595,
+      "name": "Luck Incense",
+      "doc": "An item to be held by a Pokémon. It doubles a battle's prize money if the holding Pokémon joins in."
+    },
+    {
+      "id": 596,
+      "name": "Lustrous Orb",
+      "doc": "A beautifully glowing orb to be held by PALKIA. It boosts the power of Dragon- and Water-type moves."
+    },
+    {
+      "id": 597,
+      "name": "Magmarizer",
+      "doc": "A box packed with a tremendous amount of magma energy. It is loved by a certain Pokémon."
+    },
+    {
+      "id": 598,
+      "name": "Meadow Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Grass-type moves."
+    },
+    {
+      "id": 599,
+      "name": "Metronome",
+      "doc": "A Pokémon hold item that boosts a move used consecutively. Its effect is reset if another move is used."
+    },
+    {
+      "id": 600,
+      "name": "Micle Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it raises the accuracy of a move just once in a pinch.",
+      "berry": true
+    },
+    {
+      "id": 601,
+      "name": "Mind Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Psychic-type moves."
+    },
+    {
+      "id": 602,
+      "name": "Muscle Band",
+      "doc": "An item to be held by a Pokémon. It is a headband that slightly boosts the power of physical moves."
+    },
+    {
+      "id": 603,
+      "name": "Occa Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Fire-type attack.",
+      "berry": true
+    },
+    {
+      "id": 604,
+      "name": "Odd Incense",
+      "doc": "An item to be held by a Pokémon. It is an exotic-smelling incense that boosts the power of Psychic-type moves."
+    },
+    {
+      "id": 608,
+      "name": "Passho Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Water-type attack.",
+      "berry": true
+    },
+    {
+      "id": 609,
+      "name": "Payapa Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Psychic-type attack.",
+      "berry": true
+    },
+    {
+      "id": 610,
+      "name": "Power Anklet",
+      "doc": "A Pokémon hold item that promotes Speed gain on leveling, but reduces the Speed stat."
+    },
+    {
+      "id": 611,
+      "name": "Power Band",
+      "doc": "A Pokémon hold item that promotes Sp. Def gain on leveling, but reduces the Speed stat."
+    },
+    {
+      "id": 612,
+      "name": "Power Belt",
+      "doc": "A Pokémon hold item that promotes Defense gain on leveling, but reduces the Speed stat."
+    },
+    {
+      "id": 613,
+      "name": "Power Bracer",
+      "doc": "A Pokémon hold item that promotes Attack gain on leveling, but reduces the Speed stat."
+    },
+    {
+      "id": 614,
+      "name": "Power Herb",
+      "doc": "A single-use item to be held by a Pokémon. It allows the immediate use of a move that charges on the first turn."
+    },
+    {
+      "id": 615,
+      "name": "Power Lens",
+      "doc": "A Pokémon hold item that promotes Sp. Atk gain on leveling, but reduces the Speed stat."
+    },
+    {
+      "id": 616,
+      "name": "Power Weight",
+      "doc": "A Pokémon hold item that promotes HP gain on leveling, but reduces the Speed stat."
+    },
+    {
+      "id": 617,
+      "name": "Protector",
+      "doc": "A protective item of some sort. It is extremely stiff and heavy. It is loved by a certain Pokémon."
+    },
+    {
+      "id": 618,
+      "name": "Pure Incense",
+      "doc": "An item to be held by a Pokémon. It helps keep wild Pokémon away if the holder is the first one in the party."
+    },
+    {
+      "id": 619,
+      "name": "Quick Powder",
+      "doc": "An item to be held by DITTO. Extremely fine yet hard, this odd powder boosts the Speed stat."
+    },
+    {
+      "id": 621,
+      "name": "Razor Claw",
+      "doc": "An item to be held by a Pokémon. It is a sharply hooked claw that ups the holder's critical-hit ratio."
+    },
+    {
+      "id": 622,
+      "name": "Razor Fang",
+      "doc": "An item to be held by a Pokémon. It may cause the foe to flinch when the holder inflicts damage."
+    },
+    {
+      "id": 623,
+      "name": "Reaper Cloth",
+      "doc": "A cloth imbued with horrifyingly strong spiritual energy. It is loved by a certain Pokémon."
+    },
+    {
+      "id": 624,
+      "name": "Rindo Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Grass-type attack.",
+      "berry": true
+    },
+    {
+      "id": 625,
+      "name": "Rock Incense",
+      "doc": "An item to be held by a Pokémon. It is an exotic-smelling incense that boosts the power of Rock-type moves."
+    },
+    {
+      "id": 626,
+      "name": "Rose Incense",
+      "doc": "An item to be held by a Pokémon. It is an exotic-smelling incense that boosts the power of Grass-type moves."
+    },
+    {
+      "id": 627,
+      "name": "Rowap Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, and if a foe's special attack lands, the foe also takes damage.",
+      "berry": true
+    },
+    {
+      "id": 628,
+      "name": "Shed Shell",
+      "doc": "A tough, discarded carapace to be held by a Pokémon. It enables the holder to switch with a waiting Pokémon in battle."
+    },
+    {
+      "id": 630,
+      "name": "Shuca Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Ground-type attack.",
+      "berry": true
+    },
+    {
+      "id": 632,
+      "name": "Sky Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Flying-type moves."
+    },
+    {
+      "id": 633,
+      "name": "Smooth Rock",
+      "doc": "A Pokémon hold item that extends the duration of the move Sandstorm used by the holder."
+    },
+    {
+      "id": 634,
+      "name": "Splash Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Water-type moves."
+    },
+    {
+      "id": 635,
+      "name": "Spooky Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Ghost-type moves."
+    },
+    {
+      "id": 637,
+      "name": "Sticky Barb",
+      "doc": "A hold item that damages the holder on every turn. It may latch on to foes that touch the holder."
+    },
+    {
+      "id": 638,
+      "name": "Stone Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Rock-type moves."
+    },
+    {
+      "id": 639,
+      "name": "Tanga Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Bug-type attack.",
+      "berry": true
+    },
+    {
+      "id": 640,
+      "name": "Toxic Orb",
+      "doc": "An item to be held by a Pokémon. It is a bizarre orb that badly poisons the holder in battle."
+    },
+    {
+      "id": 641,
+      "name": "Toxic Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Poison-type moves."
+    },
+    {
+      "id": 642,
+      "name": "Wacan Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Electric-type attack.",
+      "berry": true
+    },
+    {
+      "id": 643,
+      "name": "Wave Incense",
+      "doc": "An item to be held by a Pokémon. It is an exotic-smelling incense that boosts the power of Water-type moves."
+    },
+    {
+      "id": 644,
+      "name": "Wide Lens",
+      "doc": "An item to be held by a Pokémon. It is a magnifying lens that slightly boosts the accuracy of moves."
+    },
+    {
+      "id": 645,
+      "name": "Wise Glasses",
+      "doc": "An item to be held by a Pokémon. It is a thick pair of glasses that slightly boosts the power of special moves."
+    },
+    {
+      "id": 647,
+      "name": "Yache Berry",
+      "doc": "A Poffin ingredient. If held by a Pokémon, it weakens a foe's supereffective Ice-type attack.",
+      "berry": true
+    },
+    {
+      "id": 648,
+      "name": "Zap Plate",
+      "doc": "An item to be held by a Pokémon. It is a stone tablet that boosts the power of Electric-type moves."
+    },
+    {
+      "id": 649,
+      "name": "Zoom Lens",
+      "doc": "An item to be held by a Pokémon. If the holder moves after the foe, its accuracy will be boosted."
+    }
+  ]
+}

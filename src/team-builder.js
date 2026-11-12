@@ -36,6 +36,8 @@
   const pickable = () => !later() ? species || []
     : [...(species || []).map(entry => later().species[entry.id] ? { ...entry, abilities: later().species[entry.id].abilities.map(each => each.name) } : entry), ...(later().dex || [])];
   const movesOf = () => later()?.moves || data?.moves || [];
+  // the items to hold: the disc's, and a later generation's own too (Life Orb), which play only under its rules
+  const itemsOf = () => later()?.items || data?.items || [];
   const speciesInfo = id => (later() ? later().species[id] : data?.species[id]);
   // The list under a move or item field while it's chosen from.
   let list = null;
@@ -53,8 +55,11 @@
         data = battle.value;
         moveById = new Map(data.moves.map(move => [move.id, move]));
         itemById = new Map(data.items.map(item => [item.id, item]));
-        // the later generations' Pokémon, for their names and sprites wherever a party has them
-        for (const each of Object.values(data.generations || {})) for (const entry of each.dex || []) byId.set(entry.id, entry);
+        // the later generations' Pokémon, for their names and sprites wherever a party has them, and their items' names
+        for (const each of Object.values(data.generations || {})) {
+          for (const entry of each.dex || []) byId.set(entry.id, entry);
+          for (const item of each.items || []) if (!itemById.has(item.id)) itemById.set(item.id, item);
+        }
       }
       const failed = [dex, battle].find(result => result.status === 'rejected');
       loadError = failed ? message(failed.reason) : null;
@@ -70,7 +75,7 @@
   };
 
   // What team-sets.js's Showdown text needs to know about this disc, for the open party's generation.
-  const dex = () => ({ species: pickable(), moves: movesOf(), items: data.items, balls: data.balls,
+  const dex = () => ({ species: pickable(), moves: movesOf(), items: [...itemById.values()], balls: data.balls,
     abilities: id => speciesInfo(id)?.abilities || [], gender: id => speciesInfo(id)?.gender ?? T.GENDER.none });
 
   function sprite(id, size, className = '') {
@@ -91,8 +96,9 @@
   const learnset = id => new Map(speciesInfo(id)?.learnset || []);
   // Moves its species can't learn in any game of the party's generation: allowed, as Showdown's custom games allow them, and shown.
   const unlearnable = set => set.moves.filter(move => !learnset(set.species).has(move));
-  // Whether the party has a Pokémon or move only a Generation 4 party can have.
-  const hasLater = sets => sets.some(set => T.speciesGeneration(set.species) >= 4 || set.moves.some(move => T.moveGeneration(move) >= 4));
+  // Whether the party has a Pokémon, move or held item only a Generation 4 party can have.
+  const hasLater = sets => sets.some(set => T.speciesGeneration(set.species) >= 4 || set.moves.some(move => T.moveGeneration(move) >= 4)
+    || T.itemGeneration(set.item) >= 4);
 
   function setStatus(text) { $('party-editor-status').textContent = text || ''; }
 
@@ -544,7 +550,7 @@
   function openItems(input, set, text) {
     const query = key(text);
     const rows = query ? [] : [{ value: 0, cells: [el('span', { className: 'tb-list-name', textContent: 'No item' }), el('span', { className: 'tb-list-doc', textContent: 'It holds nothing.' })] }];
-    for (const item of data.items) {
+    for (const item of itemsOf()) {
       if (query && !key(item.name).includes(query) && !key(item.doc).includes(query)) continue;
       rows.push({ value: item.id, title: item.doc, cells: [el('span', { className: 'tb-list-name', textContent: item.name }), el('span', { className: 'tb-list-doc', textContent: item.doc })] });
     }
@@ -647,7 +653,7 @@
     const wanted = Number(event.target.value);
     if (wanted < 4 && hasLater(editing?.sets || [])) {
       event.target.value = String(generation);
-      setStatus('Take out its Generation 4 Pokémon and moves first: a Generation 3 party can\'t have them.');
+      setStatus('Take out its Generation 4 Pokémon, moves and items first: a Generation 3 party can\'t have them.');
       return;
     }
     useGeneration(wanted);
