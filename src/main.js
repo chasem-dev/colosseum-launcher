@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
+const { Worker } = require('node:worker_threads');
 const port = require('./port');
 const saves = require('./saves');
 const gciSave = require('./gci-save');
@@ -40,6 +41,8 @@ const pokedexNames = require('./pokedex');
 const pokedexData = pokedexNames.create();
 const pokemonCries = require('./pokemon-cries');
 const pokedexCries = pokemonCries.create();
+const jukeboxSongs = require('./jukebox-songs');
+const { Disc } = require('./disc');
 const texturePackLookup = require('./texture-pack-lookup');
 const { pathToFileURL } = require('node:url');
 const battleData = require('./battle-data').create();
@@ -1209,7 +1212,51 @@ function noteCrashReport(error, since) {
   error.message += ' Settings → Launcher can copy its crash report for a bug report.';
 }
 
+// --- The Jukebox (jukebox-page.js): the game's songs, rendered from the player's disc without the game. A worker thread mixes a
+// song (jukebox-render.js, about a second or two); the page plays what it is sent.
+let jukeboxSongList = { rom: null, tracks: [] };
+function jukeboxRom() { return port.validateRom(config.rom); }
+// The songs on the player's disc, read once for each disc.
+function jukeboxTracks() {
+  const rom = jukeboxRom();
+  if (jukeboxSongList.rom !== rom) {
+    const disc = new Disc(rom);
+    try { jukeboxSongList = { rom, tracks: jukeboxSongs.read(disc) }; } finally { disc.close(); }
+  }
+  return jukeboxSongList.tracks;
+}
+
+let jukeboxWorker = null, jukeboxRequest = 0;
+const jukeboxPending = new Map();
+function jukeboxStopWorker() {
+  jukeboxWorker?.terminate();
+  jukeboxWorker = null;
+  for (const { reject } of jukeboxPending.values()) reject(new Error('The Jukebox was closed.'));
+  jukeboxPending.clear();
+}
+function jukeboxRender(id) {
+  const track = jukeboxTracks().find(each => each.id === id);
+  if (!track) return Promise.reject(new Error('That song is not on the list.'));
+  if (!jukeboxWorker) {
+    jukeboxWorker = new Worker(path.join(__dirname, 'jukebox-worker.js'));
+    jukeboxWorker.on('message', ({ id: request, error, ...song }) => {
+      const pending = jukeboxPending.get(request);
+      if (!pending) return;
+      jukeboxPending.delete(request);
+      if (error) pending.reject(new Error(error)); else pending.resolve(song);
+    });
+    jukeboxWorker.on('error', error => { log(`Jukebox: ${error.message}`); jukeboxStopWorker(); });
+    jukeboxWorker.on('exit', () => { jukeboxWorker = null; });
+  }
+  const request = ++jukeboxRequest;
+  return new Promise((resolve, reject) => {
+    jukeboxPending.set(request, { resolve, reject });
+    jukeboxWorker.postMessage({ id: request, rom: jukeboxRom(), sound: track.sound });
+  });
+}
+
 async function play(installation = null, battle = null) {
+  broadcast('jukebox-stop');  // the Jukebox's music and the game would share the sound device
   const root = installation?.repo || requireRepo();
   // The player's choices, not the build's: an earlier install plays with them too.
   const settings = installation ? { ...config.settings, textures: installation.settings?.textures ?? config.settings.textures } : config.settings;
@@ -1986,6 +2033,9 @@ function registerHandlers() {
     if (!wav) throw new Error('That Pokémon has no cry on this disc.');
     return wav;
   });
+  ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
+  ipcMain.handle('jukebox-render', (_event, id) => jukeboxRender(String(id)));
+  ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));
     return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom), look.national, String(form), Number(index));
@@ -2302,6 +2352,7 @@ app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) creat
 
 app.on('before-quit', () => {
   flushPartialOutput();
+  jukeboxStopWorker();
   // Stop an in-flight compiler before another launcher process can recover it.
   if (!active?.child || active.label === PLAY_LABEL) return;
   if (process.platform === 'win32') spawn('taskkill', ['/PID', String(active.child.pid), '/T', '/F'], { windowsHide: true });

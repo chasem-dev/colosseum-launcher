@@ -1,6 +1,8 @@
 {
   "beta": {
-    "launcher": [],
+    "launcher": [
+      "Jukebox: a new tab plays the game's music from your disc. Pick a song and a small player appears along the bottom of every page, with previous, play and pause, stop, next, Loop and volume, so the music keeps playing while you build a team or change settings. Close the player with its X; starting the game stops the music. The music plays in the launcher, so the game doesn't need to be set up or running."
+    ],
     "game": []
   },
   "releases": [

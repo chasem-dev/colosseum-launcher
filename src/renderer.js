@@ -20,7 +20,7 @@ function closeModal() {
 
 // --- Pages: the tabs along the top pick one; Play is the home page. Each page can run code as it shows and hides.
 const pages = {
-  play: { section: 'page-home', nav: 'nav-play' }, saves: { section: 'page-saves', nav: 'nav-saves' }, online: { section: 'page-online', nav: 'nav-online' }, pokedex: { section: 'page-pokedex', nav: 'nav-pokedex' },
+  play: { section: 'page-home', nav: 'nav-play' }, saves: { section: 'page-saves', nav: 'nav-saves' }, online: { section: 'page-online', nav: 'nav-online' }, pokedex: { section: 'page-pokedex', nav: 'nav-pokedex' }, jukebox: { section: 'page-jukebox', nav: 'nav-jukebox' },
   changelog: { section: 'changelog', nav: 'open-changelog' }, settings: { section: 'page-settings', nav: 'settings-cog' }
 };
 const pageOrder = Object.keys(pages);
@@ -50,6 +50,8 @@ function showPage(name) {
 for (const [name, item] of Object.entries(pages)) if (!item.sub) $(item.nav).addEventListener('click', () => showPage(name));
 // The Pokédex (pokedex-page.js) keeps nothing on the GPU while it isn't showing.
 onPage('pokedex', { show: () => window.coloPokedex?.show(), hide: () => window.coloPokedex?.hide() });
+// The Jukebox (jukebox-page.js) renders a song from the disc when it is played; its player stays under every page after that.
+onPage('jukebox', { show: () => window.coloJukebox?.show(), hide: () => window.coloJukebox?.hide() });
 // Online (online-page.js) asks for the room list only while it's showing.
 onPage('online', { show: () => window.coloOnline?.show(), hide: () => window.coloOnline?.hide() });
 
