@@ -51,7 +51,7 @@ const GAMES = {
     // (xd-save.js), as is the Story party (story-party.js), which XD's online battles take whole. The Pokédex and the
     // Jukebox read XD's own disc (xd-disc.js: its species, models, streamed cries and streamed music)
     features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
-      'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets', 'randomizer', 'storyParty', 'pokedex', 'jukebox']
+      'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets', 'gbaLink', 'randomizer', 'storyParty', 'pokedex', 'jukebox']
   }
 };
 

@@ -704,7 +704,9 @@ test('choosing XD on the Play page names it, asks for its disc, and hides what o
   assert.equal(ui.elements.get('game-colosseum')['aria-pressed'], 'false');
   assert.equal(ui.elements.get('home-title').textContent, 'Pokémon XD: Gale of Darkness');
   assert.match(ui.elements.get('setup-disc-description').textContent, /North American Pokémon XD: Gale of Darkness disc \(GXXE01\)/);
-  assert.deepEqual(['tab-gba', 'texture-info'].filter(id => !off(id)), []);
+  assert.deepEqual(['texture-info'].filter(id => !off(id)), []);
+  assert.equal(off('tab-gba'), false, 'XD trades with a GBA too');
+  assert.match(ui.elements.get('gba-intro').textContent, /Trade Center/);
   assert.deepEqual(['nav-pokedex', 'nav-jukebox'].filter(off), [], 'XD\'s Pokédex and Jukebox read its own disc');
   assert.equal(off('promptPad-field'), false, 'XD has quick moves');
   assert.equal(ui.elements.get('choose-starters-title').textContent, 'Choose starter', 'XD\'s starter is one Eevee');

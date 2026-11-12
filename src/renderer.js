@@ -750,6 +750,7 @@ function renderGame(data) {
   $('dolphin-import-help').textContent = `Drop your North American ${chosen.name} .gci save here, or the folder it is in, or choose it. Dolphin names it ${gciName}. Your current saves are backed up before importing.`;
   renderGenerationsText(data, chosen);
   renderPokemonText(chosen);
+  renderGbaText(chosen);
   for (const node of document.querySelectorAll('[data-feature]')) node.classList.toggle('feature-off', !gameHas(data, node.dataset.feature));
   if (!gameHas(data, 'gbaLink') && settingsTab === 'gba') settingsTab = 'gameplay';
   if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online' }[page] || '')) showPage('play');
@@ -776,6 +777,16 @@ function renderGenerationsText(data, chosen) {
   // made from Colosseum's disc, which has to be set up first
   $('generations-disc-note').hidden = own || data.teamDiscReady !== false;
   $('generations-disc-note').textContent = `Generation 4 in ${chosen.shortName} is made from your Pokémon Colosseum disc. Choose Colosseum on the Play page and set up its disc first; until then ${chosen.shortName} plays by Gen 3 rules.`;
+}
+
+// The GBA link, as each game has it: Colosseum registers a team and gives Poké Coupons; XD only trades, at the Trade
+// Center (host/xd/gbalink.c)
+let gbaIntro = null;
+function renderGbaText(chosen) {
+  gbaIntro ??= $('gba-intro').textContent;
+  $('gba-intro').textContent = chosen.id === 'xd'
+    ? 'Link your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save to XD, as the GCN-GBA cable did, and trade at the Trade Center in a Pokémon Center\'s basement. Use socket 2. Choose the save your emulator keeps: the game reads it, and writes trades back into it, with a backup first. Save in a Pokémon Center on the GBA first.'
+    : gbaIntro;
 }
 
 // Shiny Shadow Pokémon, choosing starters and the randomizer, as each game has them: XD's Shadow Pokémon could never be
