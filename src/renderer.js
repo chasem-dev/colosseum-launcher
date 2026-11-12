@@ -585,16 +585,22 @@ function showWizardStep(data) {
   else if (wizardStep === null || wizardStep === 0 || wizardStep > required) wizardStep = required;
   const ready = wizardStep === 0;
   const downloadTextures = ready && data.binaryReady && needsTextureDownload(data);
-  $('page-home').classList.toggle('ready-mode', ready);
-  $('setup-flow').hidden = ready;
-  $('home-title').textContent = ready ? chosenGame(data).name : 'Set up your game';
-  // ready, the game's logo or name above says which game it is; the heading stays for screen readers
-  $('home-title').classList.toggle('visually-hidden', ready);
-  $('home-description').textContent = ready
-    ? downloadTextures ? 'Set up HD visuals to finish setup.'
-      : !data.binaryReady ? `This version of the game is not set up yet. Prepare & play gets it ready and starts it, or ▾ Prepare only gets it ready for later.`
-      : data.game.needsUpdate ? `Game update${data.game.availableVersion ? ` ${data.game.availableVersion}` : ''} is ready. Your saves carry over.` : 'Ready when you are.'
-    : "Three steps, then you're ready to play.";
+  const home = $('page-home');
+  const show = () => {
+    home.classList.toggle('ready-mode', ready);
+    // a panel over the art (the setup steps): the chosen game's logo goes small to the top for it (layoutPlayStage)
+    home.classList.toggle('has-panel', !ready);
+    $('setup-flow').hidden = ready;
+    $('home-title').textContent = ready ? chosenGame(data).name : 'Set up your game';
+    // ready, the game's logo or name above says which game it is; the heading stays for screen readers
+    $('home-title').classList.toggle('visually-hidden', ready);
+    $('home-description').textContent = ready
+      ? downloadTextures ? 'Set up HD visuals to finish setup.'
+        : !data.binaryReady ? `This version of the game is not set up yet. Prepare & play gets it ready and starts it, or ▾ Prepare only gets it ready for later.`
+        : data.game.needsUpdate ? `Game update${data.game.availableVersion ? ` ${data.game.availableVersion}` : ''} is ready. Your saves carry over.` : 'Ready when you are.'
+      : "Three steps, then you're ready to play.";
+  };
+  if (home.classList.contains('has-panel') === ready) tweenPlayStage(show, { carry: true }); else show();
   $('setup-install-description').textContent = data.config.settings.textures && !data.texturesInstalled
     ? "We'll download HD textures, then build a playable copy of the game on your computer. This can take a while."
     : "We'll build a playable copy of the game on your computer. This can take a while.";
@@ -716,11 +722,15 @@ function renderConsoleState(active) {
 }
 
 // The two games of the Play page: a side of the art each, split by a diagonal that gives the chosen one most of the
-// window (style.css #game-art), and a button each at the top of its side: its logo from the disc, or its name.
+// window (style.css #game-art), and a button each over its side: its logo from the disc, or its name (layoutPlayStage).
 const GAME_IDS = ['colosseum', 'xd'];
 function showChosenGame(id) {
-  $('game-art').dataset.active = id;
-  for (const each of GAME_IDS) $(`game-${each}`).setAttribute('aria-pressed', String(each === id));
+  const show = () => {
+    $('game-art').dataset.active = id;
+    for (const each of GAME_IDS) $(`game-${each}`).setAttribute('aria-pressed', String(each === id));
+  };
+  // the logos move with the line (tweenPlayStage)
+  if ($('game-art').dataset.active !== id) tweenPlayStage(show); else show();
 }
 
 // The game picker, and what the chosen game has: its disc, and the tabs and settings of features it doesn't have hidden.
@@ -783,7 +793,7 @@ for (const id of GAME_IDS) {
   $(`game-art-${id}`).addEventListener('click', () => { if (page === 'play' && !consoleExpanded) chooseGame(id); });
 }
 
-// Each game's logo, read from its own disc by the launcher (main.js gameLogos), in place of its name in the corner:
+// Each game's logo, read from its own disc by the launcher (main.js gameLogos), in place of its name:
 // asked for again when a disc, the language or the HD textures change. A game without a disc, or whose logo couldn't
 // be read, keeps its name.
 let logoKey = null;
@@ -809,6 +819,100 @@ async function syncLogos(config) {
   if (key === logoKey) showLogos(logos);
 }
 
+// Where the logos and the headline go on the Play page (play-stage.js has the rules): measured from the window, the
+// page, Play and any banner, and set as --x, --y and --w on each game's button, and --x, --top and --max on the
+// headline. Asked again when the window or Play changes size, a logo loads, or the page is refreshed.
+function stageGeometry() {
+  const home = $('page-home'), viewport = home.parentElement;
+  if (home.hidden || !viewport || typeof window.getComputedStyle !== 'function') return null;
+  const shell = $('shell').getBoundingClientRect(), page = home.getBoundingClientRect();
+  if (!shell.width || !shell.height || !page.width) return null;
+  // the page's own heights are from its top, and the window's across from its left; the page as it is when it isn't
+  // scrolled (setting up, it can be)
+  const scroll = viewport.scrollTop || 0, pageTop = page.top + scroll - shell.top;
+  const across = box => ({ left: box.left - shell.left, right: box.right - shell.left });
+  const play = $('launch-panel').getBoundingClientRect(), banner = $('add-to-steam'), bannerBox = banner.getBoundingClientRect();
+  const aspect = {};
+  for (const id of GAME_IDS) {
+    const logo = $(`game-logo-${id}`);
+    aspect[id] = !logo.hidden && logo.naturalWidth > 0 && logo.naturalHeight > 0 ? logo.naturalWidth / logo.naturalHeight : 0;
+  }
+  return {
+    W: shell.width, H: shell.height, pageTop, active: $('game-art').dataset.active, panel: home.classList.contains('has-panel'), aspect,
+    play: { ...across(play), top: play.top - page.top },
+    // the window's foot
+    visibleBottom: viewport.getBoundingClientRect().bottom - page.top - scroll - 8,
+    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), bottom: bannerBox.bottom - page.top } : null,
+    band: parseFloat(window.getComputedStyle(home).paddingTop) || 0,
+    headlineHeight: $('home-headline').offsetHeight || 0,
+    origin: { x: $('game-picker').getBoundingClientRect().left - shell.left, page: page.left - shell.left }
+  };
+}
+function layoutPlayStage() {
+  const geometry = stageGeometry();
+  if (!geometry || !window.ColoPlayStage) return false;
+  let places = window.ColoPlayStage.layout(geometry);
+  const headline = $('home-headline'), px = value => `${Math.round(value * 10) / 10}px`;
+  const placeHeadline = () => {
+    const at = places.headline || { cx: places[geometry.active].cx };
+    headline.style.setProperty('--x', px(at.cx - geometry.origin.page));
+    if (places.headline) { headline.style.setProperty('--top', px(at.top)); headline.style.setProperty('--max', px(at.maxWidth)); }
+  };
+  placeHeadline();
+  // the headline wraps to the width it is given, which moves the logo above it: once more with its new height
+  if (places.headline && Math.abs((headline.offsetHeight || 0) - geometry.headlineHeight) > 1) {
+    places = window.ColoPlayStage.layout({ ...geometry, headlineHeight: headline.offsetHeight || 0 });
+    placeHeadline();
+  }
+  for (const id of GAME_IDS) {
+    const place = places[id], tab = $(`game-${id}`);
+    tab.style.setProperty('--x', px(place.cx - geometry.origin.x));
+    tab.style.setProperty('--y', px(place.cy - place.h / 2));
+    tab.style.setProperty('--w', px(place.w));
+  }
+  $('page-home').classList.add('stage-placed');
+  return true;
+}
+
+// Moving between places (another game chosen, or a panel coming or going) is a tween of the same .75 s and easing as the
+// line (style.css --tween): each part is put in its new place at once, then drawn from where it was by a transform that
+// eases away. Logos grow or shrink as they go; the rest slides. Reduced motion: no tween.
+const STAGE_TWEEN = { duration: 750, easing: 'cubic-bezier(.7, 0, .25, 1)' };
+let stageAnimations = [];
+const stageParts = () => [...GAME_IDS.flatMap(id => [$(`game-mark-${id}`), $(`game-state-${id}`)]), $('home-headline'), $('setup-flow'), $('launch-panel')];
+function reducedMotion() { return Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches); }
+// carry: a change during a tween (a panel coming as the other game is chosen) keeps to that tween's time, as the line does
+function tweenPlayStage(change, { carry = false } = {}) {
+  const parts = stageParts();
+  const tween = page === 'play' && $('page-home').classList.contains('stage-placed') && !reducedMotion() && typeof parts[0].animate === 'function';
+  const from = tween ? parts.map(part => part.getBoundingClientRect()) : [];
+  const running = carry ? stageAnimations.find(animation => animation.playState === 'running') : null;
+  const elapsed = running ? Number(running.currentTime) || 0 : 0, done = running ? running.effect.getComputedTiming().progress || 0 : 0;
+  for (const animation of stageAnimations) animation.cancel();
+  stageAnimations = [];
+  change();
+  if (!layoutPlayStage() || !tween) return;
+  // keeping to a running tween, each part starts far enough back that it is where it was at the time already gone
+  const keep = elapsed > 0 && done < 0.9 ? 1 / (1 - done) : 0;
+  parts.forEach((part, index) => {
+    const was = from[index], now = part.getBoundingClientRect();
+    if (!was.width || !now.width) return;
+    let dx = was.left + was.width / 2 - now.left - now.width / 2, dy = was.top + was.height / 2 - now.top - now.height / 2;
+    let scale = part.classList.contains('game-tab-art') ? was.width / now.width : 1;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(scale - 1) < 0.002) return;
+    if (keep) { dx *= keep; dy *= keep; scale = 1 + (scale - 1) * keep; }
+    const round = (value, places = 100) => Math.round(value * places) / places;
+    const animation = part.animate([{ transform: `translate(${round(dx)}px, ${round(dy)}px) scale(${round(scale, 1e4)})` }, { transform: 'none' }], STAGE_TWEEN);
+    if (keep) animation.currentTime = elapsed;
+    stageAnimations.push(animation);
+  });
+}
+if (typeof ResizeObserver === 'function') {
+  const observer = new ResizeObserver(() => layoutPlayStage());
+  for (const id of ['page-home', 'launch-panel']) observer.observe($(id));
+}
+for (const id of GAME_IDS) $(`game-logo-${id}`).addEventListener('load', () => layoutPlayStage());
+
 function refresh(data) {
   if (Number.isFinite(data.logResetSequence)) resetLog(data.logResetSequence);
   current = data;
@@ -832,6 +936,8 @@ function refresh(data) {
   renderMacTools(data.tools);
   $('play').disabled = Boolean(data.active) || setupPending;
   renderPlayMenu(data);
+  // the headline's words may have changed, and with them its height under the logo
+  layoutPlayStage();
   for (const button of document.querySelectorAll('[data-setup-back]')) button.disabled = Boolean(data.active) || setupPending;
   $('build').hidden = !data.binaryReady || !data.romReady;
   $('rebuild-note').hidden = $('build').hidden;

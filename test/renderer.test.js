@@ -78,7 +78,7 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
   };
   const context = vm.createContext({ console, setInterval() {}, clearInterval() {}, requestAnimationFrame: callback => setImmediate(callback),
     cancelAnimationFrame() {}, navigator: { getGamepads: () => [] }, ColoBindings: require('../src/bindings'), ColoPresets: require('../src/presets'),
-    window: { colo, coloActivityLog: require('../src/activity-log'), coloChangelogText: require('../src/changelog-text'), coloGamepadNav: { start: options => Object.assign(gamepad, options) },
+    window: { colo, ColoPlayStage: require('../src/play-stage'), coloActivityLog: require('../src/activity-log'), coloChangelogText: require('../src/changelog-text'), coloGamepadNav: { start: options => Object.assign(gamepad, options) },
       addEventListener(event, callback) { (listeners.window ||= {})[event] = [...(listeners.window[event] || []), callback]; }, removeEventListener() {} }, document: {
     getElementById(id) { assert.ok(elements.has(id), `Missing HTML element ${id}`); return elements.get(id); },
     querySelectorAll(selector) {
@@ -860,4 +860,119 @@ test('ready to play, the headline\'s game name is left to the logo above, for sc
   const setup = await renderer({ ...state(), repoReady: false, binaryReady: false, config: { ...state().config, completedSetup: false } });
   assert.equal(setup.elements.get('home-title').classList.contains('visually-hidden'), false);
   assert.equal(setup.elements.get('home-title').textContent, 'Set up your game');
+});
+
+// The Play page's logos (play-stage.js) as laid out in a window of 1080x760: each element's box follows the places the
+// renderer gives it, and its tweens are recorded.
+function stageWindow(ui) {
+  const animations = [], el = id => ui.elements.get(id), vars = new Map();
+  const box = (left, top, width, height) => ({ left, top, width, height, right: left + width, bottom: top + height });
+  const at = (id, name) => parseFloat(vars.get(id)?.[name]) || 0;
+  for (const [id, node] of ui.elements) {
+    node.style = { setProperty(name, value) { vars.set(id, { ...vars.get(id), [name]: value }); } };
+    node.animate = (frames, timing) => { const animation = { id, frames, timing, playState: 'running', currentTime: 0,
+      effect: { getComputedTiming: () => ({ progress: 0 }) }, cancel() { this.playState = 'idle'; } }; animations.push(animation); return animation; };
+  }
+  const chosen = () => el('game-art').dataset.active, panel = () => el('page-home').classList.contains('has-panel');
+  const rects = {
+    shell: () => box(0, 0, 1080, 760), 'page-home': () => box(28, 129, 1024, 600), 'game-picker': () => box(0, 129, 1080, 0),
+    'launch-panel': () => panel() ? box(chosen() === 'xd' ? 418 : 42, 623, 620, 89) : box(250, 616, 580, 96),
+    'setup-flow': () => panel() ? box(chosen() === 'xd' ? 418 : 28, 349, 634, 250) : box(0, 0, 0, 0),
+    'home-headline': () => box(28 + at('home-headline', '--x') - 70, 129 + (panel() ? 230 : at('home-headline', '--top')), 140, 24),
+    'add-to-steam': () => box(0, 0, 0, 0)
+  };
+  for (const id of ['colosseum', 'xd']) {
+    const w = () => at(`game-${id}`, '--w'), x = () => at(`game-${id}`, '--x'), y = () => 129 + at(`game-${id}`, '--y');
+    rects[`game-mark-${id}`] = () => box(x() - w() / 2, y(), w(), w() / 2.4);
+    rects[`game-state-${id}`] = () => box(x() - 45, y() + w() / 2.4 + 6, 90, 24);
+  }
+  for (const [id, rect] of Object.entries(rects)) el(id).getBoundingClientRect = rect;
+  el('page-home').parentElement = { getBoundingClientRect: () => box(0, 105, 1080, 619), scrollTop: 0 };
+  el('home-headline').offsetHeight = 24;
+  ui.window.getComputedStyle = () => ({ paddingTop: panel() ? '108px' : '0px' });
+  return { animations, vars: id => vars.get(id) || {}, width: id => at(`game-${id}`, '--w'), top: id => at(`game-${id}`, '--y') };
+}
+
+test('the Play page knows when a panel is over the art: setting up has one, ready to play has none', async () => {
+  const ready = await renderer({ ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } });
+  assert.equal(ready.elements.get('page-home').classList.contains('has-panel'), false);
+  assert.equal(ready.elements.get('page-home').classList.contains('ready-mode'), true);
+  const setup = await renderer({ ...state(), repoReady: false, binaryReady: false, config: { ...state().config, completedSetup: false } });
+  assert.equal(setup.elements.get('page-home').classList.contains('has-panel'), true);
+  assert.equal(setup.elements.get('setup-flow').hidden, false);
+  // the logos are placed once the page can be measured, and shown only then
+  assert.equal(setup.elements.get('page-home').classList.contains('stage-placed'), false);
+  stageWindow(setup);
+  await setup.refresh();
+  assert.equal(setup.elements.get('page-home').classList.contains('stage-placed'), true);
+});
+
+test('ready to play, both logos are large and centred; a panel puts the chosen one small at the top', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  assert.ok(stage.width('colosseum') > 400 && stage.width('xd') > 240, `${stage.width('colosseum')} and ${stage.width('xd')} wide`);
+  assert.ok(stage.top('colosseum') > 100, 'the chosen logo is down in the middle');
+  assert.ok(Number.parseFloat(stage.vars('home-headline')['--top']) > stage.top('colosseum'), 'with the headline under it');
+  Object.assign(data, { repoReady: false, binaryReady: false, config: { ...data.config, completedSetup: false } });
+  await ui.refresh();
+  assert.ok(stage.top('colosseum') < 10 && stage.width('colosseum') < 200, 'setting up, it is small at the top');
+  assert.ok(stage.width('xd') > 240, 'the other game\'s stays large');
+});
+
+test('switching games tweens the logos, their Switch and the headline with the line\'s time and easing', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  const before = { colosseum: stage.width('colosseum'), xd: stage.width('xd') };
+  await ui.click('game-xd');
+  const moved = new Set(stage.animations.map(animation => animation.id));
+  for (const id of ['game-mark-colosseum', 'game-mark-xd', 'game-state-colosseum', 'game-state-xd', 'home-headline']) assert.ok(moved.has(id), `${id} tweens`);
+  // XD's logo grows into the middle and Colosseum's shrinks into its strip: each starts at its old size
+  assert.ok(stage.width('xd') > before.xd && stage.width('colosseum') < before.colosseum);
+  const grow = stage.animations.find(animation => animation.id === 'game-mark-xd');
+  const scale = Number(/scale\(([\d.]+)\)/.exec(grow.frames[0].transform)[1]);
+  assert.ok(Math.abs(scale - before.xd / stage.width('xd')) < 0.01, `XD's logo starts at ${scale} of its new size`);
+  assert.equal(grow.frames[1].transform, 'none');
+  // the Switch and the headline slide without scaling
+  assert.match(stage.animations.find(animation => animation.id === 'game-state-xd').frames[0].transform, /scale\(1\)$/);
+  // the same time and easing as the line's transition in style.css
+  const css = fs.readFileSync(path.resolve(__dirname, '../src/style.css'), 'utf8');
+  const tween = /--tween: (\.\d+)s (cubic-bezier\([^)]+\))/.exec(css);
+  for (const animation of stage.animations) assert.deepEqual({ ...animation.timing }, { duration: Number(tween[1]) * 1000, easing: tween[2] });
+  assert.match(css, /\.shell \{[^}]*transition: --split var\(--tween\)/);
+});
+
+test('setup finishing tweens the chosen logo down to the middle; reduced motion puts everything in place at once', async () => {
+  const data = { ...state(), repoReady: false, binaryReady: false, config: { ...state().config, completedSetup: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  const top = stage.top('colosseum');
+  Object.assign(data, { repoReady: true, binaryReady: true, config: { ...data.config, completedSetup: true }, game: { ...data.game, needsUpdate: false } });
+  await ui.refresh();
+  assert.equal(ui.elements.get('page-home').classList.contains('has-panel'), false);
+  assert.ok(stage.top('colosseum') > top);
+  assert.ok(stage.animations.some(animation => animation.id === 'game-mark-colosseum' && /translate\(-?[\d.]+px, -\d/.test(animation.frames[0].transform)),
+    'Colosseum\'s logo starts from up at the top');
+  // reduced motion: switching moves nothing by tween
+  ui.window.matchMedia = query => ({ matches: /prefers-reduced-motion: reduce/.test(query) });
+  const count = stage.animations.length;
+  await ui.click('game-xd');
+  assert.equal(stage.animations.length, count);
+  assert.ok(stage.width('xd') > stage.width('colosseum'), 'XD\'s logo is large at once');
+});
+
+test('a panel coming in the middle of a switch keeps to the switch\'s time, as the line does', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  // XD isn't set up: the launcher answers the switch with its setup steps, 300 ms into the tween
+  ui.window.colo.selectGame = async id => { data.currentGame = games.summary(id); Object.assign(data, { repoReady: false, binaryReady: false });
+    for (const animation of stage.animations) { animation.currentTime = 300; animation.effect.getComputedTiming = () => ({ progress: 0.4 }); } return data; };
+  await ui.click('game-xd');
+  await new Promise(setImmediate);
+  assert.equal(ui.elements.get('page-home').classList.contains('has-panel'), true);
+  const carried = stage.animations.filter(animation => animation.playState === 'running');
+  assert.ok(carried.some(animation => animation.id === 'game-mark-xd'));
+  for (const animation of carried) assert.equal(animation.currentTime, 300, `${animation.id} carries on from 300 ms`);
 });
