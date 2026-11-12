@@ -23,6 +23,7 @@
         button.className = 'jukebox-track';
         button.dataset.id = track.id;
         button.textContent = track.name;
+        button.title = track.name;   // the whole name, for a long one in a narrow window
         button.addEventListener('click', () => play(track.id));
         return button;
       }));

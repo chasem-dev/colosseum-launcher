@@ -29,3 +29,10 @@ test('the music is stopped when the game starts, and leaving the page does not s
   assert.match(script, /onJukeboxStop\(close\)/);
   assert.match(script, /hide\(\) \{\}/);
 });
+
+test('a long song name wraps in its button instead of being cut off', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'style.css'), 'utf8');
+  const rule = css.match(/\.jukebox-track \{[^}]*\}/)[0];
+  assert.match(rule, /white-space: normal/);          // buttons are nowrap by default
+  assert.match(script, /button\.title = track\.name/);
+});

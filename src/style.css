@@ -996,7 +996,7 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .dark .jukebox-page, .dark .jukebox-dock { --jk-line: #5e2d48; --jk-panel: #3a1427; --jk-muted: #c8abc0; --jk-hover: #4b1d35; --jk-selected: #5a2342; --jk-accent: #ffc75a; }
 .jukebox-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; }
 .jukebox-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
-.jukebox-track { text-align: left; padding: 9px 12px; border: 1px solid var(--jk-line); border-radius: 8px; background: var(--jk-panel); color: inherit; font: inherit; font-size: 13px; }
+.jukebox-track { text-align: left; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; padding: 9px 12px; border: 1px solid var(--jk-line); border-radius: 8px; background: var(--jk-panel); color: inherit; font: inherit; font-size: 13px; }
 .jukebox-track:hover { background: var(--jk-hover); }
 .jukebox-track.selected { background: var(--jk-selected); border-color: var(--jk-accent); }
 .jukebox-track.playing::before { content: "\266A  "; color: var(--jk-accent); }
