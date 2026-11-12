@@ -588,6 +588,8 @@ function showWizardStep(data) {
   $('page-home').classList.toggle('ready-mode', ready);
   $('setup-flow').hidden = ready;
   $('home-title').textContent = ready ? chosenGame(data).name : 'Set up your game';
+  // ready, the game's logo or name above says which game it is; the heading stays for screen readers
+  $('home-title').classList.toggle('visually-hidden', ready);
   $('home-description').textContent = ready
     ? downloadTextures ? 'Set up HD visuals to finish setup.'
       : !data.binaryReady ? `This version of the game is not set up yet. Prepare & play gets it ready and starts it, or ▾ Prepare only gets it ready for later.`
@@ -714,7 +716,7 @@ function renderConsoleState(active) {
 }
 
 // The two games of the Play page: a side of the art each, split by a diagonal that gives the chosen one most of the
-// window (style.css #game-art), and a button each in the corners beside Play.
+// window (style.css #game-art), and a button each at the top of its side: its logo from the disc, or its name.
 const GAME_IDS = ['colosseum', 'xd'];
 function showChosenGame(id) {
   $('game-art').dataset.active = id;
@@ -781,11 +783,38 @@ for (const id of GAME_IDS) {
   $(`game-art-${id}`).addEventListener('click', () => { if (page === 'play' && !consoleExpanded) chooseGame(id); });
 }
 
+// Each game's logo, read from its own disc by the launcher (main.js gameLogos), in place of its name in the corner:
+// asked for again when a disc, the language or the HD textures change. A game without a disc, or whose logo couldn't
+// be read, keeps its name.
+let logoKey = null;
+function logoState(config = {}) {
+  const chosen = config.game || GAME_IDS[0];
+  return JSON.stringify([GAME_IDS.map(id => (id === chosen ? config.rom : config.games?.[id]?.rom) || ''),
+    config.settings?.language || 'en', Boolean(config.settings?.textures)]);
+}
+function showLogos(logos) {
+  for (const id of GAME_IDS) {
+    const url = typeof logos?.[id] === 'string' && logos[id].startsWith('data:image/') ? logos[id] : null, logo = $(`game-logo-${id}`);
+    if (url) logo.src = url; else logo.removeAttribute('src');
+    logo.hidden = !url;
+    $(`game-${id}`).classList.toggle('has-logo', Boolean(url));
+  }
+}
+async function syncLogos(config) {
+  const key = logoState(config);
+  if (key === logoKey || !window.colo.gameLogos) return;
+  logoKey = key;
+  let logos = null;
+  try { logos = await window.colo.gameLogos(); } catch (_) { /* the names stay */ }
+  if (key === logoKey) showLogos(logos);
+}
+
 function refresh(data) {
   if (Number.isFinite(data.logResetSequence)) resetLog(data.logResetSequence);
   current = data;
   const { config, platform } = data;
   renderGame(data);
+  syncLogos(config);
   $('platform').textContent = platform.name;
   $('repo-path').textContent = config.repo;
   $('repo-path').title = config.repo;

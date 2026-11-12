@@ -809,3 +809,55 @@ test('XD\'s later generations explain where they come from, and need Colosseum\'
   await ui.refresh();
   assert.equal(ui.elements.get('generations-disc-note').hidden, true);
 });
+
+// Each game's logo from its disc (main.js gameLogos) at the top of its side, in place of its name.
+test('a game\'s logo shows in place of its name once read, and a game without one keeps its name', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  data.config = { ...data.config, game: 'colosseum', rom: '/discs/colosseum.iso', games: { xd: { rom: '' } } };
+  const ui = await renderer(data);
+  const asked = [];
+  ui.window.colo.gameLogos = async () => { asked.push(true); return { colosseum: 'data:image/png;base64,AAAA', xd: null }; };
+  const shows = id => ({ logo: ui.elements.get(`game-${id}`).classList.contains('has-logo'), hidden: ui.elements.get(`game-logo-${id}`).hidden,
+    src: ui.elements.get(`game-logo-${id}`).src || null });
+  // no logo until the launcher has read one
+  assert.deepEqual(shows('colosseum'), { logo: false, hidden: true, src: null});
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.equal(asked.length, 1);
+  assert.deepEqual(shows('colosseum'), { logo: true, hidden: false, src: 'data:image/png;base64,AAAA'});
+  assert.deepEqual(shows('xd'), { logo: false, hidden: true, src: null});
+  // the same discs: not asked again
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.equal(asked.length, 1);
+  // XD's disc chosen: asked again, and its logo shows
+  ui.window.colo.gameLogos = async () => { asked.push(true); return { colosseum: 'data:image/png;base64,AAAA', xd: 'data:image/png;base64,BBBB' }; };
+  data.config = { ...data.config, games: { xd: { rom: '/discs/xd.iso' } } };
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.equal(asked.length, 2);
+  assert.equal(shows('xd').logo, true);
+  assert.equal(shows('xd').src, 'data:image/png;base64,BBBB');
+  // a disc gone or unreadable: its name again
+  ui.window.colo.gameLogos = async () => ({ colosseum: null, xd: 'javascript:alert(1)' });
+  data.config = { ...data.config, rom: '' };
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.deepEqual([shows('colosseum').logo, shows('xd').logo], [false, false]);
+  assert.equal(shows('xd').src, null);
+  // the buttons keep their names for screen readers, and the logos add none of their own
+  const html = fs.readFileSync(path.resolve(__dirname, '../src/index.html'), 'utf8');
+  assert.match(html, /id="game-colosseum"[^>]*aria-label="Pokémon Colosseum"/);
+  assert.match(html, /id="game-xd"[^>]*aria-label="Pokémon XD: Gale of Darkness"/);
+  assert.match(html, /<img id="game-logo-xd" class="game-tab-logo" alt="" hidden>/);
+});
+
+test('ready to play, the headline\'s game name is left to the logo above, for screen readers only', async () => {
+  const ready = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(ready);
+  assert.equal(ui.elements.get('home-title').classList.contains('visually-hidden'), true);
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon Colosseum');
+  const setup = await renderer({ ...state(), repoReady: false, binaryReady: false, config: { ...state().config, completedSetup: false } });
+  assert.equal(setup.elements.get('home-title').classList.contains('visually-hidden'), false);
+  assert.equal(setup.elements.get('home-title').textContent, 'Set up your game');
+});

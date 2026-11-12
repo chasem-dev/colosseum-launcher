@@ -129,16 +129,27 @@ function decode(format, width, height, source, palette = null, paletteFormat = 0
   return out;
 }
 
-// The game's standalone menu textures: a 0x80-byte header (width and height, then the
-// format code at 0x0B) and the image.
-const STANDALONE = { 0x90: 5, 0x45: 6, 0xb0: 14, 0x44: 3 };
+// The game's standalone menu textures (its GStexture): a 0x80-byte header (width and height, the
+// format code at 0x0B, and for the colour-index formats the palette's format at 0x0F and where the
+// palette starts at 0x48) and the image. XD's Flash menus hold them too (title-logo.js).
+const STANDALONE = { 0x90: 5, 0x45: 6, 0xb0: 14, 0x44: 3, 0x40: 0, 0x41: 2, 0x42: 1, 0x43: 3, 0x00: 8, 0x01: 9, 0x30: 10 };
+const PALETTE_ENTRIES = { 8: 16, 9: 256, 10: 16384 };
 function decodeStandalone(file) {
   if (file.length < 0x80) return null;
   const width = file.readUInt16BE(0), height = file.readUInt16BE(2), format = STANDALONE[file[0x0b]];
   if (format === undefined || !width || !height) return null;
-  const data = file.subarray(0x80), rgba = decode(format, width, height, data);
+  const data = file.subarray(0x80);
+  let palette = null, paletteFormat = 0;
+  if (PALETTE_ENTRIES[format]) {
+    // the palette's format, 1 to 3, is GX's IA8, RGB565 or RGB5A3
+    const from = file.readUInt32BE(0x48), kind = file[0x0f];
+    if (kind < 1 || kind > 3 || !from || from >= file.length) return null;
+    palette = file.subarray(from, Math.min(file.length, from + PALETTE_ENTRIES[format] * 2));
+    paletteFormat = kind - 1;
+  }
+  const rgba = decode(format, width, height, data, palette, paletteFormat);
   // `disc`: the texture as the disc has it, for finding its HD replacement (texture-pack-lookup.js).
-  return rgba && { width, height, rgba, disc: { data, format, width, height } };
+  return rgba && { width, height, rgba, disc: { data, format, width, height, ...(palette ? { palette } : {}) } };
 }
 
 module.exports = { decode, decodeStandalone, textureSize };

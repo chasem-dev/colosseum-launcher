@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('colo', {
   savePrompts: images => ipcRenderer.invoke('save-prompts', images),
   chooseRom: () => ipcRenderer.invoke('choose-rom'),
   selectGame: id => ipcRenderer.invoke('select-game', id),
+  gameLogos: () => ipcRenderer.invoke('game-logos'),
   chooseGbaFile: (kind, socket) => ipcRenderer.invoke('choose-gba-file', kind, socket),
   clearGbaFile: (kind, socket) => ipcRenderer.invoke('clear-gba-file', kind, socket),
   useGbaSave: (socket, file) => ipcRenderer.invoke('use-gba-save', socket, file),

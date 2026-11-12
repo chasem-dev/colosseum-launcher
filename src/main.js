@@ -53,6 +53,7 @@ const generations = require('./generations');
 const hsdModel = require('./hsd-model');
 const randomizer = require('./randomizer');
 const languagePacks = require('./language-packs');
+const titleLogo = require('./title-logo');
 const { retrying, httpError } = require('./retry');
 
 const DISCORD_INVITE = 'https://discord.gg/pkVwBrSwsZ';
@@ -1169,6 +1170,42 @@ function withHdTextures(model) {
   return model;
 }
 
+// The Play page's logos: each game's title logo, read from its own disc once and kept in userData (title-logo.js), as
+// data URLs; null for a game without a disc or whose logo couldn't be read, which keeps its name. Colosseum's is in the
+// language chosen when its pack has a logo of its own, and the HD pack's when the HD textures are on and have it.
+let logoTextures = { key: null, index: new Map() };
+function logoTextureIndex(fields, id) {
+  const settings = { ...config.settings, textures: Boolean(fields.repo && config.settings.textures && games.supports(id, 'hdTextures')
+    && port.texturePackInstalled(fields.repo, id)) };
+  const folders = port.texturePackFolders(settings, fields.repo, customTextureDirectory()), key = folders.join('\n');
+  if (key !== logoTextures.key) logoTextures = { key, index: texturePackLookup.indexFolders(folders) };
+  return logoTextures.index;
+}
+const logoFailures = new Set();
+function gameLogos() {
+  const all = games.allFields(config), logos = {};
+  for (const id of games.ids()) {
+    logos[id] = null;
+    const fields = all[id], rom = fields?.rom;
+    if (!rom || !fs.existsSync(rom)) continue;
+    const language = games.supports(id, 'languagePacks') ? languagePacks.normalizeLanguage(config.settings.language) : 'en';
+    try {
+      const packFolder = language === 'en' ? null : languagePacks.chosenFolder(config.settings, languageFolder());
+      const { file, hdNames } = titleLogo.cachedLogo(path.join(app.getPath('userData'), 'title-logos'), id, rom, { language, packFolder });
+      const hd = hdNames.length ? titleLogo.hdLogoFile(logoTextureIndex(fields, id), hdNames) : null;
+      logos[id] = `data:image/png;base64,${fs.readFileSync(hd || file).toString('base64')}`;
+    } catch (error) {
+      // once for each disc and reason, not each time the Play page asks
+      const failure = `${id}\n${rom}\n${error.message}`;
+      if (!logoFailures.has(failure)) {
+        logoFailures.add(failure);
+        log(`The ${games.get(id).name} logo couldn't be read from its disc, so the Play page shows its name: ${error.message}`);
+      }
+    }
+  }
+  return logos;
+}
+
 // A disc Pokémon's sprite with an HD image: the page loads it from colo-texture://sprite/<National Pokédex number>, so
 // only the sprites on screen are read, and the browser decodes them. Each load looks the image up again, and gets the
 // disc's sprite once the HD textures are off.
@@ -2197,6 +2234,7 @@ function registerHandlers() {
     return wav;
   });
   ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
+  ipcMain.handle('game-logos', () => gameLogos());
   ipcMain.handle('jukebox-render', (_event, id) => jukeboxRender(String(id)));
   ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
