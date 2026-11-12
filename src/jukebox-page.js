@@ -7,6 +7,13 @@
   const $ = id => document.getElementById(id);
   const message = error => String(error?.message || error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
   const KEEP = 3;   // rendered songs kept, for playing one again
+  // A time as a clock shows it: 1:41.
+  const clock = seconds => {
+    const whole = seconds >= 0 ? Math.round(seconds) : 0;
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+  };
+  // A song's length in the list: the clock's, except that a jingle over in a moment shows tenths of a second ("0.4 s").
+  const lengthText = seconds => (seconds > 0 && seconds < 9.95 ? `${seconds.toFixed(1)} s` : clock(seconds));
 
   let tracks = null, loading = null, current = null, busy = false, notice = '';
   let state = { playing: null, paused: false, volume: 100 };
@@ -17,16 +24,34 @@
   function render() {
     const list = $('jukebox-list');
     if (tracks && list.dataset.rendered !== String(tracks.length)) {
-      list.replaceChildren(...tracks.map(track => {
+      const items = [];
+      for (const track of tracks) {
+        // the short tracks and jingles follow the tunes, under a heading of their own
+        if (track.short && !items.some(item => item.tagName === 'H2')) {
+          const heading = document.createElement('h2');
+          heading.className = 'jukebox-group';
+          heading.textContent = 'Short tracks and jingles';
+          items.push(heading);
+        }
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'jukebox-track';
         button.dataset.id = track.id;
-        button.textContent = track.name;
+        const name = document.createElement('span');
+        name.className = 'jukebox-track-name';
+        name.textContent = track.name;
+        button.append(name);
+        if (typeof track.seconds === 'number') {
+          const length = document.createElement('span');
+          length.className = 'jukebox-track-length';
+          length.textContent = lengthText(track.seconds);
+          button.append(length);
+        }
         button.title = track.name;   // the whole name, for a long one in a narrow window
         button.addEventListener('click', () => play(track.id));
-        return button;
-      }));
+        items.push(button);
+      }
+      list.replaceChildren(...items);
       list.dataset.rendered = String(tracks.length);
     }
     for (const button of list.children) {
@@ -47,6 +72,7 @@
     $('jukebox-previous').disabled = $('jukebox-next').disabled = none || busy;
     $('jukebox-stop').disabled = !state.playing;
     $('jukebox-volume').value = state.volume;
+    tick();
   }
 
   // The sound out of the page: made when a song is first played, and let go of when the page is left.
@@ -80,17 +106,62 @@
     return songs.get(id);
   }
 
-  async function start(id, { buffer, loop }) {
+  // Where the sound is in the song, in seconds: the time it began from, plus the time that has passed (the sound card's clock stops
+  // while it is paused), wrapped inside the loop while it repeats.
+  function position() {
+    if (!active) return 0;
+    let at = active.offset + (context.currentTime - active.startedAt);
+    const region = active.region;
+    if (region && active.source.loop && at >= region.end) at = region.start + (at - region.start) % (region.end - region.start);
+    return Math.min(at, active.shown);
+  }
+
+  let dragging = false;
+  // The bar and the times in it: what is playing, or nothing.
+  function tick() {
+    const bar = $('jukebox-seek');
+    bar.disabled = !active;
+    if (!active) { $('jukebox-time').textContent = clock(0); $('jukebox-length').textContent = clock(0); bar.value = 0; return; }
+    $('jukebox-length').textContent = clock(active.shown);
+    if (dragging) return;
+    const at = position();
+    bar.value = Math.round(at / active.shown * 1000);
+    $('jukebox-time').textContent = clock(at);
+  }
+  setInterval(tick, 250);
+
+  // offset: where in the song to begin; keepPaused: seeking while paused leaves it paused, at the new place.
+  async function start(id, { buffer, loop }, offset = 0, keepPaused = false) {
     const ctx = output();
-    await ctx.resume();
+    if (!keepPaused) await ctx.resume();
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     if (loop) { source.loopStart = loop.start; source.loopEnd = loop.end; source.loop = $('jukebox-loop').checked; }
     source.connect(gain);
     source.onended = () => { if (active?.source === source) { active = null; state = { ...state, playing: null, paused: false }; render(); finished(); } };
-    active = { source, loop: Boolean(loop) };
-    state = { ...state, playing: id, paused: false };
-    source.start();
+    // the length shown is the list's (the song played once), not the buffer's: that has the seconds the sound takes to die away after it
+    const known = tracks?.find(each => each.id === id)?.seconds;
+    const shown = known > 0 ? Math.min(known, buffer.duration) : buffer.duration;
+    active = { id, source, loop: Boolean(loop), region: loop, duration: buffer.duration, shown, offset, startedAt: ctx.currentTime };
+    state = { ...state, playing: id, paused: keepPaused };
+    source.start(0, offset);
+    tick();
+  }
+
+  // Begin again from `seconds` into the song. A repeating song asked for a place after its loop starts again at the loop's start.
+  async function seek(seconds) {
+    if (!active) return;
+    const id = active.id, found = songs.get(id);
+    if (!found) return;
+    const paused = state.paused, old = active.source;
+    let at = Math.max(0, Math.min(active.duration - 0.05, seconds));
+    if (found.loop && $('jukebox-loop').checked && at >= found.loop.end) at = found.loop.start;
+    old.onended = null;
+    try { old.stop(); } catch (_) { /* already over */ }
+    old.disconnect();
+    active = null;   // so that the old sound's end is not taken for a song that finished
+    await start(id, found, at, paused);
+    render();
   }
 
   async function play(id) {
@@ -166,7 +237,21 @@
   $('jukebox-next').addEventListener('click', () => step(1));
   $('jukebox-volume').addEventListener('input', event => volume(event.target.value));
   // A song with a loop point of its own repeats it only while Loop is on: turned off, it goes on to its end.
-  $('jukebox-loop').addEventListener('change', event => { if (active?.loop) active.source.loop = event.target.checked; });
+  // (Its place is worked out first, since where the sound is depends on whether it was wrapping.)
+  $('jukebox-loop').addEventListener('change', event => {
+    if (!active?.loop) return;
+    active.offset = position();
+    active.startedAt = context.currentTime;
+    active.source.loop = event.target.checked;
+  });
+  $('jukebox-seek').addEventListener('input', event => {
+    dragging = true;
+    if (active) $('jukebox-time').textContent = clock(event.target.value / 1000 * active.shown);
+  });
+  $('jukebox-seek').addEventListener('change', event => {
+    dragging = false;
+    if (active) seek(event.target.value / 1000 * active.shown);
+  });
 
   // Ends the music and puts the player away: lets go of the sound device and of the disc.
   function close() {

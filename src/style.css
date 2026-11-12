@@ -1114,6 +1114,15 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .jukebox-now span { color: var(--jk-muted); font-size: 12px; }
 .jukebox-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .jukebox-dock[hidden] { display: none; }
+.jukebox-group { grid-column: 1 / -1; margin: 14px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--jk-muted); }
+.jukebox-group:first-child { margin-top: 0; }
+.jukebox-track { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.jukebox-track-name { min-width: 0; }
+.jukebox-track-length { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--jk-muted); }
+.jukebox-progress { flex: 1 1 100%; display: flex; align-items: center; gap: 10px; }
+.jukebox-progress input { flex: 1; min-width: 0; accent-color: var(--jk-accent); }
+.jukebox-clock { flex: none; min-width: 36px; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--jk-muted); }
+.jukebox-clock:last-child { text-align: right; }
 .jukebox-dock .jukebox-now strong { color: var(--jk-text); }
 .jukebox-page, .jukebox-dock { --jk-text: #2b1022; }
 .dark .jukebox-page, .dark .jukebox-dock { --jk-text: #fbeff8; }

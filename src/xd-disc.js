@@ -378,7 +378,7 @@ function readSongs(disc) {
     if (!head) continue;
     const header = Buffer.from(head.data());
     if (header.toString('latin1', 0, 4) !== 'I_SF' || header.readUInt32BE(0x0c) < SHORTEST_SONG * header.readUInt32BE(8)) continue;
-    tracks.push({ id: String(sound), sound, name: songTitle(name) });
+    tracks.push({ id: String(sound), sound, name: songTitle(name), seconds: header.readUInt32BE(0x0c) / header.readUInt32BE(8) });
   }
   return tracks;
 }
