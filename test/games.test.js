@@ -314,3 +314,13 @@ test('the launcher loads an existing Colosseum setup unchanged, and saves XD bes
   assert.equal(main.config().rom, '/discs/colosseum.iso');
   assert.equal(main.currentSource(), game.release);
 });
+
+test('each game has its own HD texture pack: Colosseum its pinned one, XD none until its pack is published', t => {
+  assert.equal(port.texturePack('colosseum'), require('../src/texture-pack.json'));
+  assert.equal(port.texturePack('xd'), null);
+  assert.equal(games.supports('xd', 'hdTextures'), false, 'not offered before its pack exists');
+  const root = temporary(t);
+  assert.equal(port.texturePackInstalled(root, 'xd'), false);
+  assert.throws(() => port.textureCommand(root, 'linux', {}, 'xd'), /no HD texture pack yet/);
+  assert.equal(port.textureCommand(root, 'linux', {}).args[2], require('../src/texture-pack.json').url);
+});

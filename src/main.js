@@ -825,10 +825,10 @@ async function removeBuildTools() {
 async function installTextures(root = requireRepo()) {
   if (!supports('hdTextures')) return { installed: true };
   await ensureBuildTools();
-  if (config.settings.textures && !port.texturePackInstalled(root)) {
-    const cmd = port.textureCommand(root, process.platform, toolEnv());
+  if (config.settings.textures && !port.texturePackInstalled(root, config.game)) {
+    const cmd = port.textureCommand(root, process.platform, toolEnv(), config.game);
     await launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Install HD textures');
-    if (!port.texturePackInstalled(root)) throw new Error('Texture installer finished without a usable texture pack.');
+    if (!port.texturePackInstalled(root, config.game)) throw new Error('Texture installer finished without a usable texture pack.');
   } else if (config.settings.textures) log('HD textures are already installed.');
   log('HD visuals are ready for the next game launch.');
   return { installed: true };
@@ -840,7 +840,7 @@ function binaryReady(root = config.repo, id = config.game) {
 
 // Whether the HD visuals the settings ask for are there: a game without the HD pack needs none.
 function hdVisualsReady(root, settings = config.settings) {
-  return !supports('hdTextures') || port.hdVisualsInstalled(root, settings);
+  return !supports('hdTextures') || port.hdVisualsInstalled(root, settings, config.game);
 }
 
 async function build(forceFresh = false) {
@@ -1115,7 +1115,7 @@ function prepareBattleRules(rom, folder, battleRules) {
 // the HD pack once it's turned on and downloaded. Indexed again when the folders change and each time the list is read.
 let pokedexTextures = { key: null, index: new Map() };
 function pokedexTextureIndex(fresh = false) {
-  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo)) };
+  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo, config.game)) };
   const folders = port.texturePackFolders(settings, config.repo, customTextureDirectory()), key = folders.join('\n');
   if (fresh || key !== pokedexTextures.key) pokedexTextures = { key, index: texturePackLookup.indexFolders(folders) };
   return pokedexTextures.index;
@@ -1426,7 +1426,7 @@ async function playInstalled() {
   const root = requireRepo();
   // Playing without setup uses only packs already on disk. Keep the player's
   // preferences so choosing setup later still installs the requested visuals.
-  const settings = { ...config.settings, textures: config.settings.textures && (!supports('hdTextures') || port.texturePackInstalled(root)) };
+  const settings = { ...config.settings, textures: config.settings.textures && (!supports('hdTextures') || port.texturePackInstalled(root, config.game)) };
   if (settings.textures !== config.settings.textures)
     log('Playing the installed game without missing HD downloads. Your visual settings are saved for later setup.');
   return play({ repo: root, settings });
@@ -1855,9 +1855,9 @@ function state() {
     toolsFolder: path.dirname(buildTools.rootFor(app.getPath('userData'))),
     romReady: Boolean(config.rom) && !romError, romError,
     hdVisualsReady: repoReady && hdVisualsReady(config.repo, config.settings),
-    texturesInstalled: repoReady && supports('hdTextures') && port.texturePackInstalled(config.repo),
+    texturesInstalled: repoReady && supports('hdTextures') && port.texturePackInstalled(config.repo, config.game),
     pbr: pbrState(),
-    texturePack: { size: port.TEXTURE_PACK.size, unpacked: port.TEXTURE_PACK.unpacked },
+    texturePack: (pack => pack && { size: pack.size, unpacked: pack.unpacked })(port.texturePack(config.game)) || { size: 0, unpacked: 0 },
     languages: languagePacks.choices(languageFolder()),
     // Whether the game on disk reads language packs.
     languagesReady: repoReady && supports('languagePacks') && fs.existsSync(path.join(config.repo, 'host', 'language.c')),

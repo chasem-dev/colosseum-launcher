@@ -19,6 +19,8 @@ const GAMES = {
     // <userData>/game, as before there were two games; and the folder Change location makes
     checkoutFolder: 'game', locationFolder: 'Colosseum Game',
     release: require('./game-release.json'), buildEnv: {},
+    // the HD texture pack the launcher downloads (port.js)
+    texturePack: require('./texture-pack.json'),
     // Colosseum's build needs main.dol from the disc only for the Windows icon (port.placeMainDol)
     needsMainDol: false,
     features: FEATURES
@@ -29,6 +31,9 @@ const GAMES = {
     executable: 'xd', decompFolder: 'pkmn-xd',
     checkoutFolder: 'game-xd', locationFolder: 'XD Game',
     release: require('./xd-release.json'), buildEnv: { COLO_GAME: 'xd' },
+    // none until its pack is published (xd-texall: XD's disc textures 4x); then a descriptor like texture-pack.json,
+    // and 'hdTextures' in features
+    texturePack: null,
     // XD's port builds without the game's files too (its extracted data is only ever read from the disc's DOL)
     needsMainDol: false,
     // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its

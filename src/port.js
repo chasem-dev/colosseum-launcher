@@ -250,15 +250,20 @@ function turnOnQuickBattles(settings, done) {
 
 function texturePackDirectory(root) { return path.join(root, 'mods', 'textures'); }
 
+// The HD texture pack a game's launcher pins (games.js texturePack): Colosseum's texture-pack.json, XD's its own.
+function texturePack(game = games.DEFAULT) { return games.get(game).texturePack || null; }
+
 // The pack this launcher pins, unpacked in full (install-textures.py writes the marker last).
-function texturePackInstalled(root) {
+function texturePackInstalled(root, game = games.DEFAULT) {
+  const pack = texturePack(game);
+  if (!pack) return false;
   try {
-    const marker = JSON.parse(fs.readFileSync(path.join(texturePackDirectory(root), TEXTURE_PACK.folder, '.release'), 'utf8'));
-    return marker.sha256 === TEXTURE_PACK.sha256;
+    const marker = JSON.parse(fs.readFileSync(path.join(texturePackDirectory(root), pack.folder, '.release'), 'utf8'));
+    return marker.sha256 === pack.sha256;
   } catch (_) { return false; }
 }
 
-function hdVisualsInstalled(root, settings) { return !settings.textures || texturePackInstalled(root); }
+function hdVisualsInstalled(root, settings, game = games.DEFAULT) { return !settings.textures || texturePackInstalled(root, game); }
 
 // Custom textures: texture packs the player adds, made for Dolphin's "Load Custom Textures" (tex1_*.png or .dds
 // in any sub-folder), in a folder of the launcher's own, so a new game folder keeps them.
@@ -490,9 +495,11 @@ function buildCommand(root, platform = process.platform, base = process.env, gam
 }
 
 // install-textures.py: downloads the pinned pack, checks it and unpacks it, reporting as it goes.
-function textureCommand(root, platform = process.platform, environment = process.env) {
-  const args = [launcherScript('install-textures.py'), texturePackDirectory(root), TEXTURE_PACK.url, TEXTURE_PACK.sha256,
-    String(TEXTURE_PACK.size), TEXTURE_PACK.folder];
+function textureCommand(root, platform = process.platform, environment = process.env, game = games.DEFAULT) {
+  const pack = texturePack(game);
+  if (!pack) throw new Error(`${games.get(game).name} has no HD texture pack yet.`);
+  const args = [launcherScript('install-textures.py'), texturePackDirectory(root), pack.url, pack.sha256,
+    String(pack.size), pack.folder];
   if (platform !== 'win32') return { command: 'python3', args, cwd: root, env: environment };
   const { msys } = msysBash(environment);
   return { command: path.join(msys, 'mingw64', 'bin', 'python.exe'), args, cwd: root, env: msysEnvironment(msys, environment) };
@@ -587,7 +594,7 @@ function gameRuntimeFolders(environment = process.env) {
   return [path.join(environment.MSYS2_ROOT || 'C:\\msys64', 'mingw64', 'bin')];
 }
 
-module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal, turnOnQuickBattles,
+module.exports = { PORT_URL, TEXTURE_PACK, texturePack, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal, turnOnQuickBattles,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
   gameBuildEnvironment, buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, pbrMakesCries, playsPackCries, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
