@@ -7,6 +7,7 @@ const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
 const { Worker } = require('node:worker_threads');
 const port = require('./port');
+const games = require('./games');
 const saves = require('./saves');
 const gciSave = require('./gci-save');
 const buildTools = require('./build-tools');
@@ -37,6 +38,7 @@ const presence = require('./presence');
 const parties = require('./parties');
 const formats = require('./formats');
 const storyParty = require('./story-party');
+const crossplay = require('./crossplay');
 const pokedexNames = require('./pokedex');
 const pokedexData = pokedexNames.create();
 const pokemonCries = require('./pokemon-cries');
@@ -52,16 +54,27 @@ const generations = require('./generations');
 const hsdModel = require('./hsd-model');
 const randomizer = require('./randomizer');
 const languagePacks = require('./language-packs');
+const titleLogo = require('./title-logo');
 const { retrying, httpError } = require('./retry');
 
-const GAME_NAME = 'Pokémon Colosseum';
 const DISCORD_INVITE = 'https://discord.gg/pkVwBrSwsZ';
-const PLAY_LABEL = `Play ${GAME_NAME}`;
+// The game chosen on the Play page (games.js): its checkout, disc and game source are config's own fields.
+const activeGame = () => games.get(config?.game);
+const gameName = () => activeGame().name;
+const supports = feature => games.supports(config?.game, feature);
+// What the activity shows while a game runs: "Play Pokémon Colosseum", or the game chosen.
+const playLabel = () => `Play ${gameName()}`;
+const isPlayLabel = label => games.ids().some(id => label === `Play ${games.get(id).name}`);
+// A feature of Colosseum's asked for while another game is chosen.
+function requireFeature(feature, what) {
+  if (!supports(feature)) throw new Error(`${what} ${what.endsWith('s') ? 'are' : 'is'} for Pokémon Colosseum for now. Choose Colosseum on the Play page.`);
+}
 
 let window;
 let config;
 const saveRun = randomizer.createSaveReader();
-const spoilerFile = () => path.join(app.getPath('userData'), randomizer.SPOILER_FILE);
+// Each game's spoiler log is its own: a run of one game opened doesn't overwrite the other's.
+const spoilerFile = () => path.join(app.getPath('userData'), config.game === games.DEFAULT ? randomizer.SPOILER_FILE : `randomizer-spoiler-${config.game}.txt`);
 let active = null;
 let preparingTools = false;
 let operation = null;
@@ -151,28 +164,29 @@ app.on('child-process-gone', (_event, details) => {
 });
 
 // A game source chosen under Settings, with the commits it resolved to.
-function savedGameSource(saved) {
+function savedGameSource(saved, id = games.DEFAULT) {
   try {
-    const override = gameSource.normalizeOverride(saved?.override);
+    const override = gameSource.normalizeOverride(saved?.override, games.get(id).release);
     const resolved = saved?.resolved;
     if (!override || !/^[a-f0-9]{40}$/.test(resolved?.commit) || !/^[a-f0-9]{40}$/.test(resolved?.decomp) ||
       (resolved?.renderer && !/^[a-f0-9]{40}$/.test(resolved.renderer.commit))) return null;
-    return { override, resolved: { ...resolved, custom: true, override } };
+    const { game: _game, ...rest } = resolved;
+    return { override, resolved: { ...rest, ...(id !== games.DEFAULT && { game: id }), custom: true, override } };
   } catch (_) { return null; }
 }
 
-function currentSource() { return config.gameSource?.resolved || game.release; }
+function currentSource() { return config.gameSource?.resolved || activeGame().release; }
 
 async function chooseGameSource(input) {
   await ensureBuildTools();
-  const override = gameSource.normalizeOverride(input);
+  const override = gameSource.normalizeOverride(input, activeGame().release);
   if (!override) {
     config.gameSource = null;
     saveConfig();
-    log(`Game source: this launcher release (${game.release.version}). Update game to switch back.`);
+    log(`Game source: this launcher release (${activeGame().release.version}). Update game to switch back.`);
     return state();
   }
-  const resolved = await gameSource.resolve(override, { capture, env: toolEnv() });
+  const resolved = await gameSource.resolve(override, { capture, env: toolEnv(), release: activeGame().release });
   config.gameSource = { override, resolved };
   saveConfig();
   log(`Game source: ${resolved.repository} at ${resolved.commit.slice(0, 12)}, decomp ${resolved.decompRepository || 'pinned by it'} at ${resolved.decomp.slice(0, 12)}. Update game to build it.`);
@@ -183,7 +197,7 @@ async function chooseGameSource(input) {
 async function refreshGameSource() {
   if (!config.gameSource) return;
   try {
-    const resolved = await gameSource.resolve(config.gameSource.override, { capture, env: toolEnv() });
+    const resolved = await gameSource.resolve(config.gameSource.override, { capture, env: toolEnv(), release: activeGame().release });
     if (resolved.commit !== config.gameSource.resolved.commit || resolved.decomp !== config.gameSource.resolved.decomp) {
       config.gameSource = { ...config.gameSource, resolved };
       saveConfig();
@@ -194,13 +208,16 @@ async function refreshGameSource() {
 
 function configFile() { return path.join(app.getPath('userData'), 'preferences.json'); }
 
-function defaultRepo() { return path.join(app.getPath('userData'), 'game'); }
+// Each game's own checkout folder: <userData>/game for Colosseum, as before XD, and <userData>/game-xd.
+function defaultRepo(id = games.DEFAULT) { return games.checkoutPath(app.getPath('userData'), id); }
+const gameFieldOptions = { defaultRepo, readSource: savedGameSource };
 
 function saveConfig() {
   const file = configFile();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temporary = `${file}.tmp`;
-  fs.writeFileSync(temporary, JSON.stringify(portable.storedPaths(config, portableRoot), null, 2), { mode: 0o600 });
+  // Colosseum's fields stay at the top level, where launchers before XD read them (games.storedGames).
+  fs.writeFileSync(temporary, JSON.stringify(portable.storedPaths(games.storedGames(config), portableRoot), null, 2), { mode: 0o600 });
   fs.renameSync(temporary, file);
 }
 
@@ -208,8 +225,8 @@ function loadConfig() {
   let saved = {};
   try { saved = portable.resolvedPaths(JSON.parse(fs.readFileSync(configFile(), 'utf8')), portableRoot); } catch (_) { /* first run */ }
   config = {
-    repo: typeof saved.repo === 'string' ? saved.repo : defaultRepo(),
-    rom: typeof saved.rom === 'string' ? saved.rom : '',
+    // The chosen game, its checkout, disc and game source here; every game's under `games` (games.loadGames)
+    ...games.loadGames(saved, gameFieldOptions),
     // The player's Pokémon Battle Revolution disc file, for its models (makePbrModels)
     pbrDisc: typeof saved.pbrDisc === 'string' ? saved.pbrDisc : '',
     settings: port.turnOnQuickBattles(port.moveToMetal(port.normalizeSettings(saved.settings || {}), saved.movedToMetal), saved.quickBattlesOn),
@@ -217,14 +234,10 @@ function loadConfig() {
     quickBattlesOn: true,
     // Only once Metal is on offer: a Mac still on a Rosetta game moves when its game turns native.
     movedToMetal: Boolean(saved.movedToMetal) || port.platformInfo().renderers[0] === 'metal',
-    installRoot: typeof saved.installRoot === 'string' ? saved.installRoot : null,
-    previousInstall: saved.previousInstall || null,
-    completedSetup: Boolean(saved.completedSetup),
     // Whether Play has offered Add to Steam on SteamOS yet (it does once).
     steamOffered: Boolean(saved.steamOffered),
     // Whether the launcher has offered to fix a Steam shortcut without --no-sandbox.
     steamFixOffered: Boolean(saved.steamFixOffered),
-    gameSource: savedGameSource(saved.gameSource),
     // The newest launcher version whose changelog the player has been shown.
     changelogSeen: changelog.baseVersion(saved.changelogSeen),
     // Which wording of Beta's notes a Beta build last showed.
@@ -239,26 +252,54 @@ function loadConfig() {
   if (config.installId !== saved.installId) {
     try { saveConfig(); } catch (error) { log(`Could not save preferences: ${error.message}`); }
   }
-  for (const root of [config.repo, config.previousInstall?.repo].filter(Boolean)) {
-    try { if (game.recoverBuild(root)) log('Recovered your previous game after interrupted setup.'); }
-    catch (error) { log(`Game recovery: ${error.message}`); }
-  }
-  config.completedSetup ||= fs.existsSync(port.binaryPath(config.repo));
+  for (const [id, fields] of Object.entries(games.allFields(config)))
+    for (const root of [fields.repo, fields.previousInstall?.repo].filter(Boolean)) {
+      try { if (game.recoverBuild(root, id)) log('Recovered your previous game after interrupted setup.'); }
+      catch (error) { log(`Game recovery: ${error.message}`); }
+    }
+  config.completedSetup ||= fs.existsSync(binaryOf(config.repo));
   if (portableRoot) settleMovedPortableFolder();
+}
+
+// The chosen game's executable in a checkout.
+function binaryOf(root, id = config.game) { return port.binaryPath(root, process.platform, id); }
+
+// The Play page's game picker: the chosen game's checkout, disc and source come up, the other's are kept.
+function selectGame(id) {
+  if (operation || active) throw new Error('Finish the current task before choosing another game.');
+  if (!games.GAMES[id]) throw new Error('No such game.');
+  if (id === config.game) return state();
+  config = games.switchGame(config, id, gameFieldOptions);
+  try { if (game.recoverBuild(config.repo, id)) log('Recovered your previous game after interrupted setup.'); }
+  catch (error) { log(`Game recovery: ${error.message}`); }
+  config.completedSetup ||= fs.existsSync(binaryOf(config.repo));
+  blockedPath = null;
+  saveConfig();
+  log(`Chose ${gameName()}.`);
+  broadcastOnline();
+  return state();
+}
+
+// Whether a folder is another game's checkout (or holds its versions), which one game's builds would move aside.
+function otherGameFolder(folder) {
+  const resolved = path.resolve(folder);
+  return Object.entries(games.allFields(config)).some(([id, fields]) => id !== config.game &&
+    [fields.repo, fields.installRoot].filter(Boolean).some(root => path.resolve(root) === resolved));
 }
 
 // A portable folder copied to another drive or computer plays from where it is
 // now: its updates' links follow it, and when the chosen disc stayed behind, a
 // disc kept in the folder or beside the .exe is used.
 function settleMovedPortableFolder() {
-  for (const root of [config.repo, config.previousInstall?.repo].filter(Boolean)) {
-    try {
-      const relinked = game.relinkUserFolders(root, file => portable.relocated(file, portableRoot));
-      if (relinked.length) log(`Reconnected ${relinked.join(', ')} after the portable folder moved.`);
-    } catch (error) { log(`Could not reconnect the game's files after the portable folder moved: ${error.message}`); }
-  }
-  try { port.validateRom(config.rom); return; } catch (_) { /* missing or never chosen */ }
-  const disc = portable.findDisc(portableRoot, port.validateRom);
+  for (const fields of Object.values(games.allFields(config)))
+    for (const root of [fields.repo, fields.previousInstall?.repo].filter(Boolean)) {
+      try {
+        const relinked = game.relinkUserFolders(root, file => portable.relocated(file, portableRoot));
+        if (relinked.length) log(`Reconnected ${relinked.join(', ')} after the portable folder moved.`);
+      } catch (error) { log(`Could not reconnect the game's files after the portable folder moved: ${error.message}`); }
+    }
+  try { port.validateRom(config.rom, config.game); return; } catch (_) { /* missing or never chosen */ }
+  const disc = portable.findDisc(portableRoot, file => port.validateRom(file, config.game));
   if (!disc) return;
   config.rom = disc;
   log(`Using the game disc at ${disc}.`);
@@ -499,11 +540,21 @@ async function addToSteam({ play = false } = {}) {
 
 
 function requireRepo() {
-  if (!port.isPort(config.repo)) throw new Error('Download the setup files or choose a folder that already has them.');
+  if (!port.isPort(config.repo, config.game)) throw new Error('Download the setup files or choose a folder that already has them.');
   return config.repo;
 }
 
-function currentSaveDirectory() { return saves.saveDirectory(); }
+// The chosen game's memory card (saves.js: each game has its own). XD's save left on the shared card by an earlier
+// build moves to XD's card the first time it is needed, with a backup of the shared card first.
+function currentSaveDirectory() {
+  if (config.game === 'xd' && !active) {
+    try {
+      const moved = saves.moveSharedXdSave();
+      if (moved) log(`Moved the XD save to XD's own memory card, ${moved.to}. The shared card was backed up first${moved.backup ? ` to ${moved.backup}` : ''}.`);
+    } catch (error) { log(`Could not move the XD save to XD's own memory card: ${error.message}`); }
+  }
+  return saves.saveDirectory(process.env, process.platform, config.game);
+}
 
 // The backups the launcher makes by itself, which Back up automatically (Saves) turns off. Back up saves, and the backups
 // before a restore or before moving a build the card is in, still happen.
@@ -729,7 +780,7 @@ async function prepareBuildTools() {
 
 async function updatePort() {
   requireRepo();
-  port.validateRom(config.rom);
+  port.validateRom(config.rom, config.game);
   // Removed build tools download again only for a game that needs building.
   if (config.gameSource || !game.isCurrent(config.repo, currentSource())) {
     await ensureBuildTools();
@@ -746,7 +797,7 @@ async function updatePort() {
 async function installPort() {
   await ensureBuildTools();
   const destination = config.repo;
-  if (port.isPort(destination)) return { ok: true };
+  if (port.isPort(destination, config.game)) return { ok: true };
   if (fs.existsSync(destination)) {
     if (!fs.statSync(destination).isDirectory() || fs.readdirSync(destination).length)
       throw new Error('That folder is not empty. Choose another download location.');
@@ -765,7 +816,9 @@ async function removeBuildTools() {
   if (process.platform !== 'win32') throw new Error('On this computer the game runs with libraries from the build tools, so they stay.');
   if (toolsStatus().mode === 'own') throw new Error('The launcher builds with your own MSYS2 (COLO_MSYS2_ROOT) and never removes it.');
   requireRepo();
-  if (!binaryReady() || !game.playsWithoutTools(config.repo))
+  // Every game that's set up has to play without them, not only the chosen one.
+  const installs = Object.entries(games.allFields(config)).filter(([id, fields]) => binaryReady(fields.repo, id));
+  if (!binaryReady() || installs.some(([id, fields]) => !game.playsWithoutTools(fields.repo, undefined, undefined, id)))
     throw new Error('The game still needs DLLs from the build tools. Update or rebuild the game, then try again.');
   const folder = buildToolsFolder();
   if (operation) {
@@ -783,24 +836,31 @@ async function removeBuildTools() {
 // The HD texture pack: a release of the port's own, downloaded and unpacked by the launcher's script with the
 // build tools' Python, and shared by every game version (game.carryUserFiles).
 async function installTextures(root = requireRepo()) {
+  if (!supports('hdTextures')) return { installed: true };
   await ensureBuildTools();
-  if (config.settings.textures && !port.texturePackInstalled(root)) {
-    const cmd = port.textureCommand(root, process.platform, toolEnv());
+  if (config.settings.textures && !port.texturePackInstalled(root, config.game)) {
+    const cmd = port.textureCommand(root, process.platform, toolEnv(), config.game);
     await launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Install HD textures');
-    if (!port.texturePackInstalled(root)) throw new Error('Texture installer finished without a usable texture pack.');
+    if (!port.texturePackInstalled(root, config.game)) throw new Error('Texture installer finished without a usable texture pack.');
   } else if (config.settings.textures) log('HD textures are already installed.');
   log('HD visuals are ready for the next game launch.');
   return { installed: true };
 }
 
-function binaryReady(root = config.repo) {
-  return port.isPort(root) && fs.existsSync(port.binaryPath(root));
+function binaryReady(root = config.repo, id = config.game) {
+  return port.isPort(root, id) && fs.existsSync(binaryOf(root, id));
+}
+
+// Whether the HD visuals the settings ask for are there: a game without the HD pack needs none.
+function hdVisualsReady(root, settings = config.settings) {
+  return !supports('hdTextures') || port.hdVisualsInstalled(root, settings, config.game);
 }
 
 async function build(forceFresh = false) {
   const original = requireRepo();
   const settings = { ...config.settings };
-  const rom = port.validateRom(config.rom);
+  const chosen = activeGame();
+  const rom = port.validateRom(config.rom, chosen.id);
   const saveDirectory = currentSaveDirectory();
   makeSaveBackup('before-port-update');
   await ensureBuildTools();
@@ -818,18 +878,22 @@ async function build(forceFresh = false) {
   }
   // A fresh build's folder is longer than the one ensureBuildTools checked.
   requireBuildablePath(root);
-  if (!port.hdVisualsInstalled(root, settings)) await installTextures(root);
-  // Only the icon needs it, so a build without it goes on without one.
-  if (process.platform === 'win32') {
-    try { port.placeMainDol(root, rom); }
+  if (!hdVisualsReady(root, settings)) await installTextures(root);
+  // A game whose build reads main.dol needs it on every system (games.js needsMainDol; neither does now).
+  if (chosen.needsMainDol) {
+    try { port.placeMainDol(root, rom, chosen.id); }
+    catch (error) { throw new Error(`Could not copy main.dol from your ${chosen.name} disc, which the build needs: ${error.message}`); }
+  } else if (process.platform === 'win32') {
+    // Only the icon needs it, so a build without it goes on without one.
+    try { port.placeMainDol(root, rom, chosen.id); }
     catch (error) { log(`Could not copy main.dol from your disc for the game's icon: ${error.message}`); }
   }
   const env = await withBuildCaches(toolEnv({ ...process.env, NINJA_STATUS: '[%f/%t] ' }), root);
   const compile = buildEnv => {
-    const cmd = port.buildCommand(root, process.platform, buildEnv);
+    const cmd = port.buildCommand(root, process.platform, buildEnv, chosen.id);
     return game.buildSafely(root, saveDirectory,
       // A build that fails because antivirus deleted or blocked a tool says so instead of the compiler's error.
-      () => launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Build Pokémon Colosseum')
+      () => launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, `Build ${chosen.name}`)
         .catch(error => {
           const userData = app.getPath('userData');
           throw hintedError(error) || buildTools.deletedToolsError(userData) || buildTools.blockedToolError(userData, error.output) || error;
@@ -876,9 +940,10 @@ async function withBuildCaches(env, root) {
 async function removeOldBuildTools() {
   const keep = [];
   let unknown = false;
-  for (const root of [config.repo, config.previousInstall?.repo].filter(Boolean)) {
-    if (!fs.existsSync(port.binaryPath(root))) continue;
-    const tools = game.toolRoot(root);
+  // Every game's builds keep the tools they were made with.
+  for (const [id, fields] of Object.entries(games.allFields(config))) for (const root of [fields.repo, fields.previousInstall?.repo].filter(Boolean)) {
+    if (!fs.existsSync(binaryOf(root, id))) continue;
+    const tools = game.toolRoot(root, undefined, id);
     if (tools) keep.push(tools);
     else unknown = true;
   }
@@ -892,19 +957,30 @@ async function removeOldBuildTools() {
 // once two updates replaced it, and the builds a rebuild replaced or left
 // unfinished only take up space.
 async function removeOldVersions(shouldStop) {
-  if (!config.installRoot || !binaryReady()) return;
-  const protect = [currentSaveDirectory(), config.rom, config.previousInstall?.rom];
+  const every = games.allFields(config);
+  // Each game's discs and folders are safe from the other's cleanup.
+  const protect = [...games.ids().map(id => saves.saveDirectory(process.env, process.platform, id)), ...Object.values(every).flatMap(fields => [fields.rom, fields.previousInstall?.rom, fields.repo])];
+  for (const [id, fields] of Object.entries(every)) {
+    if (shouldStop?.()) break;
+    await removeOldGameVersions(id, fields, protect, shouldStop);
+  }
+}
+
+async function removeOldGameVersions(id, fields, protect, shouldStop) {
+  if (!fields.installRoot || !binaryReady(fields.repo, id)) return;
+  const kept = [fields.repo, fields.previousInstall?.repo];
+  const guarded = protect.filter(item => item && !kept.includes(item));
   const failed = what => (error, folder) => log(['EBUSY', 'EPERM', 'EACCES'].includes(error.code) && error.path
     ? `Could not remove all of ${what} ${folder}: another program has ` +
       `${path.basename(error.path)} open. The launcher tries again the next time it starts.`
     : `Could not remove ${what} ${folder}: ${error.message}`);
-  const removed = await game.pruneSnapshots(config.installRoot, [config.repo, config.previousInstall?.repo],
-    protect, failed('old game version'), shouldStop);
+  const removed = await game.pruneSnapshots(fields.installRoot, kept,
+    guarded, failed('old game version'), shouldStop);
   if (removed.length) log(`Removed ${removed.length} old game version${removed.length === 1 ? '' : 's'} to free up disk space.`);
   let builds = 0;
-  for (const root of [config.repo, config.previousInstall?.repo].filter(Boolean)) {
+  for (const root of kept.filter(Boolean)) {
     if (shouldStop?.()) break;
-    builds += (await game.pruneBuildLeftovers(root, protect, failed('old game build'), shouldStop)).length;
+    builds += (await game.pruneBuildLeftovers(root, guarded, failed('old game build'), shouldStop)).length;
   }
   if (builds) log(`Removed ${builds} replaced or unfinished game build${builds === 1 ? '' : 's'} to free up disk space.`);
 }
@@ -924,9 +1000,9 @@ function removeOldVersionsInBackground() {
 
 async function setupGame() {
   requireRepo();
-  port.validateRom(config.rom);
+  port.validateRom(config.rom, config.game);
   if (!game.isCurrent(config.repo, currentSource())) await build();
-  else if (!port.hdVisualsInstalled(config.repo, config.settings)) await installTextures();
+  else if (!hdVisualsReady(config.repo, config.settings)) await installTextures();
   return state();
 }
 
@@ -934,7 +1010,7 @@ async function setupGame() {
 // A chosen game source moves to its newest commit first, as Update game does.
 async function prepareGame() {
   requireRepo();
-  port.validateRom(config.rom);
+  port.validateRom(config.rom, config.game);
   if (config.gameSource) {
     await ensureBuildTools();
     await refreshGameSource();
@@ -1001,6 +1077,7 @@ function pbrState() {
     supported: Boolean(config.repo && fs.existsSync(port.pbrModelsScript(config.repo))) };
 }
 async function makePbrModels() {
+  requireFeature('pbrAssets', 'Battle Revolution assets');
   const root = requireRepo(), wanted = pbrWanted();
   if (!config.pbrDisc || !fs.existsSync(config.pbrDisc)) throw new Error('Choose your Pokémon Battle Revolution disc file first.');
   if (!wanted.length) throw new Error('Turn on a later generation\'s Pokémon first: their models and cries are what this makes.');
@@ -1047,11 +1124,50 @@ function prepareBattleRules(rom, folder, battleRules) {
   return file;
 }
 
+// A game without packs of its own but with later generations (XD, games.js): the player's battle rules, and the later
+// generations' Pokémon and moves, as Colosseum's file has them, made from Colosseum's disc (teamDisc), or null when the
+// settings ask for none. The game turns its rows into its own (host/xd/packs.c), its Pokémon looking and sounding as
+// the ones standing in for them, so no models or cries go in.
+function prepareGenerations(rom, folder, settings = config.settings) {
+  const chosen = generations.normalize(settings);
+  if (chosen.battleRules <= generations.COLOSSEUM_RULES && !chosen.generationPokemon.length) return null;
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const built = generations.build(packTables.tables, chosen);
+  const { pokemon, problems } = pokemonPacks.generationPokemon(packTables.tables, built);
+  for (const problem of problems) log(`Later generation's Pokémon ${packLabel(problem)}: ${problem.message}`);
+  const file = path.join(folder, 'generations.bin');
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules }));
+  for (const generation of chosen.generationPokemon) log(`Generation ${generation} Pokémon, from Pokémon Colosseum's disc: ${pokemon.filter(each => each.generation === generation).length} Pokémon and ${built.moves.length} new moves.`);
+  if (built.rules) log(`Battle rules: generation ${built.rules.generation}.`);
+  return file;
+}
+
+// What a play gives the game of Pokémon packs and later generations: { file, own } (own: how many of its Pokémon are
+// packs' own). An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules
+// are both games' (the room's own, not either player's settings). A game without packs of its own reads its later
+// generations from Colosseum's disc.
+// The disc a game's packs and later generations are made from: Colosseum's own, or for another game Colosseum's disc,
+// whose rows its game turns into its own (XD: host/xd/packs.c).
+function packsDisc(rom, what) { return config.game === games.DEFAULT ? rom : teamDisc(what); }
+function preparePlayPacks(rom, folder, battle = null) {
+  if (battle) {
+    if (!(battle.rules?.battleRules > generations.COLOSSEUM_RULES) || !supports('generations')) return { file: null, own: 0 };
+    return { file: prepareBattleRules(packsDisc(rom, 'The room\'s battle rules are made'), folder, battle.rules.battleRules), own: 0 };
+  }
+  if (supports('pokemonPacks')) {
+    try { return preparePokemonPacks(packsDisc(rom, `${activeGame().shortName}'s Pokémon packs and later generations are made`), folder); }
+    catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); return { file: null, own: 0 }; }
+  }
+  if (!supports('generations')) return { file: null, own: 0 };
+  try { return { file: prepareGenerations(teamDisc(`${activeGame().shortName}'s later generations are made`), folder), own: 0 }; }
+  catch (error) { log(`Later generations weren't loaded: ${error.message}`); return { file: null, own: 0 }; }
+}
+
 // The HD textures the Pokédex draws with: the folders the game would read, the player's custom textures and then
 // the HD pack once it's turned on and downloaded. Indexed again when the folders change and each time the list is read.
 let pokedexTextures = { key: null, index: new Map() };
 function pokedexTextureIndex(fresh = false) {
-  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo)) };
+  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo, config.game)) };
   const folders = port.texturePackFolders(settings, config.repo, customTextureDirectory()), key = folders.join('\n');
   if (fresh || key !== pokedexTextures.key) pokedexTextures = { key, index: texturePackLookup.indexFolders(folders) };
   return pokedexTextures.index;
@@ -1067,6 +1183,42 @@ function withHdTextures(model) {
     if (found) try { texture.image = fs.readFileSync(found.file); } catch (_) {}
   }
   return model;
+}
+
+// The Play page's logos: each game's title logo, read from its own disc once and kept in userData (title-logo.js), as
+// data URLs; null for a game without a disc or whose logo couldn't be read, which keeps its name. Colosseum's is in the
+// language chosen when its pack has a logo of its own, and the HD pack's when the HD textures are on and have it.
+let logoTextures = { key: null, index: new Map() };
+function logoTextureIndex(fields, id) {
+  const settings = { ...config.settings, textures: Boolean(fields.repo && config.settings.textures && games.supports(id, 'hdTextures')
+    && port.texturePackInstalled(fields.repo, id)) };
+  const folders = port.texturePackFolders(settings, fields.repo, customTextureDirectory()), key = folders.join('\n');
+  if (key !== logoTextures.key) logoTextures = { key, index: texturePackLookup.indexFolders(folders) };
+  return logoTextures.index;
+}
+const logoFailures = new Set();
+function gameLogos() {
+  const all = games.allFields(config), logos = {};
+  for (const id of games.ids()) {
+    logos[id] = null;
+    const fields = all[id], rom = fields?.rom;
+    if (!rom || !fs.existsSync(rom)) continue;
+    const language = games.supports(id, 'languagePacks') ? languagePacks.normalizeLanguage(config.settings.language) : 'en';
+    try {
+      const packFolder = language === 'en' ? null : languagePacks.chosenFolder(config.settings, languageFolder());
+      const { file, hdNames } = titleLogo.cachedLogo(path.join(app.getPath('userData'), 'title-logos'), id, rom, { language, packFolder });
+      const hd = hdNames.length ? titleLogo.hdLogoFile(logoTextureIndex(fields, id), hdNames) : null;
+      logos[id] = `data:image/png;base64,${fs.readFileSync(hd || file).toString('base64')}`;
+    } catch (error) {
+      // once for each disc and reason, not each time the Play page asks
+      const failure = `${id}\n${rom}\n${error.message}`;
+      if (!logoFailures.has(failure)) {
+        logoFailures.add(failure);
+        log(`The ${games.get(id).name} logo couldn't be read from its disc, so the Play page shows its name: ${error.message}`);
+      }
+    }
+  }
+  return logos;
 }
 
 // A disc Pokémon's sprite with an HD image: the page loads it from colo-texture://sprite/<National Pokédex number>, so
@@ -1085,7 +1237,7 @@ function hdSpriteResponse(request) {
   try {
     const url = new URL(request.url), national = Number(url.pathname.slice(1));
     if (url.hostname !== 'sprite' || !Number.isInteger(national)) return missing();
-    const rom = port.validateRom(config.rom), entry = pokedexData.list(rom).find(item => item.national === national);
+    const rom = port.validateRom(config.rom, config.game), entry = pokedexData.list(rom).find(item => item.national === national);
     const found = entry && texturePackLookup.findReplacement(pokedexTextureIndex(), pokedexData.spriteTexture(rom, national));
     if (found) return net.fetch(pathToFileURL(found.file).toString());
     if (!entry?.sprite) return missing();
@@ -1120,9 +1272,12 @@ function generationDex(rom, generation = 4) {
 function pokedexList(rom) {
   let species = withHdSprites(rom, pokedexData.list(rom));
   let packs = [], problems = [];
+  // Another game's packs and later generations are made from Colosseum's disc (packsDisc), so they're listed once it's
+  // set up; the Pokémon stand in for theirs are the chosen game's own, and so are their cries.
+  const own = config.game === games.DEFAULT;
   try {
-    {
-      const loaded = readPokemonPacks(rom);
+    if (own || teamDiscReady()) {
+      const loaded = readPokemonPacks(packsDisc(rom, 'The Pokédex\'s packs and later generations are read'));
       problems = loaded.problems.map(problem => `${packLabel(problem)}: ${problem.message}`);
       const all = [...loaded.pokemon, ...loaded.generationPokemon];
       const entries = pokemonPacks.pokedexEntries(all, loaded.tables);
@@ -1130,7 +1285,7 @@ function pokedexList(rom) {
       packs = entries.map((entry, i) => {
         const each = all[i], base = species.find(item => item.national === each.base.national);
         pokedexPacks.set(entry.pack.key, { base: each.base.national, files: { model: each.assets.model, modelShiny: each.assets.modelShiny },
-          cry: each.row.readUInt16BE(pokemonCries.VOICE), ownCry: ownCry(each) });
+          cry: own ? each.row.readUInt16BE(pokemonCries.VOICE) : pokedexCries.soundOf(rom, each.base.national), ownCry: ownCry(each) });
         return { ...entry, key: `pack:${entry.pack.key}`,
           sprite: each.images.body ? `data:image/png;base64,${each.images.body.toString('base64')}` : base?.sprite || null,
           forms: each.assets.model ? [{ id: 'model', label: 'Normal' }, ...(each.assets.modelShiny ? [{ id: 'modelShiny', label: 'Shiny' }] : [])] : base?.forms || [] };
@@ -1159,7 +1314,11 @@ function pokedexList(rom) {
 
 // A pack Pokémon's own cry.wav (or its Battle Revolution one), where the game plays it (host/packcries.c), else null: an
 // older game plays its row's, so the Pokédex does too.
-function ownCry(each) { return each.cry && config.repo && port.playsPackCries(config.repo) ? each.cry.wav : null; }
+// XD's game plays them from host/xd/cries.c.
+function ownCry(each) {
+  const plays = root => (config.game === games.DEFAULT ? port.playsPackCries(root) : fs.existsSync(path.join(root, 'host', 'xd', 'cries.c')));
+  return each.cry && config.repo && plays(config.repo) ? each.cry.wav : null;
+}
 
 // The sound id of a Pokédex entry's cry: a disc Pokémon's own, or what its pack's row has (its base's, unless the pack
 // names another's). The game plays a pack Pokémon's from its row too, so this is the cry it has in the game, unless
@@ -1215,7 +1374,7 @@ function noteCrashReport(error, since) {
 // --- The Jukebox (jukebox-page.js): the game's songs, rendered from the player's disc without the game. A worker thread mixes a
 // song (jukebox-render.js, about a second or two); the page plays what it is sent.
 let jukeboxSongList = { rom: null, tracks: [] };
-function jukeboxRom() { return port.validateRom(config.rom); }
+function jukeboxRom() { requireFeature('jukebox', 'The Jukebox'); return port.validateRom(config.rom, config.game); }
 // The songs on the player's disc, read once for each disc.
 function jukeboxTracks() {
   const rom = jukeboxRom();
@@ -1258,45 +1417,42 @@ function jukeboxRender(id) {
 async function play(installation = null, battle = null) {
   broadcast('jukebox-stop');  // the Jukebox's music and the game would share the sound device
   const root = installation?.repo || requireRepo();
+  const chosen = activeGame();
+  if (battle && !supports('online')) throw new Error('Online battles are for Pokémon Colosseum for now.');
   // The player's choices, not the build's: an earlier install plays with them too.
   const settings = installation ? { ...config.settings, textures: installation.settings?.textures ?? config.settings.textures } : config.settings;
-  const rom = port.validateRom(installation?.rom || config.rom);
+  const rom = port.validateRom(installation?.rom || config.rom, chosen.id);
   if (!binaryReady(root)) throw new Error('Set up this version of the game before playing.');
-  if (!port.hdVisualsInstalled(root, settings))
+  if (!hdVisualsReady(root, settings))
     throw new Error('HD visuals need to be set up. Return to the main screen to finish setup, or turn them off in Settings.');
-  await ensureLanguage(settings);
+  if (supports('languagePacks')) await ensureLanguage(settings);
   // An online battle plays on no save: the memory card stays as it was.
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
   fs.mkdirSync(cacheFolder, { recursive: true });
-  // An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules are both
-  // games' (the room's own, not either player's settings).
-  let packsFile = null, packPokemon = 0;
-  if (!battle) {
-    try { ({ file: packsFile, own: packPokemon } = preparePokemonPacks(rom, cacheFolder)); }
-    catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); }
-  } else if (battle.rules?.battleRules > generations.COLOSSEUM_RULES) {
-    packsFile = prepareBattleRules(rom, cacheFolder, battle.rules.battleRules);
-  }
+  const { file: packsFile, own: packPokemon } = preparePlayPacks(rom, cacheFolder, battle);
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory(), laterGenerations: onlineFeatures(root).randomizerGenerations,
     // a new randomized run can have packs' own Pokémon: there are some, and the game can choose them
-    packPokemon: packPokemon > 0 && onlineFeatures(root).randomizerPacks }),
-    ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
-    ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
-    SMS_BUTTON_PROMPT_DIR: promptDirectory(),
+    packPokemon: packPokemon > 0 && onlineFeatures(root).randomizerPacks, game: chosen.id }),
+    ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings),
+    ...(supports('languagePacks') ? languagePacks.environment(settings, languageFolder()) : {}),
+    ...(supports('gbaLink') ? gbaLink.environment(config.gba, settings, gbaBackupFolder()) : {}),
+    ...(supports('quickMoves') ? { SMS_BUTTON_PROMPT_DIR: promptDirectory() } : {}),
+    ...(supports('randomizer') ? { COLO_RANDOMIZER_LOG: spoilerFile() } : {}),
     // The renderer's caches, in the launcher's own folder: its default place is shared with the Sunshine port's.
-    COLO_RANDOMIZER_LOG: spoilerFile(),
-    SMS_GX_SHADER_CACHE: path.join(cacheFolder, 'gx-programs.bin'), SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
+    // Another game's shaders are its own file.
+    SMS_GX_SHADER_CACHE: path.join(cacheFolder, chosen.id === games.DEFAULT ? 'gx-programs.bin' : `gx-programs-${chosen.id}.bin`),
+    SMS_TEXTURE_PACK_CACHE: path.join(cacheFolder, 'texture-mips'),
     ...(battle ? { COLO_ONLINE: String(battle.port), COLO_SKIP_MOVIES: '1', COLO_NOCARD: '1' } : {}),
-    ...(config.settings.discordPresence ? { COLO_PRESENCE: '1' } : {}),
+    ...(config.settings.discordPresence && supports('discordPresence') ? { COLO_PRESENCE: '1' } : {}),
     ...(packsFile ? { COLO_POKEMON_PACKS: packsFile } : {}) };
-  const recordedTools = game.toolRoot(root);
+  const recordedTools = game.toolRoot(root, undefined, chosen.id);
   const env = recordedTools ? buildTools.environmentAtRoot(recordedTools, playEnv) : toolEnv(playEnv);
-  const cmd = port.gameRunCommand(root, rom, process.platform, env);
+  const cmd = port.gameRunCommand(root, rom, process.platform, env, undefined, chosen.id);
   const startedAt = Date.now();
   startPresence(startedAt, Boolean(battle));
   try {
-    return await launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, PLAY_LABEL, true);
+    return await launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, playLabel(), true);
   } catch (error) {
     // Stop game ends it on purpose: that is no failure to report.
     if (!wasStopped(startedAt)) {
@@ -1322,11 +1478,13 @@ let onPresence = null;        // the running game's handler for its [presence] l
 function showPresence() {
   if (!presenceSession || !discordPresence) return;
   const { startedAt, game: latest, online: isOnline } = presenceSession;
-  discordPresence.set(presence.activity(latest, { startedAt, online: isOnline ? { opponent: battle?.opponent || null } : null }));
+  const game = activeGame();
+  discordPresence.set(presence.activity(latest, { startedAt, online: isOnline ? { opponent: battle?.opponent || null } : null,
+    gameName: game.name, areaImages: game.id === 'colosseum' }));
 }
 
 function startPresence(startedAt, isOnline) {
-  if (!config.settings.discordPresence) return;
+  if (!config.settings.discordPresence || !supports('discordPresence')) return;
   discordPresence ||= discord.createPresence({ log });
   presenceSession = { startedAt, game: null, online: isOnline };
   onPresence = line => {
@@ -1344,9 +1502,9 @@ function stopPresence() {
 
 async function launchGame(update = config.settings.autoUpdate) {
   requireRepo();
-  port.validateRom(config.rom);
+  port.validateRom(config.rom, config.game);
   if (!binaryReady() || (update && !game.isCurrent(config.repo, currentSource()))) await build();
-  if (!port.hdVisualsInstalled(config.repo, config.settings)) await installTextures();
+  if (!hdVisualsReady(config.repo, config.settings)) await installTextures();
   return play();
 }
 
@@ -1354,7 +1512,7 @@ async function playInstalled() {
   const root = requireRepo();
   // Playing without setup uses only packs already on disk. Keep the player's
   // preferences so choosing setup later still installs the requested visuals.
-  const settings = { ...config.settings, textures: config.settings.textures && port.texturePackInstalled(root) };
+  const settings = { ...config.settings, textures: config.settings.textures && (!supports('hdTextures') || port.texturePackInstalled(root, config.game)) };
   if (settings.textures !== config.settings.textures)
     log('Playing the installed game without missing HD downloads. Your visual settings are saved for later setup.');
   return play({ repo: root, settings });
@@ -1362,10 +1520,10 @@ async function playInstalled() {
 
 // Why `--play` opens the launcher instead of the game, or null if the game can start as it is.
 function directPlayBlocker() {
-  if (!port.isPort(config.repo) || !binaryReady()) return 'the game is not set up yet.';
-  try { port.validateRom(config.rom); } catch (error) { return error.message; }
+  if (!port.isPort(config.repo, config.game) || !binaryReady()) return 'the game is not set up yet.';
+  try { port.validateRom(config.rom, config.game); } catch (error) { return error.message; }
   if (config.settings.autoUpdate && !game.isCurrent(config.repo, currentSource())) return 'a game update is ready.';
-  if (!port.hdVisualsInstalled(config.repo, config.settings)) return 'HD visuals need to be set up.';
+  if (!hdVisualsReady(config.repo, config.settings)) return 'HD visuals need to be set up.';
   return null;
 }
 
@@ -1379,7 +1537,7 @@ async function playDirectly() {
     log(`Opened the launcher instead of the game: ${blocker}`);
     return false;
   }
-  try { await exclusive(PLAY_LABEL, () => play(), true); }
+  try { await exclusive(playLabel(), () => play(), true); }
   catch (error) {
     directPlayFailure = error.message;
     return false;
@@ -1427,10 +1585,10 @@ let reporter = null;
 let usageCount = null;
 
 function heartbeatPayload() {
-  const installedBuild = binaryReady() ? game.installed(config.repo) : null;
+  const installedBuild = binaryReady() ? game.installed(config.repo, config.game) : null;
   return telemetry.payload({ installId: config.installId, launcherVersion: app.getVersion(),
     gameVersion: installedBuild?.gameVersion, availableVersion: currentSource().version,
-    channel: config.settings.updateChannel, playing: active?.label === PLAY_LABEL });
+    channel: config.settings.updateChannel, playing: isPlayLabel(active?.label) });
 }
 
 // Packaged builds report; a development launcher only with COLO_TELEMETRY_URL.
@@ -1450,6 +1608,9 @@ function onlineState() {
   return { setup: config.online, ready: onlineReadiness(), build: binaryReady() ? gameBuild().build : null, result: battleResult,
     story: storyState(), rulesSupported: binaryReady() && onlineFeatures(config.repo).rules,
     timersSupported: binaryReady() && onlineFeatures(config.repo).timers,
+    // rooms for both games, with this game's build for them; Platinum's rules; the game's short name
+    crossBuild: binaryReady() && onlineFeatures(config.repo).crossplay ? gameBuild(true).build : null,
+    platinumSupported: !binaryReady() || onlineFeatures(config.repo).platinum, game: games.get(config.game).shortName,
     battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
       opponent: battle.opponent, peerLost: Boolean(battle.peerLost), bestOf: battle.bestOf || 1, game: battle.game || 0,
       wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null } };
@@ -1459,37 +1620,74 @@ function broadcastOnline() { broadcast('online', onlineState()); }
 
 // The game's executable has to know about online battles, and about Story parties: builds from before them don't.
 let onlineBinary = null;
-function onlineFeatures(root) {
+function onlineFeatures(root, id = config.game) {
   try {
-    const file = port.binaryPath(root);
+    if (!games.supports(id, 'online')) throw new Error('no online battles');
+    const file = binaryOf(root, id);
     const { mtimeMs } = fs.statSync(file);
     if (onlineBinary?.file !== file || onlineBinary.mtimeMs !== mtimeMs) {
       const bytes = fs.readFileSync(file);
-      onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story: bytes.includes('online: story member'),
-        // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
-        rules: bytes.includes('battle, rules: '),
+      // XD's online battles (host/xd/online.c) speak Colosseum's lines, with less around them so far
+      const xd = bytes.includes('online: Pokemon XD');
+      // a Story party's Pokémon, whole (member lines): XD's game has taken them from the start (host/xd/online.c)
+      const story = xd || bytes.includes('online: story member');
+      // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
+      const rules = xd ? bytes.includes('online: crossplay ') : bytes.includes('battle, rules: ');
+      onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story,
+        // a party's Pokémon go to the game whole (member lines): a Story party's, and the team builder's sets
+        members: story || xd,
+        rules,
         // turn and battle timers, with the battle's clock shared between the games
-        timers: bytes.includes('online: turn timer'),
+        // (XD's own strings: an XD from before them logged Colosseum's without having either)
+        timers: xd ? bytes.includes('online: XD turn timer') : bytes.includes('online: turn timer'),
         // the screens around a battle, where the players pick their Pokémon with team preview
-        picks: bytes.includes('online: picks, '),
-        // the randomizer's fourth generation (host/randomizer.c)
+        picks: xd ? bytes.includes('online: XD picks, ') : bytes.includes('online: picks, '),
+        // Pokémon Platinum's battle rules (src/generations.js): Colosseum's game only
+        platinum: !xd,
+        // rooms for either game's players (online.crossBuildId): XD's knows crossplay=1, and Colosseum's needs nothing
+        // more than its rules line and whole Pokémon
+        crossplay: rules && (story || xd),
+        // the randomizer (host/randomizer.c), which XD's game has once it prints its run
+        randomizer: bytes.includes('randomizer: seed '),
+        // the randomizer's fourth generation
         randomizerGenerations: bytes.includes('randomizer: later generations'),
         // and Pokémon packs' own Pokémon
         randomizerPacks: bytes.includes('randomizer: packs\' Pokemon') };
     }
     return onlineBinary;
-  } catch (_) { return { online: false, story: false, rules: false, timers: false, randomizerGenerations: false, randomizerPacks: false }; }
+  } catch (_) {
+    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossplay: false,
+      randomizer: false, randomizerGenerations: false, randomizerPacks: false };
+  }
 }
+
+// Whether the game at root plays randomized runs: Colosseum's has since its randomizer.c; XD's shares that file with
+// Colosseum's, so its game says so itself (onlineFeatures).
+function randomizerReady(root) {
+  if (!supports('randomizer')) return false;
+  return config.game === games.DEFAULT ? fs.existsSync(path.join(root, 'host', 'randomizer.c')) : onlineFeatures(root).randomizer;
+}
+
+// The disc the team builder and online parties read their Pokémon from: Colosseum's, whichever game is chosen. XD's
+// Pokémon, moves and items have Colosseum's numbers, so a party built from it battles in either game.
+function teamDisc(reader = 'The team builder reads its Pokémon') {
+  const rom = games.allFields(config).colosseum?.rom;
+  if (!rom) throw new Error(`${reader} from Pokémon Colosseum's disc. Choose Colosseum on the Play page and set up its disc first.`);
+  return port.validateRom(rom, 'colosseum');
+}
+// Whether Colosseum's disc is set up: what another game's team builder and later generations read.
+function teamDiscReady() { try { teamDisc(); return true; } catch (_) { return false; } }
 const gameHasOnline = root => onlineFeatures(root).online;
 
-// The Story party, read again whenever the save changes. null without a save; error when it can't be read.
+// The Story party, read again whenever the save changes: the chosen game's. null without a save; error when it can't
+// be read.
 let storyCache = null;
 function readStory() {
-  const file = path.join(currentSaveDirectory(), 'pokemon_colosseum.dat');
+  const file = path.join(currentSaveDirectory(), config.game === 'xd' ? storyParty.XD_SAVE : storyParty.SAVE);
   const mtimeMs = fs.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? null;
   if (storyCache?.file !== file || storyCache.mtimeMs !== mtimeMs) {
     let party = null, error = null;
-    try { party = storyParty.readStoryParty(currentSaveDirectory()); }
+    try { party = storyParty.readStoryParty(currentSaveDirectory(), config.game); }
     catch (failure) { error = failure.message; }
     storyCache = { file, mtimeMs, party, error };
   }
@@ -1501,6 +1699,8 @@ function storyState() {
   const { party, error } = readStory();
   return { error, supported: binaryReady() && onlineFeatures(config.repo).story,
     trainer: party?.trainer || null, leftOut: party?.leftOut || 0, packsLeftOut: party?.packsLeftOut || 0,
+    // why each of its Pokémon that a room for both games can't take stays home from one (src/crossplay.js)
+    crossLeftOut: party ? crossplay.storyMembers(party.members, storyParty.wireMember, partyNames()).leftOut.map(each => each.why[0]) : [],
     members: (party?.members || []).map(member => ({ species: member.species, nickname: member.nickname, level: member.level, shiny: member.shiny,
       // all the team builder needs to copy it into a party of the player's own
       set: { species: member.species, nickname: member.nickname, item: member.item, ability: member.ability, nature: member.rnd % 25,
@@ -1523,20 +1723,32 @@ function storyBlocked(size) {
   return null;
 }
 
-// The party to battle with in a room of `size` each: species, and for the Story party its Pokémon whole.
-function battleParty(size) {
+// The party to battle with in a room of `size` each: species, and for the Story party its Pokémon whole. In a room for
+// both games (cross), a Story party's Pokémon that the other game wouldn't make the same stay home (src/crossplay.js).
+function battleParty(size, { cross = false } = {}) {
   if (config.online.selected === parties.STORY) {
     const blocked = storyBlocked(size);
     if (blocked) throw new Error(blocked);
-    const members = readStory().party.members.slice(0, parties.PARTY_SIZE);
+    let members = readStory().party.members;
+    if (cross) {
+      const { kept, leftOut } = crossplay.storyMembers(members, storyParty.wireMember, partyNames());
+      if (leftOut.length && kept.length < size) {
+        const why = leftOut.map(each => each.why[0]).join(' ');
+        throw Object.assign(new Error(`Your Story party has ${kept.length} Pokémon a room for both games can take, and this room plays ${size} each. ${why}`),
+          { problems: leftOut.map(each => each.why[0]) });
+      }
+      for (const { why } of leftOut) log(`Online: left out of the Story party for a room for both games: ${why.join(' ')}`);
+      members = kept;
+    }
+    members = members.slice(0, parties.PARTY_SIZE);
     return { party: members.map(member => member.species), members: members.map(storyParty.wireMember) };
   }
   // A built party's sets go to the game as a Story party's Pokémon do. A game from before those takes the species only.
   const party = parties.selectedParty(config.online);
-  if (!onlineFeatures(config.repo).story) return { party: party.members };
+  if (!onlineFeatures(config.repo).members) return { party: party.members };
   let species = {};
   try {
-    const data = battleData(port.validateRom(config.rom));
+    const data = battleData(teamDisc());
     species = party.generation >= 4 ? data.generations[party.generation].species : data.species;
   } catch (error) { log(`Team builder: couldn't read genders from the disc (${error.message}).`); }
   return { party: party.members, members: party.sets.map((set, slot) => teamSets.toWire(set, species[set.species]?.gender ?? teamSets.GENDER.none, slot)) };
@@ -1545,7 +1757,7 @@ function battleParty(size) {
 // Names for what a party's problems mention, from the disc.
 function partyNames() {
   try {
-    const rom = port.validateRom(config.rom), data = battleData(rom);
+    const rom = teamDisc(), data = battleData(rom);
     const later = data.generations?.[4];
     const species = new Map([...Object.entries(later?.species || {}).map(([id, entry]) => [Number(id), entry.name]),
       ...pokedexData.list(rom).map(entry => [entry.id, entry.name])]);
@@ -1555,31 +1767,51 @@ function partyNames() {
 }
 
 // The party to battle with by a room's rules: what battleParty gives, once it can play by them.
-function partyFor(rules) {
-  if (rules.format !== 'casual' && !onlineFeatures(config.repo).rules)
+function partyFor(rules, { cross = false } = {}) {
+  const features = onlineFeatures(config.repo);
+  if (rules.format !== 'casual' && !features.rules)
     throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
+  if (rules.battleRules === 4 && (!features.platinum || cross)) {
+    const why = cross ? 'a room for both games plays by Colosseum\'s' : `${games.get(config.game).shortName}'s online battles play by Colosseum's`;
+    throw Object.assign(new Error(`Pokémon Platinum's battle rules are for Colosseum's rooms for now: ${why}.`), { problems: ['Platinum\'s battle rules'] });
+  }
+  // the other game makes a Pokémon from its species differently: each goes whole
+  if (cross && config.online.selected !== parties.STORY && !features.members)
+    throw new Error('A room for both games needs a newer game. Update it from the Play page.');
   const own = config.online.selected === parties.STORY ? null : parties.selectedParty(config.online);
   const mismatch = parties.rulesProblem(own, rules.battleRules);
   if (mismatch) throw Object.assign(new Error(mismatch), { problems: [mismatch] });
-  const chosen = battleParty(rules.size);
+  const chosen = battleParty(rules.size, { cross });
   const problems = formats.problems(rules, chosen.party, chosen.members || null, partyNames());
+  // a room for both games: only what both games make alike (src/crossplay.js), or the battle would go otherwise
+  if (cross) problems.push(...crossplay.problems(chosen.party, chosen.members || null, partyNames()).filter(each => !problems.includes(each)));
   if (problems.length) throw Object.assign(new Error(`Your party can't play ${formats.describe(rules).name}: ${problems.join(' ')}`), { problems });
   return chosen;
 }
 
 // Why a room can't be made or joined now, or null.
 function onlineReadiness() {
-  if (!port.isPort(config.repo) || !binaryReady()) return 'Set up the game on the Play page first.';
+  if (!supports('online')) return `Online battles aren't in ${games.get(config.game).shortName} yet. Choose Colosseum on the Play page.`;
+  if (!port.isPort(config.repo, config.game) || !binaryReady()) return 'Set up the game on the Play page first.';
   if (!gameHasOnline(config.repo)) return 'This version of the game has no online battles yet. Update it from the Play page.';
   if (config.online.selected === parties.STORY) return storyBlocked(Math.min(...parties.SIZES));
   if (!parties.selectedParty(config.online)) return 'Build a party of six to battle with.';
   return null;
 }
 
-// What identifies this game to another player's: both must play the very same build.
-function gameBuild() {
-  const installedBuild = game.installed(config.repo);
-  return { build: online.buildId(installedBuild), version: installedBuild?.gameVersion || '', launcher: app.getVersion() };
+// What identifies this game to another player's: both must play the very same build, or for a room for both games
+// (cross), a build of either game from the same commit of the port. The version says which game, for XD.
+function gameBuild(cross = false) {
+  const installedBuild = game.installed(config.repo, config.game);
+  const version = `${config.game === games.DEFAULT ? '' : `${games.get(config.game).shortName} `}${installedBuild?.gameVersion || ''}`.trim();
+  return { build: cross ? online.crossBuildId(installedBuild) : online.buildId(installedBuild), version, launcher: app.getVersion() };
+}
+
+// The session's view of what the game can do in a room (src/online.js Session features).
+function sessionFeatures(cross) {
+  const features = onlineFeatures(config.repo);
+  // a room for both games is two games of one port commit, which have the same screens (host/xd/online.c and online.c)
+  return { rules: features.rules, picks: features.picks, crossplay: cross };
 }
 
 function requireOnlineReady() {
@@ -1620,7 +1852,7 @@ async function playBattle(session) {
     // a joiner's game starts once there's a battle: with team preview, after both have picked
     if (session.role === 'host') session.prepareGame();
     else if (!await session.again()) return;
-    do await exclusive(PLAY_LABEL, () => play(null, { port: gamePort }), true);
+    do await exclusive(playLabel(), () => play(null, { port: gamePort }), true);
     while (await session.again());
   } finally {
     session.close();
@@ -1694,16 +1926,17 @@ function pickPokemon(order) {
 async function createRoom() {
   requireOnlineReady();
   const setup = config.online;
+  const cross = Boolean(setup.crossplay) && onlineFeatures(config.repo).crossplay;
   // a game from before timers would play without them: the room says so
   const rules = onlineFeatures(config.repo).timers ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
-  const chosen = partyFor(rules);
-  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules, picks: onlineFeatures(config.repo).picks } });
+  const chosen = partyFor(rules, { cross });
+  const session = new online.Session({ features: sessionFeatures(cross) });
   battleResult = null;
   battle = { session, status: 'connecting', role: 'host', rules, bestOf: setup.bestOf, code: null, opponent: null };
   broadcastOnline();
   watchSession(session);
   try {
-    battle.code = await session.host({ name: setup.trainer, ...gameBuild(), ...chosen, rules, bestOf: setup.bestOf, listed: setup.listed });
+    battle.code = await session.host({ name: setup.trainer, ...gameBuild(cross), ...chosen, rules, bestOf: setup.bestOf, listed: setup.listed });
   } catch (error) {
     session.close();
     battle = null;
@@ -1722,16 +1955,18 @@ async function joinRoom(input) {
   const code = online.parseRoomCode(input);
   if (!code) throw new Error('A room code looks like KQ7-M2D.');
   const setup = config.online;
-  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules, picks: onlineFeatures(config.repo).picks } });
   battleResult = null;
   const info = await online.lookup(code);
   if (info.status !== 'waiting') throw new Error('That battle has already started.');
+  const cross = online.isCrossBuild(info.build);
+  if (cross && !onlineFeatures(config.repo).crossplay) throw new Error('That room is for both games, which this version of the game can\'t play. Update it from the Play page.');
+  const session = new online.Session({ features: sessionFeatures(cross) });
   const rules = formats.normalize(info.rules || {});
-  const chosen = partyFor(rules);
+  const chosen = partyFor(rules, { cross });
   battle = { session, status: 'connecting', role: 'joiner', rules, bestOf: info.bestOf || 1, code, opponent: info.name };
   broadcastOnline();
   watchSession(session);
-  try { await session.join({ code, name: setup.trainer, ...gameBuild(), ...chosen }); }
+  try { await session.join({ code, name: setup.trainer, ...gameBuild(cross), ...chosen }); }
   catch (error) {
     session.close();
     battle = null;
@@ -1754,7 +1989,7 @@ function stopActive() {
 // Leaving a room closes its game, and the room with it.
 function leaveRoom() {
   if (!battle) return;
-  if (active?.label === PLAY_LABEL) stopActive();
+  if (isPlayLabel(active?.label)) stopActive();
   else {
     battle.session.close();
     battle = null;
@@ -1765,22 +2000,29 @@ function leaveRoom() {
 function state() {
   const info = port.platformInfo();
   let romError = '';
-  if (config.rom) { try { port.validateRom(config.rom); } catch (error) { romError = error.message; } }
-  const repoReady = port.isPort(config.repo);
+  if (config.rom) { try { port.validateRom(config.rom, config.game); } catch (error) { romError = error.message; } }
+  const repoReady = port.isPort(config.repo, config.game);
   const ready = repoReady && binaryReady();
-  const installedBuild = ready ? game.installed(config.repo) : null;
+  const installedBuild = ready ? game.installed(config.repo, config.game) : null;
+  const release = activeGame().release;
   return {
-    config, platform: info, repoReady, portable: Boolean(portableRoot), pathProblem: blockedPath || pathProblem(),
+    config, platform: info,
+    // The game chosen on the Play page, the others to choose from, and what the chosen one has of the launcher's
+    // features; and its release's repositories, for Game source's placeholders.
+    currentGame: { ...games.summary(config.game), release: { repository: release.repository, branch: release.branch,
+      decompRepository: release.decompRepository } }, repoReady, portable: Boolean(portableRoot), pathProblem: blockedPath || pathProblem(),
     // Where the build tools download: the launcher's data folder, wherever the game is installed.
     toolsFolder: path.dirname(buildTools.rootFor(app.getPath('userData'))),
     romReady: Boolean(config.rom) && !romError, romError,
-    hdVisualsReady: repoReady && port.hdVisualsInstalled(config.repo, config.settings),
-    texturesInstalled: repoReady && port.texturePackInstalled(config.repo),
+    // Colosseum's disc, which XD's later generations are made from (prepareGenerations)
+    teamDiscReady: config.game === games.DEFAULT ? Boolean(config.rom) && !romError : teamDiscReady(),
+    hdVisualsReady: repoReady && hdVisualsReady(config.repo, config.settings),
+    texturesInstalled: repoReady && supports('hdTextures') && port.texturePackInstalled(config.repo, config.game),
     pbr: pbrState(),
-    texturePack: { size: port.TEXTURE_PACK.size, unpacked: port.TEXTURE_PACK.unpacked },
+    texturePack: (pack => pack && { size: pack.size, unpacked: pack.unpacked })(port.texturePack(config.game)) || { size: 0, unpacked: 0 },
     languages: languagePacks.choices(languageFolder()),
     // Whether the game on disk reads language packs.
-    languagesReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'language.c')),
+    languagesReady: repoReady && supports('languagePacks') && fs.existsSync(path.join(config.repo, 'host', 'language.c')),
     binaryReady: ready,
     tools: toolsStatus(),
     gameSource: config.gameSource ? { override: config.gameSource.override, version: config.gameSource.resolved.version } : null,
@@ -1794,7 +2036,7 @@ function state() {
     backups: saves.listBackups().filter(item => item.source === currentSaveDirectory()),
     crashReports: crashReports.summary(crashReports.directory()), directPlayFailure,
     // The run on the memory card, and whether the game on disk can play one.
-    randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c')),
+    randomizerSave: saveRun(currentSaveDirectory(), config.game), randomizerReady: repoReady && randomizerReady(config.repo),
     randomizerGenerations: repoReady && onlineFeatures(config.repo).randomizerGenerations,
     randomizerPacks: repoReady && onlineFeatures(config.repo).randomizerPacks,
     usage: usageCount, online: onlineState(),
@@ -1984,16 +2226,18 @@ function registerHandlers() {
   ipcMain.handle('window-close', event => senderWindow(event)?.close());
   ipcMain.handle('state', async () => { await checkTools(); return state(); });
   ipcMain.handle('randomizer-new-seed', () => randomizer.newSeed());
+  ipcMain.handle('select-game', (_event, id) => selectGame(String(id)));
   ipcMain.handle('randomizer-spoilers', async () => {
-    const { run } = saveRun(currentSaveDirectory());
+    requireFeature('randomizer', 'The randomizer');
+    const { run } = saveRun(currentSaveDirectory(), config.game);
     if (!run) throw new Error('Your save isn\'t a randomized run, so there are no spoilers to show.');
     let raw = null;
     try { raw = fs.readFileSync(spoilerFile(), 'utf8'); } catch (_) { /* written when the game opens the run */ }
     if (randomizer.spoilerSeed(raw) !== run.seed) throw new Error('Open your save in the game once first: the spoiler log is written when it loads.');
     const readable = path.join(app.getPath('userData'), 'Randomizer spoilers.txt');
     // the disc's Pokémon and a later generation's, which the log has by number, then packs' own, which it has by their places
-    const list = pokedexList(port.validateRom(config.rom)), later = entry => entry.pack.id.startsWith('generation-');
-    fs.writeFileSync(readable, randomizer.spoilerText(raw, [...list.species, ...list.packs.filter(later)], list.packs.filter(entry => !later(entry))));
+    const list = pokedexList(port.validateRom(config.rom, config.game)), later = entry => entry.pack.id.startsWith('generation-');
+    fs.writeFileSync(readable, randomizer.spoilerText(raw, [...list.species, ...list.packs.filter(later)], list.packs.filter(entry => !later(entry)), config.game));
     await shell.openPath(readable);
   });
   ipcMain.handle('online-save', (_event, value) => {
@@ -2007,38 +2251,44 @@ function registerHandlers() {
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('online-pick', (_event, order) => pickPokemon(Array.isArray(order) ? order.map(Number) : []));
-  ipcMain.handle('pokedex', () => pokedexList(port.validateRom(config.rom)));
+  // (the team builder's Pokémon too: Colosseum's disc's, in XD as well)
+  ipcMain.handle('pokedex', () => {
+    if (!supports('teamBuilder')) requireFeature('pokedex', 'The Pokédex');
+    return pokedexList(supports('pokedex') ? port.validateRom(config.rom, config.game) : teamDisc());
+  });
   // gameTakesSets: false when the installed game is from before sets, and battles with its species only
   // categories: each later generation's own physical or special for a move, as its battle rules make it
   // generations: what a party of a later generation is offered (src/battle-data.js), with its Pokémon to pick from (dex)
   ipcMain.handle('battle-data', () => {
-    const rom = port.validateRom(config.rom), data = battleData(rom);
+    requireFeature('teamBuilder', 'The team builder');
+    const rom = teamDisc(), data = battleData(rom);
     const later = Object.fromEntries(Object.entries(data.generations || {}).map(([generation, each]) => {
       let dex = [];
       try { dex = generationDex(rom, Number(generation)); } catch (error) { log(`Team builder: couldn't list the Generation ${generation} Pokémon (${error.message}).`); }
       return [generation, { ...each, dex }];
     }));
-    return { ...data, generations: later, gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story,
+    return { ...data, generations: later, gameTakesSets: !binaryReady() || onlineFeatures(config.repo).members,
       categories: Object.fromEntries(generations.available().filter(each => each.generation > generations.COLOSSEUM_RULES)
         .map(each => [each.generation, generations.moveCategories(each.generation)])) };
   });
   ipcMain.handle('pokedex-model', (_event, key, form) => {
     const look = pokedexLook(key, String(form));
-    return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form)));
+    return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom, config.game), look.national, String(form)));
   });
   ipcMain.handle('pokedex-cry', (_event, key) => {
     const own = String(key).startsWith('pack:') ? pokedexPacks.get(String(key).slice('pack:'.length))?.ownCry : null;
     if (own) return own;
-    const rom = port.validateRom(config.rom), wav = pokedexCries.wav(rom, pokedexCry(rom, key));
+    const rom = port.validateRom(config.rom, config.game), wav = pokedexCries.wav(rom, pokedexCry(rom, key));
     if (!wav) throw new Error('That Pokémon has no cry on this disc.');
     return wav;
   });
   ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
+  ipcMain.handle('game-logos', () => gameLogos());
   ipcMain.handle('jukebox-render', (_event, id) => jukeboxRender(String(id)));
   ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));
-    return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom), look.national, String(form), Number(index));
+    return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom, config.game), look.national, String(form), Number(index));
   });
   ipcMain.handle('open-pokemon-packs', () => {
     fs.mkdirSync(pokemonPacksDirectory(), { recursive: true });
@@ -2077,13 +2327,25 @@ function registerHandlers() {
   ipcMain.handle('choose-rom', async () => {
     if (operation || active) throw new Error('Finish the current task before changing game files.');
     const chosen = await dialog.showOpenDialog(window, {
-      title: `Choose a file from your own ${GAME_NAME} disc`,
+      title: `Choose a file from your own ${gameName()} disc`,
       properties: ['openFile'],
       filters: [{ name: 'Game disc files', extensions: ['iso', 'gcm'] }, { name: 'All files', extensions: ['*'] }]
     });
     if (chosen.canceled) return state();
-    config.rom = port.validateRom(chosen.filePaths[0]);
+    let file;
+    try { file = port.validateRom(chosen.filePaths[0], config.game); }
+    catch (error) {
+      // The other game's disc: that game is chosen, with this disc.
+      if (!error.otherGame) throw error;
+      const disc = port.validateRom(chosen.filePaths[0], error.otherGame);
+      config = games.switchGame(config, error.otherGame, gameFieldOptions);
+      config.completedSetup ||= fs.existsSync(binaryOf(config.repo));
+      log(`That's your ${gameName()} disc, so the launcher switched to ${gameName()}.`);
+      file = disc;
+    }
+    config.rom = file;
     saveConfig();
+    broadcastOnline();
     return state();
   });
   ipcMain.handle('choose-pbr-disc', async () => {
@@ -2163,11 +2425,12 @@ function registerHandlers() {
     if (operation || active) throw new Error('Finish the current task before changing game files.');
     const chosen = await dialog.showOpenDialog(window, { title: 'Choose a folder with setup files', properties: ['openDirectory'] });
     if (chosen.canceled) return state();
-    if (!port.isPort(chosen.filePaths[0])) throw new Error('That folder does not have the setup files this launcher needs.');
+    if (!port.isPort(chosen.filePaths[0], config.game)) throw new Error(`That folder does not have the setup files this launcher needs for ${gameName()}.`);
+    if (otherGameFolder(chosen.filePaths[0])) throw new Error('That folder is the other game\'s. Each game needs its own setup folder.');
     config.repo = chosen.filePaths[0];
     config.installRoot = null;
     config.previousInstall = null;
-    config.completedSetup = fs.existsSync(port.binaryPath(config.repo));
+    config.completedSetup = fs.existsSync(binaryOf(config.repo));
     saveConfig();
     broadcastOnline();
     return state();
@@ -2177,13 +2440,14 @@ function registerHandlers() {
     if (operation || active) throw new Error('Finish the current task before changing game files.');
     const chosen = await dialog.showOpenDialog(window, { title: 'Choose where to download setup files', properties: ['openDirectory'] });
     if (chosen.canceled) return state();
-    const destination = path.join(chosen.filePaths[0], 'Colosseum Game');
+    const destination = path.join(chosen.filePaths[0], activeGame().locationFolder);
     if (fs.existsSync(destination) && (!fs.statSync(destination).isDirectory() || fs.readdirSync(destination).length))
       throw new Error('That location already has a game setup folder. Choose another location.');
+    if (otherGameFolder(destination)) throw new Error('That folder is the other game\'s. Each game needs its own setup folder.');
     config.repo = destination;
     config.installRoot = null;
     config.previousInstall = null;
-    config.completedSetup = fs.existsSync(port.binaryPath(config.repo));
+    config.completedSetup = fs.existsSync(binaryOf(config.repo));
     saveConfig();
     broadcastOnline();
     return state();
@@ -2191,14 +2455,14 @@ function registerHandlers() {
   const actions = { 'install-port': ['Download port source', installPort],
     'update-port': ['Update game', updatePort], 'install-textures': ['Install HD textures', () => installTextures()], 'build': ['Build game', () => build(true)],
     'make-pbr-models': ['Make Battle Revolution assets', makePbrModels],
-    'setup-game': ['Build game', setupGame], 'prepare-game': ['Prepare game', prepareGame], 'play': [PLAY_LABEL, playInstalled],
+    'setup-game': ['Build game', setupGame], 'prepare-game': ['Prepare game', prepareGame], 'play': [playLabel, playInstalled],
     'launch-game': ['Prepare game', () => launchGame()], 'update-and-play': ['Prepare game', () => launchGame(true)],
-    'play-previous': [PLAY_LABEL, () => {
+    'play-previous': [playLabel, () => {
       if (!config.previousInstall) throw new Error('There is no previous version available.');
       return play(config.previousInstall);
     }] };
   for (const [channel, [label, callback]] of Object.entries(actions))
-    ipcMain.handle(channel, () => exclusive(label, callback, ['play', 'launch-game', 'update-and-play', 'play-previous'].includes(channel)));
+    ipcMain.handle(channel, () => exclusive(typeof label === 'function' ? label() : label, callback, ['play', 'launch-game', 'update-and-play', 'play-previous'].includes(channel)));
   ipcMain.handle('set-game-source', (_event, input) => exclusive('Choose game source', () => chooseGameSource(input)));
   ipcMain.handle('clean-preview', () => exclusive('Preview cleanup', () => clean(true)));
   ipcMain.handle('backup-saves', () => exclusive('Back up saves', () => makeSaveBackup('manual')));
@@ -2206,6 +2470,7 @@ function registerHandlers() {
   ipcMain.handle('gc-adapter-allow', () => allowGcAdapter());
   ipcMain.handle('gc-adapter-copy-command', () => clipboard.writeText(gcAdapter.terminalCommand()));
   ipcMain.handle('import-dolphin-save', (_event, files) => exclusive('Import Dolphin save', async () => {
+    requireFeature('gciSaves', 'Dolphin saves');
     if (files == null) {
       const chosen = await dialog.showOpenDialog(window, { title: 'Import Dolphin save',
         properties: ['openFile', 'multiSelections'], filters: [{ name: 'Dolphin save', extensions: ['gci'] }] });
@@ -2213,7 +2478,7 @@ function registerHandlers() {
       files = chosen.filePaths;
     }
     if (!Array.isArray(files) || !files.length) throw new Error('Choose a Dolphin .gci save file.');
-    const { file, converted, skipped } = gciSave.readGciFiles(files);
+    const { file, converted, skipped } = gciSave.readGciFilesFor(files, config.game);
     const directory = currentSaveDirectory();
     const existing = fs.existsSync(path.join(directory, `${converted.name}.dat`));
     const party = converted.party.length ? `\nParty: ${converted.party.join(', ')}` : '';
@@ -2223,7 +2488,7 @@ function registerHandlers() {
       type: existing || warning ? 'warning' : 'question',
       buttons: ['Cancel', 'Import save'], defaultId: 0, cancelId: 0,
       message: existing ? `Replace your ${converted.title} save with this Dolphin save?` : `Import this ${converted.title} save from Dolphin?`,
-      detail: `${path.basename(file)}\nTrainer: ${converted.trainer}${party}${skippedNote}\n\nDestination: ${directory}\n\nYour current memory card will be backed up first. The original .gci file is kept.${warning}`
+      detail: `${path.basename(file)}${converted.trainer ? `\nTrainer: ${converted.trainer}` : ''}${party}${skippedNote}\n\nDestination: ${directory}\n\nYour current memory card will be backed up first. The original .gci file is kept.${warning}`
     });
     if (answer.response !== 1) return { cancelled: true };
     const result = gciSave.importGci(converted, directory);
@@ -2231,14 +2496,15 @@ function registerHandlers() {
     return { ...result, trainer: converted.trainer, party: converted.party, file: path.basename(file), skipped };
   }));
   ipcMain.handle('export-gci-save', () => exclusive('Export save', async () => {
-    const save = gciSave.readCardSave(currentSaveDirectory());
+    requireFeature('gciSaves', 'Dolphin saves');
+    const save = gciSave.readCardSaveFor(currentSaveDirectory(), config.game);
     const chosen = await dialog.showSaveDialog(window, { title: 'Export save',
-      defaultPath: path.join(app.getPath('downloads'), gciSave.EXPORT_NAME),
+      defaultPath: path.join(app.getPath('downloads'), gciSave.exportName(config.game)),
       filters: [{ name: 'Dolphin save', extensions: ['gci'] }] });
     if (chosen.canceled || !chosen.filePath) return { cancelled: true };
     const file = gciSave.writeGci(save.gci, chosen.filePath);
     log(`Exported ${save.title} save to ${file}.`);
-    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, extraBoxPokemon: save.extraBoxPokemon, randomized: Boolean(saveRun(currentSaveDirectory()).run) };
+    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, extraBoxPokemon: save.extraBoxPokemon, randomized: Boolean(saveRun(currentSaveDirectory(), config.game).run) };
   }));
   ipcMain.handle('restore-saves', async (_event, id) => {
     if (operation || active) throw new Error('Stop the running game or task before restoring saves.');
@@ -2354,7 +2620,7 @@ app.on('before-quit', () => {
   flushPartialOutput();
   jukeboxStopWorker();
   // Stop an in-flight compiler before another launcher process can recover it.
-  if (!active?.child || active.label === PLAY_LABEL) return;
+  if (!active?.child || isPlayLabel(active.label)) return;
   if (process.platform === 'win32') spawn('taskkill', ['/PID', String(active.child.pid), '/T', '/F'], { windowsHide: true });
   else { try { process.kill(-active.child.pid, 'SIGTERM'); } catch (_) { /* already exited */ } }
 });

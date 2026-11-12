@@ -9,6 +9,12 @@
 </head>
 <body>
   <div id="shell" class="shell">
+    <!-- The Play page's art: the two games side by side, split by a diagonal; the chosen one takes most of the window. Each game's name below is its logo from the player's disc once it is read (renderer.js showLogos). A side is clicked to choose its game; the Game buttons below are the same choice for the keyboard, controllers and screen readers. -->
+    <div id="game-art" class="game-art" data-active="colosseum" aria-hidden="true">
+      <div id="game-art-colosseum" class="game-art-side" data-game="colosseum"><div class="game-art-scene"></div></div>
+      <div id="game-art-xd" class="game-art-side" data-game="xd"><div class="game-art-scene"></div></div>
+      <i class="game-art-edge"></i>
+    </div>
     <header class="topbar">
       <div class="brand"><img class="brand-mark" src="assets/brand-mark.png" alt=""><div class="brand-copy"><span>Colosseum <strong>Launcher</strong></span><span id="version-summary" class="version-summary" aria-label="Versions">Checking versions…</span></div></div>
       <button id="open-changelog" class="topbar-chip" title="Launcher and game updates"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8h7.2L15.5 6v11.2H5z"/><path d="M12 2.8V6h3.5M7.6 9.2h5.3M7.6 11.9h5.3M7.6 14.6h3.4"/></svg><span>What's new</span><i id="changelog-new" class="topbar-dot" role="img" aria-label="New" hidden></i></button>
@@ -26,15 +32,19 @@
     <nav class="nav-bar" aria-label="Launcher">
       <button id="nav-play" class="nav-tab active" aria-current="page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.5v11l9-5.5z"/></svg><span>Play</span></button>
       <button id="nav-saves" class="nav-tab" title="Saved games"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3h10l3 3v11H4z"/><path d="M7 3v4h6V3M7 17v-5h7v5"/></svg><span>Saves</span></button>
-      <button id="nav-pokedex" class="nav-tab" title="Browse every Pokémon on your disc"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h5M12.5 10h5"/><circle cx="10" cy="10" r="2.5"/></svg><span>Pokédex</span></button>
-      <button id="nav-jukebox" class="nav-tab" title="Listen to the game's music from your disc"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 14.5V5l8-1.8v9.3"/><circle cx="6" cy="14.5" r="2.2"/><circle cx="14" cy="12.5" r="2.2"/></svg><span>Jukebox</span></button>
-      <button id="nav-online" class="nav-tab" title="Battle other players online"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2.2 2 3.2 4.6 3.2 7.5s-1 5.5-3.2 7.5c-2.2-2-3.2-4.6-3.2-7.5s1-5.5 3.2-7.5z"/></svg><span>Online</span></button>
+      <button id="nav-pokedex" class="nav-tab" data-feature="pokedex" title="Browse every Pokémon on your disc"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h5M12.5 10h5"/><circle cx="10" cy="10" r="2.5"/></svg><span>Pokédex</span></button>
+      <button id="nav-jukebox" class="nav-tab" data-feature="jukebox" title="Listen to the game's music from your disc"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 14.5V5l8-1.8v9.3"/><circle cx="6" cy="14.5" r="2.2"/><circle cx="14" cy="12.5" r="2.2"/></svg><span>Jukebox</span></button>
+      <button id="nav-online" class="nav-tab" data-feature="online" title="Battle other players online"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2.2 2 3.2 4.6 3.2 7.5s-1 5.5-3.2 7.5c-2.2-2-3.2-4.6-3.2-7.5s1-5.5 3.2-7.5z"/></svg><span>Online</span></button>
       <span class="nav-spacer" aria-hidden="true"></span>
       <button id="settings-cog" class="nav-tab" aria-label="Settings" title="Settings"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.7 2.8h2.6l.4 1.8 1.6.7 1.6-1 1.8 1.8-1 1.6.7 1.6 1.8.4v2.6l-1.8.4-.7 1.6 1 1.6-1.8 1.8-1.6-1-1.6.7-.4 1.8H8.7l-.4-1.8-1.6-.7-1.6 1-1.8-1.8 1-1.6-.7-1.6-1.8-.4V8.7l1.8-.4.7-1.6-1-1.6 1.8-1.8 1.6 1 1.6-.7z"/><circle cx="10" cy="10" r="2.3"/></svg><span>Settings</span></button>
     </nav>
     <main class="viewport">
       <section id="page-home" class="page home-page" aria-label="Launch game">
-        <div class="intro"><div><p class="eyebrow">POKÉMON COLOSSEUM</p><h1 id="home-title">Set up your game</h1><p id="home-description">A few quick steps, then you're ready to play.</p></div><div class="intro-banners"><button id="add-to-steam" class="discord-banner steam-banner" hidden aria-label="Add the launcher to your Steam library"><span class="discord-logo steam-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg></span><span class="discord-copy"><strong id="steam-banner-title">Add to Steam</strong><small id="steam-banner-detail">Play from your Steam library or Steam Deck, with artwork</small></span><span id="steam-banner-mark" class="discord-arrow" aria-hidden="true">+</span></button></div></div>
+        <div id="game-picker" class="game-picker" role="group" aria-label="Game">
+          <button id="game-colosseum" class="game-tab" data-game="colosseum" aria-pressed="true" aria-label="Pokémon Colosseum" title="Play Pokémon Colosseum"><span id="game-mark-colosseum" class="game-tab-art"><img id="game-logo-colosseum" class="game-tab-logo" alt="" hidden><small>Pokémon</small><strong>Colosseum</strong></span><span id="game-state-colosseum" class="game-tab-state"></span></button>
+          <button id="game-xd" class="game-tab" data-game="xd" aria-pressed="false" aria-label="Pokémon XD: Gale of Darkness" title="Play Pokémon XD: Gale of Darkness"><span id="game-mark-xd" class="game-tab-art"><img id="game-logo-xd" class="game-tab-logo" alt="" hidden><small>Pokémon</small><strong>XD</strong><span class="game-tab-subtitle">Gale of Darkness</span></span><span id="game-state-xd" class="game-tab-state"></span></button>
+        </div>
+        <div class="intro"><div id="home-headline"><h1 id="home-title">Set up your game</h1><p id="home-description">A few quick steps, then you're ready to play.</p></div><div class="intro-banners"><button id="add-to-steam" class="discord-banner steam-banner" hidden aria-label="Add the launcher to your Steam library"><span class="discord-logo steam-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg></span><span class="discord-copy"><strong id="steam-banner-title">Add to Steam</strong><small id="steam-banner-detail">Play from your Steam library or Steam Deck, with artwork</small></span><span id="steam-banner-mark" class="discord-arrow" aria-hidden="true">+</span></button></div></div>
 
         <div id="setup-flow" class="setup-flow">
           <div class="setup-progress" role="group" aria-label="Setup progress"><span id="step-count">Step 1 of 3</span><div class="setup-progress-track" aria-hidden="true"><i></i><i></i><i></i></div></div>
@@ -47,7 +57,7 @@
           </section>
           <section id="setup-step-2" class="panel setup-step" aria-label="Choose disc image" hidden>
             <div class="setup-step-heading"><h2>Choose your disc image</h2><button class="setup-back" data-setup-back>← Back</button></div>
-            <p>Select a file from your own North American Pokémon Colosseum disc (GC6E01). Use an .iso or .gcm file.</p>
+            <p id="setup-disc-description">Select a file from your own North American Pokémon Colosseum disc (GC6E01). Use an .iso or .gcm file.</p>
             <div class="setup-file"><span>Selected file</span><strong id="rom-path">No file selected</strong></div>
             <div class="actions"><button id="choose-rom" class="subtle" hidden>Change file</button><span class="helper">Your disc image stays on your computer.</span></div>
           </section>
@@ -60,8 +70,8 @@
 
         <div class="hero-spacer" aria-hidden="true"></div>
 
-        <section class="launch-panel" aria-label="Play game">
-          <div id="pbr-banner" class="pbr-banner" role="alert" hidden><div><strong id="pbr-banner-title">Your Battle Revolution assets need making again</strong><small id="pbr-banner-detail"></small></div><button id="pbr-banner-make" class="pbr-banner-make">Make assets</button></div>
+        <section id="launch-panel" class="launch-panel" aria-label="Play game">
+          <div id="pbr-banner" class="pbr-banner" role="alert" data-feature="pbrAssets" hidden><div><strong id="pbr-banner-title">Your Battle Revolution assets need making again</strong><small id="pbr-banner-detail"></small></div><button id="pbr-banner-make" class="pbr-banner-make">Make assets</button></div>
           <div class="launch-primary"><button id="play" class="play">Continue</button><button id="play-more" class="play-more" popovertarget="play-menu" aria-haspopup="menu" aria-expanded="false" aria-label="More ways to play" title="More ways to play" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"/></svg></button></div>
           
           <button id="play-source" class="play-source" title="Change it under Settings → Manage game → Game source" hidden><span class="play-source-dot" aria-hidden="true"></span><strong>Custom Game Source</strong><span id="play-source-detail"></span></button><p id="play-more-hint" class="play-more-hint" hidden></p><div id="play-menu" class="play-menu" popover role="menu" aria-label="Ways to play"><button id="menu-default" class="play-menu-item" role="menuitem" data-kind="update"><svg viewBox="0 0 20 20" aria-hidden="true" class="for-update"><path d="M15.5 8.5A6 6 0 0 0 4.6 6.2M4.5 3v3.4h3.4M4.5 11.5a6 6 0 0 0 10.9 2.3M15.5 17v-3.4h-3.4"/></svg><svg viewBox="0 0 20 20" aria-hidden="true" class="for-play"><path d="M6.5 4.5v11l9-5.5z"/></svg><svg viewBox="0 0 20 20" aria-hidden="true" class="for-hd"><rect x="2.8" y="4.5" width="14.4" height="11" rx="2"/><path d="M6 8v4M9 8v4M6 10h3M11.5 8v4h1.3a2 2 0 0 0 0-4z"/></svg><span><strong id="menu-default-label">Update &amp; play</strong><small id="menu-default-detail"></small></span><em>Default</em></button><button id="menu-update-play" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8.5A6 6 0 0 0 4.6 6.2M4.5 3v3.4h3.4M4.5 11.5a6 6 0 0 0 10.9 2.3M15.5 17v-3.4h-3.4"/></svg><span><strong>Update &amp; play</strong><small id="menu-update-play-detail"></small></span></button><button id="menu-update-only" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9.5M6 8.8l4 4 4-4M4 16.5h12"/></svg><span><strong id="menu-update-only-label">Update only</strong><small id="menu-update-only-detail"></small></span></button><button id="menu-play-now" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.5v11l9-5.5z"/></svg><span><strong>Play now</strong><small id="menu-play-now-detail"></small></span></button><p id="play-menu-note">The default follows <b>Update automatically</b> in Settings.</p></div><div class="task-progress" id="task-progress" role="status" hidden><div class="progress-summary"><span class="spinner" aria-hidden="true"></span><strong id="progress-title">Working…</strong><span id="progress-time"></span><span id="progress-percent"></span></div><p id="progress-detail">Starting…</p><div class="progress-track" id="progress-track" role="progressbar" aria-label="Task progress"><span id="progress-fill"></span></div><button id="view-build-log" class="progress-log-button">View build log</button></div>
@@ -107,6 +117,7 @@
               </div>
               <div id="online-custom" class="online-custom" hidden></div>
               <label class="online-check"><input id="online-listed" type="checkbox"><span>Show on the room list</span></label>
+              <label id="online-crossplay-row" class="online-check" hidden title="The other player can be playing Pokémon Colosseum or Pokémon XD. Rooms for both games don't have Platinum's rules yet."><input id="online-crossplay" type="checkbox"><span>Colosseum and XD players can join</span></label>
               <button id="online-create" class="solid">Create room</button>
             </div>
             <p id="online-blocked" class="helper" hidden></p>
@@ -169,12 +180,12 @@
               <div id="backup-progress" class="backup-progress" aria-live="polite" hidden></div>
               <label class="switch"><span><strong>Back up automatically</strong><small>Copies your saves to the backup folder before and after you play, and before updates and cleanup. Off: only Back up saves makes one. Restoring a backup still backs up your current saves first.</small></span><input id="autoBackups" type="checkbox"><i></i></label>
             </div>
-            <h2 class="group-title">Import</h2>
-            <div id="dolphin-save-drop" class="dolphin-save-drop" aria-disabled="false"><strong>Import a Dolphin save</strong><p class="helper">Drop your North American Pokémon Colosseum .gci save here, or the folder it is in, or choose it. Dolphin names it 01-GC6E-pokemon_colosseum.gci. Your current saves are backed up before importing.</p><button class="subtle" id="import-dolphin-save">Choose .gci file</button></div>
-            <div id="dolphin-import-result" class="helper" role="status" aria-live="polite"></div>
-            <h2 class="group-title">Export</h2>
-            <div class="save-export"><strong>Export to Dolphin</strong><p class="helper">Saves your game as a .gci file to carry on in Dolphin. Your save here stays as it is.</p><button class="subtle" id="export-gci-save">Export .gci file</button></div>
-            <div id="gci-export-result" class="helper" role="status" aria-live="polite"></div>
+            <h2 class="group-title" data-feature="gciSaves">Import</h2>
+            <div id="dolphin-save-drop" class="dolphin-save-drop" data-feature="gciSaves" aria-disabled="false"><strong>Import a Dolphin save</strong><p class="helper" id="dolphin-import-help">Drop your North American Pokémon Colosseum .gci save here, or the folder it is in, or choose it. Dolphin names it 01-GC6E-pokemon_colosseum.gci. Your current saves are backed up before importing.</p><button class="subtle" id="import-dolphin-save">Choose .gci file</button></div>
+            <div id="dolphin-import-result" class="helper" data-feature="gciSaves" role="status" aria-live="polite"></div>
+            <h2 class="group-title" data-feature="gciSaves">Export</h2>
+            <div class="save-export" data-feature="gciSaves"><strong>Export to Dolphin</strong><p class="helper">Saves your game as a .gci file to carry on in Dolphin. Your save here stays as it is.</p><button class="subtle" id="export-gci-save">Export .gci file</button></div>
+            <div id="gci-export-result" class="helper" data-feature="gciSaves" role="status" aria-live="polite"></div>
           </div>
       </div>
       </section>
@@ -198,7 +209,7 @@
           <button id="tab-display" class="settings-tab" role="tab" aria-controls="pane-display" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5"/><path d="M7 17h6M10 13.5V17"/></svg>Display</button>
           <button id="tab-graphics" class="settings-tab" role="tab" aria-controls="pane-graphics" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><circle cx="7.5" cy="8" r="1.5"/><path d="m3 15 4.5-4.5 3 3 2.5-2.5 4.5 4.5"/></svg>Graphics</button>
           <button id="tab-controls" class="settings-tab" role="tab" aria-controls="pane-controls" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6.5h8a4 4 0 0 1 3.9 4.8l-.6 3a2 2 0 0 1-3.4 1L12 13.5H8l-1.9 1.8a2 2 0 0 1-3.4-1l-.6-3A4 4 0 0 1 6 6.5z"/><path d="M6.5 9v3M5 10.5h3M12.5 9.5h.1M14.5 11.5h.1"/></svg>Controls</button>
-          <button id="tab-gba" class="settings-tab" role="tab" aria-controls="pane-gba" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="5" width="17" height="10" rx="3"/><rect x="6.5" y="7" width="7" height="6" rx="0.5"/><path d="M3.5 10h1.5M4.25 9.25v1.5M15.5 9.5h.1M16.5 10.5h.1"/></svg>Game Boy Advance</button>
+          <button id="tab-gba" class="settings-tab" data-feature="gbaLink" role="tab" aria-controls="pane-gba" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="5" width="17" height="10" rx="3"/><rect x="6.5" y="7" width="7" height="6" rx="0.5"/><path d="M3.5 10h1.5M4.25 9.25v1.5M15.5 9.5h.1M16.5 10.5h.1"/></svg>Game Boy Advance</button>
           <button id="tab-manage" class="settings-tab" role="tab" aria-controls="pane-manage" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12M4 10h12M4 16h12"/><circle cx="8" cy="4" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="7" cy="16" r="2"/></svg>Manage game</button>
           <button id="tab-launcher" class="settings-tab" role="tab" aria-controls="pane-launcher" aria-selected="false"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.1"/></svg>Launcher</button>
         </nav>
@@ -208,17 +219,17 @@
             <h2 class="group-title">Game</h2>
             <div class="settings-group">
               <label class="switch"><span><strong>Skip movies</strong><small>Straight past the logos and the game's movies.</small></span><input id="skipMovies" type="checkbox"><i></i></label>
-              <label class="switch"><span><strong>Skip battle animations</strong><small>Moves, send-outs and HP bars finish at once, without being shown. Text stays up long enough to read.</small></span><input id="skipBattleAnimations" type="checkbox"><i></i></label>
-              <label class="field range-field"><span><strong>Battle animation speed</strong><output id="battleSpeed-value" for="battleSpeed">1.5×</output><small>How fast moves, send-outs and HP bars play; 1× is the original speed. Menus stay at normal speed, and text stays up long enough to read.</small></span><input id="battleSpeed" type="range" min="1" max="5" step="0.1" aria-label="Battle animation speed"></label>
-              <label class="switch"><span><strong>Quick moves</strong><small>In battle, press Z (R1 or RB, the right bumper, on other controllers) to open your moves, then A, B, X or Y to use the first, second, third or fourth move at once, as in Pokémon Stadium. The battle menu shows that button beside FIGHT, and each move its button. Z again goes back; FIGHT works as before.</small></span><input id="quickMoves" type="checkbox"><i></i></label>
-              <label class="switch"><span><strong>Quick status effects</strong><small>A status condition or stat change shows right where the move hit, without its own camera shot, and the battle moves on as soon as its message closes. A status move like Thunder Wave doesn't linger on its target after it lands.</small></span><input id="quickStatus" type="checkbox"><i></i></label>
-              <label class="field"><span>Text<small>HD draws the game's fonts sharp from the Inter typeface. Upscaled keeps their original look, enlarged.</small></span><select id="hdText"><option value="on">HD</option><option value="upscaled">Upscaled</option><option value="off">As on the disc</option></select></label>
-              <label class="switch"><span><strong>Show shiny Shadow Pokémon</strong><small>A Shadow Pokémon looks shiny in battle if it will be shiny once you snag it. That's decided when you first meet it in battle, and it stays the same if you lose or battle it again. Only resetting to a save from before you met it gives a new chance.</small></span><input id="shinyShadow" type="checkbox"><i></i></label>
-              <label class="switch"><span><strong>Shiny starters</strong><small>Espeon and Umbreon can be shiny, at 1 in 8192 as in other Pokémon games; the original never makes them shiny. From your next New Game.</small></span><input id="shinyStarters" type="checkbox"><i></i></label>
-              <label class="switch"><span><strong>Choose starters</strong><small>After you enter your name for a New Game, the game asks whether to begin with Espeon and Umbreon. Say No to pick any two Pokémon instead, at the same levels. A randomized game that randomizes the starters doesn't ask.</small></span><input id="chooseStarters" type="checkbox"><i></i></label>
-              <label class="field"><span>Language<small>The game's text, menus and title cards in French, German, Spanish or Italian, from the European release. A language downloads the first time you play with it.</small></span><select id="language"></select></label>
-              <p id="language-note" class="row-note" hidden></p>
-              <div class="field"><span>Other languages<small>A fan translation is a folder with a pack.json and a text.txt: put it in the languages folder and it shows in the list above.</small></span><button class="subtle" id="open-languages" type="button">Open languages folder</button></div>
+              <label data-feature="battleSpeed" class="switch"><span><strong>Skip battle animations</strong><small>Moves, send-outs and HP bars finish at once, without being shown. Text stays up long enough to read.</small></span><input id="skipBattleAnimations" type="checkbox"><i></i></label>
+              <label data-feature="battleSpeed" class="field range-field"><span><strong>Battle animation speed</strong><output id="battleSpeed-value" for="battleSpeed">1.5×</output><small>How fast moves, send-outs and HP bars play; 1× is the original speed. Menus stay at normal speed, and text stays up long enough to read.</small></span><input id="battleSpeed" type="range" min="1" max="5" step="0.1" aria-label="Battle animation speed"></label>
+              <label data-feature="quickMoves" class="switch"><span><strong>Quick moves</strong><small>In battle, press Z (R1 or RB, the right bumper, on other controllers) to open your moves, then A, B, X or Y to use the first, second, third or fourth move at once, as in Pokémon Stadium. The battle menu shows that button beside FIGHT, and each move its button. Z again goes back; FIGHT works as before.</small></span><input id="quickMoves" type="checkbox"><i></i></label>
+              <label data-feature="quickMoves" class="switch"><span><strong>Quick status effects</strong><small>A status condition or stat change shows right where the move hit, without its own camera shot, and the battle moves on as soon as its message closes. A status move like Thunder Wave doesn't linger on its target after it lands.</small></span><input id="quickStatus" type="checkbox"><i></i></label>
+              <label data-feature="hdText" class="field"><span>Text<small>HD draws the game's fonts sharp from the Inter typeface. Upscaled keeps their original look, enlarged.</small></span><select id="hdText"><option value="on">HD</option><option value="upscaled">Upscaled</option><option value="off">As on the disc</option></select></label>
+              <label data-feature="shiny" class="switch"><span><strong>Show shiny Shadow Pokémon</strong><small id="shiny-shadow-note">A Shadow Pokémon looks shiny in battle if it will be shiny once you snag it. That's decided when you first meet it in battle, and it stays the same if you lose or battle it again. Only resetting to a save from before you met it gives a new chance.</small></span><input id="shinyShadow" type="checkbox"><i></i></label>
+              <label data-feature="shinyStarters" class="switch"><span><strong>Shiny starters</strong><small>Espeon and Umbreon can be shiny, at 1 in 8192 as in other Pokémon games; the original never makes them shiny. From your next New Game.</small></span><input id="shinyStarters" type="checkbox"><i></i></label>
+              <label data-feature="starters" class="switch"><span><strong id="choose-starters-title">Choose starters</strong><small id="choose-starters-note">After you enter your name for a New Game, the game asks whether to begin with Espeon and Umbreon. Say No to pick any two Pokémon instead, at the same levels. A randomized game that randomizes the starters doesn't ask.</small></span><input id="chooseStarters" type="checkbox"><i></i></label>
+              <label data-feature="languagePacks" class="field"><span>Language<small>The game's text, menus and title cards in French, German, Spanish or Italian, from the European release. A language downloads the first time you play with it.</small></span><select id="language"></select></label>
+              <p id="language-note" class="row-note" data-feature="languagePacks" hidden></p>
+              <div data-feature="languagePacks" class="field"><span>Other languages<small>A fan translation is a folder with a pack.json and a text.txt: put it in the languages folder and it shows in the list above.</small></span><button class="subtle" id="open-languages" type="button">Open languages folder</button></div>
             </div>
             <h2 class="group-title">Fast-forward</h2>
             <div class="settings-group">
@@ -226,28 +237,29 @@
               <label class="field"><span>Fast-forward speed<small>How many times faster the game runs while fast-forwarding. A slower computer may not reach the faster speeds.</small></span><select id="fastForwardSpeed"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="6">6×</option><option value="8">8×</option></select></label>
             </div>
             <p class="preset-tip"><strong>Movies:</strong> <strong>A</strong> or the fast-forward button skips a movie.</p>
-                      <h2 class="group-title">Randomizer</h2>
-            <div class="settings-group">
+            <h2 class="group-title" data-feature="randomizer">Randomizer</h2>
+            <div class="settings-group" data-feature="randomizer">
               <label class="switch"><span><strong>Randomize new games</strong><small>Swaps the game's Pokémon for others, chosen by a seed. It starts with your next New Game and stays with that save: an existing save is never changed.</small></span><input id="randomizer" type="checkbox"><i></i></label>
               <div id="randomizer-options" class="randomizer-options" hidden>
                 <div class="field randomizer-seed"><span>Seed<small>The same seed and choices make the same run, so you can share them. Fights stay the same when you lose and try again.</small></span><input id="randomizerSeed" type="text" maxlength="8" spellcheck="false" aria-label="Randomizer seed"><button id="randomizer-reroll" class="subtle" type="button">New seed</button></div>
-                <label class="switch"><span><strong>Starters</strong><small>Your first two Pokémon, instead of Espeon and Umbreon.</small></span><input id="randomizerStarters" type="checkbox"><i></i></label>
-                <label class="switch"><span><strong>Shadow Pokémon</strong><small>Every Shadow Pokémon you can snag. Each is a different species.</small></span><input id="randomizerShadow" type="checkbox"><i></i></label>
-                <label class="switch"><span><strong>Trainers' Pokémon</strong><small>Everything else trainers send out.</small></span><input id="randomizerTrainers" type="checkbox"><i></i></label>
-                <label class="switch"><span><strong>Gifts</strong><small>The Pokémon Duking and Mt. Battle give you.</small></span><input id="randomizerGifts" type="checkbox"><i></i></label>
+                <label class="switch"><span><strong id="randomizer-starters-title">Starters</strong><small id="randomizer-starters-note">Your first two Pokémon, instead of Espeon and Umbreon.</small></span><input id="randomizerStarters" type="checkbox"><i></i></label>
+                <label class="switch"><span><strong>Shadow Pokémon</strong><small id="randomizer-shadow-note">Every Shadow Pokémon you can snag. Each is a different species.</small></span><input id="randomizerShadow" type="checkbox"><i></i></label>
+                <label class="switch"><span><strong>Trainers' Pokémon</strong><small id="randomizer-trainers-note">Everything else trainers send out.</small></span><input id="randomizerTrainers" type="checkbox"><i></i></label>
+                <label class="switch"><span><strong>Gifts</strong><small id="randomizer-gifts-note">The Pokémon Duking and Mt. Battle give you.</small></span><input id="randomizerGifts" type="checkbox"><i></i></label>
                 <div class="field randomizer-generations"><span>Generations<small>Choose at least one.</small></span><span class="randomizer-checks"><label><input id="randomizerGen1" type="checkbox">Gen 1</label><label><input id="randomizerGen2" type="checkbox">Gen 2</label><label><input id="randomizerGen3" type="checkbox">Gen 3</label><label id="randomizer-gen4"><input id="randomizerGen4" type="checkbox">Gen 4</label></span></div>
                 <p id="randomizer-gen4-note" class="row-note" hidden></p>
-                <label class="switch"><span><strong>Pokémon packs</strong><small id="randomizer-packs-note"></small></span><input id="randomizerPacks" type="checkbox"><i></i></label>
+                <label id="randomizer-packs-row" class="switch"><span><strong>Pokémon packs</strong><small id="randomizer-packs-note"></small></span><input id="randomizerPacks" type="checkbox"><i></i></label>
                 <label class="switch"><span><strong>Similar strength</strong><small>Picks Pokémon about as strong as the ones they replace, so early trainers stay beatable.</small></span><input id="randomizerSimilar" type="checkbox"><i></i></label>
                 <label class="switch"><span><strong>No legendaries</strong><small>Leaves legendary and mythical Pokémon out.</small></span><input id="randomizerNoLegendaries" type="checkbox"><i></i></label>
               </div>
               <div class="field randomizer-save"><span>Your save<small id="randomizer-save-note"></small></span><button id="randomizer-spoilers" class="subtle" type="button" hidden>Show spoilers</button></div>
             </div>
-            <h2 class="group-title">Later generations</h2>
-            <div class="settings-group">
-              <label class="field"><span>Battle rules<small>Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types' Sp. Def; and moves Diamond and Pearl changed play as they did there. An online battle plays by its room's rules, chosen under Rules on the Online page.</small></span><select id="battleRules"><option value="3">Colosseum (Gen 3)</option><option value="4">Diamond and Pearl (Gen 4)</option></select></label>
-              <label class="switch"><span><strong>Generation 4 Pokémon</strong><small>Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models and cries come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one's looks and cry.</small></span><input id="generation4Pokemon" type="checkbox"><i></i></label>
-              <div class="path-row"><div><strong>Battle Revolution assets</strong><span class="small-path" id="pbr-note"></span></div><div class="actions"><button class="subtle" id="choose-pbr-disc">Choose disc</button><button class="subtle" id="make-pbr-models">Make assets</button></div></div>
+            <h2 class="group-title" data-feature="generations">Later generations</h2>
+            <p id="generations-disc-note" class="preset-tip generations-disc-note" hidden></p>
+            <div class="settings-group" data-feature="generations">
+              <label class="field"><span>Battle rules<small id="battle-rules-note">Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types' Sp. Def; and moves Diamond and Pearl changed play as they did there. An online battle plays by its room's rules, chosen under Rules on the Online page.</small></span><select id="battleRules"><option id="battle-rules-gen3" value="3">Colosseum (Gen 3)</option><option value="4">Diamond and Pearl (Gen 4)</option></select></label>
+              <label class="switch"><span><strong>Generation 4 Pokémon</strong><small id="generation4-note">Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models and cries come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one's looks and cry.</small></span><input id="generation4Pokemon" type="checkbox"><i></i></label>
+              <div id="pbr-row" class="path-row" data-feature="pbrAssets"><div><strong>Battle Revolution assets</strong><span class="small-path" id="pbr-note"></span></div><div class="actions"><button class="subtle" id="choose-pbr-disc">Choose disc</button><button class="subtle" id="make-pbr-models">Make assets</button></div></div>
             </div>
           </section>
 
@@ -261,8 +273,8 @@
             </div>
             <h2 class="group-title">Picture</h2>
             <div class="settings-group">
-              <label class="field"><span>Screen format<small>The 3D view widens; menus and movies keep their shape.</small></span><select id="widescreen"><option value="auto">As wide as the window</option><option value="16:9">Widescreen 16:9</option><option value="16:10">Widescreen 16:10</option><option value="21:9">Ultrawide 21:9</option><option value="4:3">Original 4:3</option></select></label>
-              <label class="switch sub"><span><strong>Battle panels at edges</strong><small>For widescreen: the battle status panels and title portraits sit at the screen's edges.</small></span><input id="hudEdges" type="checkbox"><i></i></label>
+              <label data-feature="widescreen" class="field"><span>Screen format<small>The 3D view widens; menus and movies keep their shape.</small></span><select id="widescreen"><option value="auto">As wide as the window</option><option value="16:9">Widescreen 16:9</option><option value="16:10">Widescreen 16:10</option><option value="21:9">Ultrawide 21:9</option><option value="4:3">Original 4:3</option></select></label>
+              <label data-feature="widescreen" class="switch sub"><span><strong>Battle panels at edges</strong><small>For widescreen: the battle status panels and title portraits sit at the screen's edges.</small></span><input id="hudEdges" type="checkbox"><i></i></label>
               <label class="field"><span>Aspect ratio<small>Keep the picture's shape, stretch it to fill the window, or scale it in whole multiples.</small></span><select id="aspect"><option value="keep">Keep</option><option value="stretch">Stretch</option><option value="integer">Whole multiples</option></select></label>
               <label class="field range-field"><span><strong>Brightness</strong><output id="brightness-value" for="brightness">100%</output></span><input id="brightness" type="range" min="50" max="200" step="5" aria-label="Brightness"></label>
             </div>
@@ -294,11 +306,11 @@
             </div>
             <h2 class="group-title">HD visuals</h2>
             <div class="settings-group">
-              <label class="switch"><span><strong>HD textures <span id="textures-badge" class="badge">Checking</span></strong><small>All 7,498 of the game's textures, upscaled 4×.</small></span><input id="textures" type="checkbox"><i></i></label>
-              <p class="row-note" id="texture-info">Checking for HD textures…</p>
-              <label class="field sub"><span>HD texture loading<small id="texture-loading-hint">Before each area: an area's HD textures load with it, so they don't pop in while you play.</small></span><select id="textureLoading"><option value="stage">Before each area</option><option value="all">Whole pack</option><option value="play">While playing</option></select></label>
-              <div class="field"><span>Custom textures<small>Put texture packs made for Dolphin here: they replace the HD textures where both change the same texture, and work with HD textures off too.</small></span><button class="subtle" id="open-custom-textures">Open custom textures folder</button></div>
-              <label class="switch"><span><strong>HD models</strong><small>People in the field use their detailed models.</small></span><input id="hdModels" type="checkbox"><i></i></label>
+              <label data-feature="hdTextures" class="switch"><span><strong>HD textures <span id="textures-badge" class="badge">Checking</span></strong><small>Every texture on the game's disc, upscaled 4×.</small></span><input id="textures" type="checkbox"><i></i></label>
+              <p class="row-note" id="texture-info" data-feature="hdTextures">Checking for HD textures…</p>
+              <label data-feature="hdTextures" class="field sub"><span>HD texture loading<small id="texture-loading-hint">Before each area: an area's HD textures load with it, so they don't pop in while you play.</small></span><select id="textureLoading"><option value="stage">Before each area</option><option value="all">Whole pack</option><option value="play">While playing</option></select></label>
+              <div data-feature="hdTextures" class="field"><span>Custom textures<small>Put texture packs made for Dolphin here: they replace the HD textures where both change the same texture, and work with HD textures off too.</small></span><button class="subtle" id="open-custom-textures">Open custom textures folder</button></div>
+              <label data-feature="hdModels" class="switch"><span><strong>HD models</strong><small>People in the field use their detailed models.</small></span><input id="hdModels" type="checkbox"><i></i></label>
               <label class="switch"><span><strong>Shader warm-up</strong><small>Builds an area's effects while it loads, so the first moments in it don't stutter.</small></span><input id="shaderWarmup" type="checkbox"><i></i></label>
             </div>
           </section>
@@ -311,9 +323,9 @@
             </div>
             <h2 class="group-title">Prompts, sticks, triggers, rumble and focus</h2>
             <div class="settings-group">
-              <label class="field"><span>Button prompts<small>The buttons Quick moves shows beside your moves, and the Pokémon selection screen before a battle beside your Pokémon. Automatic follows the keyboard or controller you used last, and each shows the button or key you bound.</small></span><select id="buttonPrompts"></select></label>
-              <label class="field sub" id="promptPad-field"><span>Prompt controller</span><select id="promptPad"></select></label>
-              <div id="prompt-preview" class="prompt-preview" aria-label="Button prompt preview"></div>
+              <label data-feature="quickMoves" class="field"><span>Button prompts<small>The buttons Quick moves shows beside your moves, and the Pokémon selection screen before a battle beside your Pokémon. Automatic follows the keyboard or controller you used last, and each shows the button or key you bound.</small></span><select id="buttonPrompts"></select></label>
+              <label class="field sub" id="promptPad-field" data-feature="quickMoves"><span>Prompt controller</span><select id="promptPad"></select></label>
+              <div id="prompt-preview" class="prompt-preview" data-feature="quickMoves" aria-label="Button prompt preview"></div>
               <label class="field range-field"><span><strong>Stick dead zone</strong><output id="stickDeadzone-value" for="stickDeadzone">10%</output><small>How far a controller's sticks move before the game sees them. Raise it if you walk by yourself, lower it for small movements to count.</small></span><input id="stickDeadzone" type="range" min="0" max="50" step="1" aria-label="Stick dead zone"></label>
               <label class="field range-field"><span><strong>Trigger click</strong><output id="triggerClick-value" for="triggerClick">85%</output><small>How far an analog trigger goes before it counts as L or R pressed.</small></span><input id="triggerClick" type="range" min="10" max="100" step="5" aria-label="Trigger click"></label>
               <label class="field range-field"><span><strong>Rumble strength</strong><output id="rumbleStrength-value" for="rumbleStrength">100%</output><small>How hard your controller rumbles; 0% turns rumble off.</small></span><input id="rumbleStrength" type="range" min="0" max="100" step="5" aria-label="Rumble strength"></label>
@@ -325,7 +337,7 @@
 
           <section id="pane-gba" class="settings-pane" role="tabpanel" aria-labelledby="tab-gba" hidden>
             <h2 class="group-title">Game Boy Advance</h2>
-            <p class="helper">Link your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save to the game, as the GCN-GBA cable did: register your team for Colosseum Battle, trade, and get Poké Coupon prizes. Choose the save your emulator keeps: the game reads it, and writes trades and prizes back into it, with a backup first.</p>
+            <p class="helper" id="gba-intro">Link your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save to the game, as the GCN-GBA cable did: register your team for Colosseum Battle, trade, and get Poké Coupon prizes. Choose the save your emulator keeps: the game reads it, and writes trades and prizes back into it, with a backup first.</p>
             <p class="helper" id="gba-status" aria-live="polite"></p>
             <div class="settings-group" id="gba-save"></div>
             <div class="settings-group" id="gba-found" hidden></div>
@@ -358,7 +370,7 @@
             <h2 class="group-title">Appearance</h2>
             <div class="settings-group">
               <label class="switch"><span><strong>Share anonymous usage</strong><small>Sends your launcher and game versions, OS and a random ID, so the top bar can show how many players are online. Nothing personal. You still see the count with this off.</small></span><input id="shareUsage" type="checkbox"><i></i></label>
-              <label class="switch"><span><strong>Show on Discord</strong><small>While you play, your Discord profile shows where you are in Orre, who you're battling and your lead Pokémon. The Discord app needs to be open on this computer.</small></span><input id="discordPresence" type="checkbox"><i></i></label>
+              <label data-feature="discordPresence" class="switch"><span><strong>Show on Discord</strong><small>While you play, your Discord profile shows where you are in Orre, who you're battling and your lead Pokémon. The Discord app needs to be open on this computer.</small></span><input id="discordPresence" type="checkbox"><i></i></label>
               <label class="switch"><span><strong>Dark mode</strong><small>Dark Settings, changelog and other windows in the launcher.</small></span><input id="darkMode" type="checkbox"><i></i></label>
             </div>
             <h2 class="group-title">Updates</h2>
@@ -504,6 +516,7 @@
   <script src="activity-log.js"></script>
   <script src="changelog-text.js"></script>
   <script src="gamepad-nav.js"></script>
+  <script src="play-stage.js"></script>
   <script src="renderer.js"></script>
   <script type="module" src="pokedex-page.js"></script>
   <script src="room-poll.js"></script>

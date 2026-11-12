@@ -556,17 +556,21 @@ function combine(disc, packs) {
   return list;
 }
 
+// Which game's list is wanted: one read for a game since left is dropped.
+let listFor = 0;
 async function load() {
+  const mine = listFor;
   setStatus('Reading your disc…', { busy: true });
   try {
     const list = await window.colo.pokedex();
+    if (mine !== listFor) return;
     species = combine(list.species, list.packs);
     packProblems = list.problems;
     renderList();
     if (visible) select(species[0]);
   } catch (error) {
-    setStatus(message(error), { retry: true });
-  } finally { loading = null; }
+    if (mine === listFor) setStatus(message(error), { retry: true });
+  } finally { if (mine === listFor) loading = null; }
 }
 
 const cry = createCry($('pokedex-cry'), { onError: setStatus });
@@ -611,5 +615,15 @@ window.coloPokedex = {
     request++;
     cry.stop();
     stopViewer();
+  },
+  // Another game was chosen: its Pokédex is its own disc's, read again when the page shows.
+  reset() {
+    request++;
+    cry.stop();
+    stopViewer();
+    species = null;
+    selected = null;
+    listFor++;
+    loading = visible ? load() : null;
   },
 };

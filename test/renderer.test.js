@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const port = require('../src/port');
+const games = require('../src/games');
 
 function state() {
   return {
@@ -21,7 +22,7 @@ function state() {
 function host(platform) { return { linux: 'linux', macos: 'darwin', windows: 'win32' }[platform.id]; }
 
 async function renderer(data = state(), copyError = null, notes = { releases: [], unseen: [], current: '0.1.39' }) {
-  const changelogSeen = [], calls = [], elements = new Map(), listeners = {}, gamepad = {};
+  const changelogSeen = [], calls = [], elements = new Map(), listeners = {}, gamepad = {}, featured = [];
   let logCallback, resetCallback, activityCallback;
   const text = node => typeof node === 'string' ? node : node.textContent + node.children.map(text).join(' ');
   function element(classes = '') {
@@ -47,6 +48,8 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
     const node = element(match[0].match(/class="([^"]+)"/)?.[1]);
     node.hidden = /\bhidden\b/.test(match[0]);
     node.id = match[1];
+    const feature = match[0].match(/data-feature="([^"]+)"/)?.[1];
+    if (feature) { node.dataset = { feature }; featured.push(node); }
     elements.set(match[1], node);
   }
   const colo = {
@@ -65,6 +68,7 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
     updateAndPlay: async () => { calls.push('updateAndPlay'); },
     updateChannels: async () => [{ id: 'stable', label: 'Stable' }, { id: 'beta', label: 'Beta' }],
     setGameSource: async value => { calls.push(['setGameSource', value]); return data; },
+    selectGame: async id => { calls.push(['selectGame', id]); data.currentGame = games.summary(id); return data; },
     prepareGame: async () => {
       calls.push('prepareGame'); Object.assign(data, { binaryReady: true, hdVisualsReady: true }); data.game = { ...data.game, needsUpdate: false, installedVersion: data.game.availableVersion };
     },
@@ -74,12 +78,13 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
   };
   const context = vm.createContext({ console, setInterval() {}, clearInterval() {}, requestAnimationFrame: callback => setImmediate(callback),
     cancelAnimationFrame() {}, navigator: { getGamepads: () => [] }, ColoBindings: require('../src/bindings'), ColoPresets: require('../src/presets'),
-    window: { colo, coloActivityLog: require('../src/activity-log'), coloChangelogText: require('../src/changelog-text'), coloGamepadNav: { start: options => Object.assign(gamepad, options) },
+    window: { colo, ColoPlayStage: require('../src/play-stage'), coloActivityLog: require('../src/activity-log'), coloChangelogText: require('../src/changelog-text'), coloGamepadNav: { start: options => Object.assign(gamepad, options) },
       addEventListener(event, callback) { (listeners.window ||= {})[event] = [...(listeners.window[event] || []), callback]; }, removeEventListener() {} }, document: {
     getElementById(id) { assert.ok(elements.has(id), `Missing HTML element ${id}`); return elements.get(id); },
     querySelectorAll(selector) {
       const modals = ['mac-tools-help', 'path-too-long', 'pbr-offer'].map(id => elements.get(id));
-      return selector === '.launcher-modal' ? modals : selector === '.launcher-modal[open]' ? modals.filter(modal => modal.open) : [];
+      return selector === '.launcher-modal' ? modals : selector === '.launcher-modal[open]' ? modals.filter(modal => modal.open)
+        : selector === '[data-feature]' ? featured : [];
     }, createElement: () => element()
   } });
   vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../src/renderer.js'), 'utf8'), context);
@@ -684,4 +689,301 @@ test('the window button maximizes and restores the launcher, and F11 switches fu
   assert.ok(ui.calls.includes('toggleFullScreen'));
   assert.equal(button['data-state'], 'fullscreen');
   assert.equal(button['aria-label'], 'Exit full screen');
+});
+
+test('choosing XD on the Play page names it, asks for its disc, and hides what only Colosseum has', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const off = id => ui.elements.get(id).classList.contains('feature-off');
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon Colosseum');
+  assert.equal(ui.elements.get('game-colosseum')['aria-pressed'], 'true');
+  assert.deepEqual(['nav-pokedex', 'nav-jukebox', 'nav-online', 'tab-gba', 'promptPad-field'].filter(off), []);
+  await ui.click('game-xd');
+  assert.deepEqual(ui.calls.filter(call => call[0] === 'selectGame'), [['selectGame', 'xd']]);
+  assert.equal(ui.elements.get('game-xd')['aria-pressed'], 'true');
+  assert.equal(ui.elements.get('game-colosseum')['aria-pressed'], 'false');
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon XD: Gale of Darkness');
+  assert.match(ui.elements.get('setup-disc-description').textContent, /North American Pokémon XD: Gale of Darkness disc \(GXXE01\)/);
+  assert.equal(off('texture-info'), false, 'XD has its own HD texture pack');
+  assert.equal(off('tab-gba'), false, 'XD trades with a GBA too');
+  assert.match(ui.elements.get('gba-intro').textContent, /Trade Center/);
+  assert.deepEqual(['nav-pokedex', 'nav-jukebox'].filter(off), [], 'XD\'s Pokédex and Jukebox read its own disc');
+  assert.equal(off('promptPad-field'), false, 'XD has quick moves');
+  assert.equal(ui.elements.get('choose-starters-title').textContent, 'Choose starter', 'XD\'s starter is one Eevee');
+  // the randomizer, as XD has it: one Eevee, its trades and Mt. Battle's gifts, and no packs' own Pokémon
+  assert.equal(ui.elements.get('randomizer-starters-title').textContent, 'Starter');
+  assert.match(ui.elements.get('randomizer-starters-note').textContent, /instead of Eevee/);
+  assert.match(ui.elements.get('randomizer-gifts-note').textContent, /Chikorita, Cyndaquil and Totodile/);
+  assert.equal(ui.elements.get('randomizer-packs-row').hidden, true);
+  assert.equal(off('nav-online'), false, 'XD has online battles');
+  assert.equal(off('dolphin-save-drop'), false, 'XD saves go to and from Dolphin too');
+  // the renderer's, display and input settings stay
+  assert.equal(off('renderer-field'), false);
+  await ui.click('game-colosseum');
+  assert.equal(off('nav-online'), false);
+  assert.equal(ui.elements.get('randomizer-packs-row').hidden, false);
+});
+
+// The Play page's two games: the art split by a diagonal (style.css #game-art), the chosen game's side the larger.
+test('the split follows the chosen game: the line moves at once, and a failure puts it back', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const art = ui.elements.get('game-art'), pressed = id => ui.elements.get(`game-${id}`)['aria-pressed'];
+  assert.equal(art.dataset.active, 'colosseum');
+  assert.deepEqual([pressed('colosseum'), pressed('xd')], ['true', 'false']);
+  // the line moves before the launcher has switched
+  let finish;
+  ui.window.colo.selectGame = id => new Promise(resolve => { finish = () => { data.currentGame = games.summary(id); resolve(data); }; });
+  ui.elements.get('game-xd').click();
+  assert.equal(art.dataset.active, 'xd');
+  assert.deepEqual([pressed('colosseum'), pressed('xd')], ['false', 'true']);
+  // a refresh meanwhile doesn't move it back
+  await ui.refresh();
+  assert.equal(art.dataset.active, 'xd');
+  finish();
+  await new Promise(setImmediate); await new Promise(setImmediate);
+  assert.equal(art.dataset.active, 'xd');
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon XD: Gale of Darkness');
+  // a game that couldn't be chosen: the line goes back to the one that is
+  ui.window.colo.selectGame = async () => { throw new Error('Wait for the current task to finish.'); };
+  await ui.click('game-colosseum');
+  await new Promise(setImmediate);
+  assert.equal(art.dataset.active, 'xd');
+  assert.deepEqual([pressed('colosseum'), pressed('xd')], ['false', 'true']);
+  assert.match(ui.elements.get('message-text').textContent, /Wait for the current task/);
+});
+
+test('clicking the other game\'s side of the art chooses it, on the Play page only, and not while a task runs', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const chosen = () => ui.calls.filter(call => call[0] === 'selectGame').map(call => call[1]);
+  // the chosen side does nothing
+  await ui.click('game-art-colosseum');
+  assert.deepEqual(chosen(), []);
+  // nor the other while another page shows
+  await ui.click('nav-saves');
+  await ui.click('game-art-xd');
+  assert.deepEqual(chosen(), []);
+  await ui.click('nav-play');
+  await ui.click('game-art-xd');
+  assert.deepEqual(chosen(), ['xd']);
+  assert.equal(ui.elements.get('game-art').dataset.active, 'xd');
+  // a task running: the buttons and the art are locked
+  data.active = { label: 'Update game', startedAt: Date.now() };
+  await ui.refresh();
+  assert.equal(ui.elements.get('game-colosseum').disabled, true);
+  assert.equal(ui.elements.get('game-art').classList.contains('locked'), true);
+  await ui.click('game-art-colosseum');
+  assert.deepEqual(chosen(), ['xd']);
+  data.active = null;
+  await ui.refresh();
+  assert.equal(ui.elements.get('game-art').classList.contains('locked'), false);
+  await ui.click('game-art-colosseum');
+  assert.deepEqual(chosen(), ['xd', 'colosseum']);
+});
+
+test('a controller\'s X switches between the games on the Play page', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const chosen = () => ui.calls.filter(call => call[0] === 'selectGame').map(call => call[1]);
+  ui.gamepad.actions.alternate();
+  await new Promise(setImmediate); await new Promise(setImmediate);
+  assert.deepEqual(chosen(), ['xd']);
+  ui.gamepad.actions.alternate();
+  await new Promise(setImmediate); await new Promise(setImmediate);
+  assert.deepEqual(chosen(), ['xd', 'colosseum']);
+  // elsewhere it does nothing
+  await ui.click('settings-cog');
+  ui.gamepad.actions.alternate();
+  await new Promise(setImmediate);
+  assert.deepEqual(chosen(), ['xd', 'colosseum']);
+});
+
+test('XD\'s later generations explain where they come from, and need Colosseum\'s disc', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), teamDiscReady: true, game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const text = id => ui.elements.get(id).textContent, off = id => ui.elements.get(id).classList.contains('feature-off');
+  assert.equal(text('battle-rules-gen3'), 'Colosseum (Gen 3)');
+  assert.match(text('battle-rules-note'), /chosen under Rules on the Online page/);
+  assert.match(text('generation4-note'), /Battle Revolution disc/);
+  assert.equal(ui.elements.get('generations-disc-note').hidden, true);
+  assert.equal(off('pbr-row'), false);
+  data.teamDiscReady = false;
+  await ui.click('game-xd');
+  assert.equal(off('pbr-row'), false, 'Battle Revolution assets for XD\'s Gen 4 Pokémon too');
+  assert.equal(text('battle-rules-gen3'), 'XD (Gen 3)');
+  assert.match(text('battle-rules-note'), /XD's online battles play by Gen 3 rules for now/);
+  assert.match(text('generation4-note'), /Battle Revolution disc; without it, a Pokémon of the game stands in/);
+  assert.equal(ui.elements.get('generations-disc-note').hidden, false);
+  assert.match(text('generations-disc-note'), /made from your Pokémon Colosseum disc/);
+  data.teamDiscReady = true;
+  await ui.refresh();
+  assert.equal(ui.elements.get('generations-disc-note').hidden, true);
+});
+
+// Each game's logo from its disc (main.js gameLogos) at the top of its side, in place of its name.
+test('a game\'s logo shows in place of its name once read, and a game without one keeps its name', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  data.config = { ...data.config, game: 'colosseum', rom: '/discs/colosseum.iso', games: { xd: { rom: '' } } };
+  const ui = await renderer(data);
+  const asked = [];
+  ui.window.colo.gameLogos = async () => { asked.push(true); return { colosseum: 'data:image/png;base64,AAAA', xd: null }; };
+  const shows = id => ({ logo: ui.elements.get(`game-${id}`).classList.contains('has-logo'), hidden: ui.elements.get(`game-logo-${id}`).hidden,
+    src: ui.elements.get(`game-logo-${id}`).src || null });
+  // no logo until the launcher has read one
+  assert.deepEqual(shows('colosseum'), { logo: false, hidden: true, src: null});
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.equal(asked.length, 1);
+  assert.deepEqual(shows('colosseum'), { logo: true, hidden: false, src: 'data:image/png;base64,AAAA'});
+  assert.deepEqual(shows('xd'), { logo: false, hidden: true, src: null});
+  // the same discs: not asked again
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.equal(asked.length, 1);
+  // XD's disc chosen: asked again, and its logo shows
+  ui.window.colo.gameLogos = async () => { asked.push(true); return { colosseum: 'data:image/png;base64,AAAA', xd: 'data:image/png;base64,BBBB' }; };
+  data.config = { ...data.config, games: { xd: { rom: '/discs/xd.iso' } } };
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.equal(asked.length, 2);
+  assert.equal(shows('xd').logo, true);
+  assert.equal(shows('xd').src, 'data:image/png;base64,BBBB');
+  // a disc gone or unreadable: its name again
+  ui.window.colo.gameLogos = async () => ({ colosseum: null, xd: 'javascript:alert(1)' });
+  data.config = { ...data.config, rom: '' };
+  await ui.refresh();
+  await new Promise(setImmediate);
+  assert.deepEqual([shows('colosseum').logo, shows('xd').logo], [false, false]);
+  assert.equal(shows('xd').src, null);
+  // the buttons keep their names for screen readers, and the logos add none of their own
+  const html = fs.readFileSync(path.resolve(__dirname, '../src/index.html'), 'utf8');
+  assert.match(html, /id="game-colosseum"[^>]*aria-label="Pokémon Colosseum"/);
+  assert.match(html, /id="game-xd"[^>]*aria-label="Pokémon XD: Gale of Darkness"/);
+  assert.match(html, /<img id="game-logo-xd" class="game-tab-logo" alt="" hidden>/);
+});
+
+test('ready to play, the headline\'s game name is left to the logo above, for screen readers only', async () => {
+  const ready = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(ready);
+  assert.equal(ui.elements.get('home-title').classList.contains('visually-hidden'), true);
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon Colosseum');
+  const setup = await renderer({ ...state(), repoReady: false, binaryReady: false, config: { ...state().config, completedSetup: false } });
+  assert.equal(setup.elements.get('home-title').classList.contains('visually-hidden'), false);
+  assert.equal(setup.elements.get('home-title').textContent, 'Set up your game');
+});
+
+// The Play page's logos (play-stage.js) as laid out in a window of 1080x760: each element's box follows the places the
+// renderer gives it, and its tweens are recorded.
+function stageWindow(ui) {
+  const animations = [], el = id => ui.elements.get(id), vars = new Map();
+  const box = (left, top, width, height) => ({ left, top, width, height, right: left + width, bottom: top + height });
+  const at = (id, name) => parseFloat(vars.get(id)?.[name]) || 0;
+  for (const [id, node] of ui.elements) {
+    node.style = { setProperty(name, value) { vars.set(id, { ...vars.get(id), [name]: value }); } };
+    node.animate = (frames, timing) => { const animation = { id, frames, timing, playState: 'running', currentTime: 0,
+      effect: { getComputedTiming: () => ({ progress: 0 }) }, cancel() { this.playState = 'idle'; } }; animations.push(animation); return animation; };
+  }
+  const chosen = () => el('game-art').dataset.active, panel = () => el('page-home').classList.contains('has-panel');
+  const rects = {
+    shell: () => box(0, 0, 1080, 760), 'page-home': () => box(28, 129, 1024, 600), 'game-picker': () => box(0, 129, 1080, 0),
+    'launch-panel': () => panel() ? box(chosen() === 'xd' ? 418 : 42, 623, 620, 89) : box(250, 616, 580, 96),
+    'setup-flow': () => panel() ? box(chosen() === 'xd' ? 418 : 28, 349, 634, 250) : box(0, 0, 0, 0),
+    'home-headline': () => box(28 + at('home-headline', '--x') - 70, 129 + (panel() ? 230 : at('home-headline', '--top')), 140, 24),
+    'add-to-steam': () => box(0, 0, 0, 0)
+  };
+  for (const id of ['colosseum', 'xd']) {
+    const w = () => at(`game-${id}`, '--w'), x = () => at(`game-${id}`, '--x'), y = () => 129 + at(`game-${id}`, '--y');
+    rects[`game-mark-${id}`] = () => box(x() - w() / 2, y(), w(), w() / 2.4);
+    rects[`game-state-${id}`] = () => box(x() - 45, y() + w() / 2.4 + 6, 90, 24);
+  }
+  for (const [id, rect] of Object.entries(rects)) el(id).getBoundingClientRect = rect;
+  el('page-home').parentElement = { getBoundingClientRect: () => box(0, 105, 1080, 619), scrollTop: 0 };
+  el('home-headline').offsetHeight = 24;
+  ui.window.getComputedStyle = () => ({ paddingTop: panel() ? '108px' : '0px' });
+  return { animations, vars: id => vars.get(id) || {}, width: id => at(`game-${id}`, '--w'), top: id => at(`game-${id}`, '--y') };
+}
+
+test('the Play page knows when a panel is over the art: setting up has one, ready to play has none', async () => {
+  const ready = await renderer({ ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } });
+  assert.equal(ready.elements.get('page-home').classList.contains('has-panel'), false);
+  assert.equal(ready.elements.get('page-home').classList.contains('ready-mode'), true);
+  const setup = await renderer({ ...state(), repoReady: false, binaryReady: false, config: { ...state().config, completedSetup: false } });
+  assert.equal(setup.elements.get('page-home').classList.contains('has-panel'), true);
+  assert.equal(setup.elements.get('setup-flow').hidden, false);
+  // the logos are placed once the page can be measured, and shown only then
+  assert.equal(setup.elements.get('page-home').classList.contains('stage-placed'), false);
+  stageWindow(setup);
+  await setup.refresh();
+  assert.equal(setup.elements.get('page-home').classList.contains('stage-placed'), true);
+});
+
+test('ready to play, both logos are large and centred; a panel puts the chosen one small at the top', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  assert.ok(stage.width('colosseum') > 400 && stage.width('xd') > 240, `${stage.width('colosseum')} and ${stage.width('xd')} wide`);
+  assert.ok(stage.top('colosseum') > 100, 'the chosen logo is down in the middle');
+  assert.ok(Number.parseFloat(stage.vars('home-headline')['--top']) > stage.top('colosseum'), 'with the headline under it');
+  Object.assign(data, { repoReady: false, binaryReady: false, config: { ...data.config, completedSetup: false } });
+  await ui.refresh();
+  assert.ok(stage.top('colosseum') < 10 && stage.width('colosseum') < 200, 'setting up, it is small at the top');
+  assert.ok(stage.width('xd') > 240, 'the other game\'s stays large');
+});
+
+test('switching games tweens the logos, their Switch and the headline with the line\'s time and easing', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  const before = { colosseum: stage.width('colosseum'), xd: stage.width('xd') };
+  await ui.click('game-xd');
+  const moved = new Set(stage.animations.map(animation => animation.id));
+  for (const id of ['game-mark-colosseum', 'game-mark-xd', 'game-state-colosseum', 'game-state-xd', 'home-headline']) assert.ok(moved.has(id), `${id} tweens`);
+  // XD's logo grows into the middle and Colosseum's shrinks into its strip: each starts at its old size
+  assert.ok(stage.width('xd') > before.xd && stage.width('colosseum') < before.colosseum);
+  const grow = stage.animations.find(animation => animation.id === 'game-mark-xd');
+  const scale = Number(/scale\(([\d.]+)\)/.exec(grow.frames[0].transform)[1]);
+  assert.ok(Math.abs(scale - before.xd / stage.width('xd')) < 0.01, `XD's logo starts at ${scale} of its new size`);
+  assert.equal(grow.frames[1].transform, 'none');
+  // the Switch and the headline slide without scaling
+  assert.match(stage.animations.find(animation => animation.id === 'game-state-xd').frames[0].transform, /scale\(1\)$/);
+  // the same time and easing as the line's transition in style.css
+  const css = fs.readFileSync(path.resolve(__dirname, '../src/style.css'), 'utf8');
+  const tween = /--tween: (\.\d+)s (cubic-bezier\([^)]+\))/.exec(css);
+  for (const animation of stage.animations) assert.deepEqual({ ...animation.timing }, { duration: Number(tween[1]) * 1000, easing: tween[2] });
+  assert.match(css, /\.shell \{[^}]*transition: --split var\(--tween\)/);
+});
+
+test('setup finishing tweens the chosen logo down to the middle; reduced motion puts everything in place at once', async () => {
+  const data = { ...state(), repoReady: false, binaryReady: false, config: { ...state().config, completedSetup: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  const top = stage.top('colosseum');
+  Object.assign(data, { repoReady: true, binaryReady: true, config: { ...data.config, completedSetup: true }, game: { ...data.game, needsUpdate: false } });
+  await ui.refresh();
+  assert.equal(ui.elements.get('page-home').classList.contains('has-panel'), false);
+  assert.ok(stage.top('colosseum') > top);
+  assert.ok(stage.animations.some(animation => animation.id === 'game-mark-colosseum' && /translate\(-?[\d.]+px, -\d/.test(animation.frames[0].transform)),
+    'Colosseum\'s logo starts from up at the top');
+  // reduced motion: switching moves nothing by tween
+  ui.window.matchMedia = query => ({ matches: /prefers-reduced-motion: reduce/.test(query) });
+  const count = stage.animations.length;
+  await ui.click('game-xd');
+  assert.equal(stage.animations.length, count);
+  assert.ok(stage.width('xd') > stage.width('colosseum'), 'XD\'s logo is large at once');
+});
+
+test('a panel coming in the middle of a switch keeps to the switch\'s time, as the line does', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data), stage = stageWindow(ui);
+  await ui.refresh();
+  // XD isn't set up: the launcher answers the switch with its setup steps, 300 ms into the tween
+  ui.window.colo.selectGame = async id => { data.currentGame = games.summary(id); Object.assign(data, { repoReady: false, binaryReady: false });
+    for (const animation of stage.animations) { animation.currentTime = 300; animation.effect.getComputedTiming = () => ({ progress: 0.4 }); } return data; };
+  await ui.click('game-xd');
+  await new Promise(setImmediate);
+  assert.equal(ui.elements.get('page-home').classList.contains('has-panel'), true);
+  const carried = stage.animations.filter(animation => animation.playState === 'running');
+  assert.ok(carried.some(animation => animation.id === 'game-mark-xd'));
+  for (const animation of carried) assert.equal(animation.currentTime, 300, `${animation.id} carries on from 300 ms`);
 });

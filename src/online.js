@@ -80,6 +80,14 @@ function buildId(build) {
   return `${String(build?.commit || '').slice(0, 16)}-${String(build?.decomp || '').slice(0, 16)}`;
 }
 
+// A room for either game's players, Colosseum's and XD's: both games built from the same commit of the port, whose
+// battle code (and each game's decomp, which that commit pins) they share. The room server takes it as any build, so
+// a room of either game is joined only by a game of that same commit; XD then plays by Colosseum's rules where the
+// two battles differ (crossplay=1 in the rules line), and each player's Pokémon go whole, as a Story party's do.
+const CROSS = 'cross-';
+const crossBuildId = build => `${CROSS}${String(build?.commit || '').slice(0, 16)}`;
+const isCrossBuild = id => String(id || '').startsWith(CROSS);
+
 // A name on one line of the game's protocol: no spaces in it.
 const lineName = name => String(name).replace(/ /g, '_') || 'Trainer';
 
@@ -171,7 +179,8 @@ class Session extends EventEmitter {
     this.WebSocket = WebSocket;
     this.later = later;
     this.features = features;  // rules: the game takes a rules line, and `close` for a game waiting in the stadium;
-                               // picks: its own screen has the players pick, with team preview
+                               // picks: its own screen has the players pick, with team preview;
+                               // crossplay: the room is for either game (crossBuildId), and the game is told so
     this.ws = null;
     this.bridge = null;
     this.code = null;
@@ -267,6 +276,8 @@ class Session extends EventEmitter {
     let line = this.features.rules ? formats.rulesLine(rules) : null;
     // the players pick on the game's screen: it gets both parties whole, and is told to ask
     if (this.start?.gamePicks && this.features.picks && rules.preview) line = `${line || 'rules'} pick=1`;
+    // the other player may be playing the other game: XD plays by Colosseum's rules where they differ (Colosseum passes over it)
+    if (this.features.crossplay) line = `${line || 'rules'} crossplay=1`;
     if (line) this.bridge.send(line);
     this.bridge.send(this.start ? configLine(this.start) : configLine({ side: 0, rules: this.rules, code: this.code }));
     if (this.start) for (const each of startLines(this.start)) this.bridge.send(each);
@@ -482,4 +493,4 @@ class Session extends EventEmitter {
   }
 }
 
-module.exports = { PROTOCOL, STAGES, parseRoomCode, formatRoomCode, buildId, serverUrl, listRooms, lookup, configLine, startLines, createBridge, Session };
+module.exports = { PROTOCOL, STAGES, parseRoomCode, formatRoomCode, buildId, crossBuildId, isCrossBuild, serverUrl, listRooms, lookup, configLine, startLines, createBridge, Session };

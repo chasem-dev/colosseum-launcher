@@ -183,8 +183,8 @@ function importGci(converted, saveDir, backups = saves.backupRoot()) {
   const previous = saves.backupSaves(saveDir, backups, 'before-dolphin-import');
   const data = `${converted.name}.dat`;
   const blocks = saves.cardFiles(saveDir).filter(name => name.endsWith('.dat') && name !== data)
-    .reduce((total, name) => total + Math.ceil(fs.statSync(path.join(saveDir, name)).size / BLOCK), BLOCKS);
-  if (blocks > CARD_BLOCKS) throw new Error(`The memory card needs ${BLOCKS} free blocks for this save.`);
+    .reduce((total, name) => total + Math.ceil(fs.statSync(path.join(saveDir, name)).size / BLOCK), converted.blocks || BLOCKS);
+  if (blocks > CARD_BLOCKS) throw new Error(`The memory card needs ${converted.blocks || BLOCKS} free blocks for this save.`);
   // The game finds a save by its .dat, so that goes last. Temporary names aren't card files, so one left behind by a
   // crash is never backed up or read as a save.
   const files = new Map([[`${converted.name}.stat`, converted.stat], [data, converted.data]]);
@@ -269,4 +269,110 @@ function writeGci(gci, chosen) {
   return file;
 }
 
-module.exports = { EXPORT_NAME, convertGci, readGci, readGciFiles, importGci, newestPlain, readCardSave, writeGci };
+// Other games' saves (games.js): XD's card file goes into and out of a .gci as it is, its directory entry made from the
+// card's .stat (the game's CARDStat, host/card.c) and back. Nothing in the save itself is read: the launcher doesn't
+// know XD's save layout yet, so there is no trainer or party to show.
+const OTHER_SAVES = {
+  xd: { name: 'PokemonXD', game: 'GXXE01', title: 'Pokémon XD: Gale of Darkness', blocks: 43 }
+};
+function exportName(gameId = 'colosseum') {
+  const other = OTHER_SAVES[gameId];
+  return other ? `01-${other.game.slice(0, 4)}-${other.name}.gci` : EXPORT_NAME;
+}
+
+function convertOtherGci(bytes, other) {
+  const sizeError = () => new Error(`Choose a ${other.title} .gci export (64-byte header and ${other.blocks} save blocks).`);
+  if (!Buffer.isBuffer(bytes) || bytes.length < HEADER) throw sizeError();
+  const game = bytes.toString('latin1', 0, 6);
+  const filename = bytes.subarray(8, 40);
+  const end = filename.indexOf(0);
+  const name = filename.subarray(0, end < 0 ? 32 : end).toString('latin1');
+  const blocks = bytes.readUInt16BE(0x38);
+  if (bytes.length === HEADER + blocks * BLOCK && (game !== other.game || name !== other.name)) {
+    if (game.slice(0, 3) === other.game.slice(0, 3) && name === other.name)
+      throw otherFile(`This save is from another region's ${other.title}. The game here is the North American version (${other.game}), so export a save from that version.`, `another region's ${other.title} save`);
+    throw otherFile(`This is not a ${other.title} save. Choose the ${exportName(Object.keys(OTHER_SAVES).find(id => OTHER_SAVES[id] === other))} save exported from Dolphin.`, `not a ${other.title} save`);
+  }
+  if (bytes.length !== HEADER + other.blocks * BLOCK) throw sizeError();
+  if (blocks !== other.blocks) throw new Error('The GCI block count does not match its save data. Export the save again from Dolphin.');
+  const data = Buffer.from(bytes.subarray(HEADER));
+  const stat = Buffer.alloc(0x6c);
+  stat.write(other.name, 0, 'latin1');
+  stat.writeUInt32BE(data.length, 0x20);
+  stat.writeUInt32BE(bytes.readUInt32BE(0x28), 0x24); // last modified
+  bytes.copy(stat, 0x28, 0, 6);
+  stat[0x2e] = bytes[7]; // banner format
+  bytes.copy(stat, 0x30, 0x2c, 0x34); // icon address, format and speed
+  stat.writeUInt32BE(bytes.readUInt32BE(0x3c), 0x38); // comment address
+  return { name: other.name, title: other.title, data, stat, blocks: other.blocks, trainer: '', party: [], damaged: 0 };
+}
+
+// gameId's save from a .gci's bytes: Colosseum's checked and summarised (convertGci), another game's as it is.
+function convertGciFor(bytes, gameId = 'colosseum') {
+  const other = OTHER_SAVES[gameId];
+  return other ? convertOtherGci(bytes, other) : convertGci(bytes);
+}
+
+function readGciFor(file, gameId = 'colosseum') {
+  const other = OTHER_SAVES[gameId];
+  if (!other) return readGci(file);
+  if (typeof file !== 'string' || path.extname(file).toLowerCase() !== '.gci') throw new Error('Choose a Dolphin .gci save file.');
+  const fd = fs.openSync(file, 'r');
+  try {
+    if (!fs.fstatSync(fd).isFile()) throw new Error('Choose a Dolphin .gci save file.');
+    // all of it (up to a whole card's worth), so another game's export is told apart from a cut-off one
+    const bytes = Buffer.alloc(Math.min(fs.fstatSync(fd).size, HEADER + 2048 * BLOCK + 1));
+    let length = 0, received;
+    while (length < bytes.length && (received = fs.readSync(fd, bytes, length, bytes.length - length, null))) length += received;
+    return convertOtherGci(bytes.subarray(0, length), other);
+  } finally { fs.closeSync(fd); }
+}
+
+// The port's save of gameId as a .gci. Another game's directory entry comes from its card .stat, with the time the
+// file was last written.
+function readCardSaveFor(saveDir, gameId = 'colosseum') {
+  const other = OTHER_SAVES[gameId];
+  if (!other) return readCardSave(saveDir);
+  const file = path.join(saveDir, `${other.name}.dat`);
+  const found = fs.statSync(file, { throwIfNoEntry: false });
+  if (!found) throw new Error(`There is no ${other.title} save to export yet.`);
+  const data = fs.readFileSync(file);
+  if (data.length !== other.blocks * BLOCK) throw new Error(`This save is damaged: it isn't the size the game writes. ${RESTORE}`);
+  const statFile = path.join(saveDir, `${other.name}.stat`);
+  const stat = fs.existsSync(statFile) ? fs.readFileSync(statFile) : null;
+  const header = gciHeader(found.mtime);
+  header.fill(0, 8, 40);
+  header.write(other.name, 8, 'latin1');
+  header.write(other.game, 0, 'latin1');
+  if (stat && stat.length >= 0x3c) {
+    header[7] = stat[0x2e]; // banner format
+    stat.copy(header, 0x2c, 0x30, 0x38); // icon address, format and speed
+    header.writeUInt32BE(stat.readUInt32BE(0x38), 0x3c); // comment address
+  }
+  header.writeUInt16BE(other.blocks, 0x38);
+  return { gci: Buffer.concat([header, data]), title: other.title, trainer: '', damaged: 0, extraBoxPokemon: 0 };
+}
+
+// Reads the one gameId save among files (readGciFiles), for another game too.
+function readGciFilesFor(files, gameId = 'colosseum') {
+  const other = OTHER_SAVES[gameId];
+  if (!other) return readGciFiles(files);
+  files = files.flatMap(file => typeof file === 'string' && fs.statSync(file, { throwIfNoEntry: false })?.isDirectory()
+    ? fs.readdirSync(file).filter(name => /\.gci$/i.test(name)).sort().map(name => path.join(file, name)) : [file]);
+  if (!files.length) throw new Error('That folder has no Dolphin .gci save files.');
+  const found = [], skipped = [];
+  for (const file of files) {
+    try { found.push({ file, converted: readGciFor(file, gameId) }); }
+    catch (error) {
+      if (files.length === 1) throw error;
+      if (error.code !== 'OTHER_FILE') throw new Error(`${path.basename(String(file))}: ${error.message}`, { cause: error });
+      skipped.push({ file: path.basename(file), reason: error.reason });
+    }
+  }
+  if (!found.length) throw new Error(`None of these files is a ${other.title} save.`);
+  if (found.length > 1) throw new Error(`Choose one Dolphin save: these include ${found.length} ${other.title} saves.`);
+  return { ...found[0], skipped };
+}
+
+module.exports = { EXPORT_NAME, convertGci, readGci, readGciFiles, importGci, newestPlain, readCardSave, writeGci,
+  OTHER_SAVES, exportName, convertGciFor, readGciFor, readGciFilesFor, readCardSaveFor };

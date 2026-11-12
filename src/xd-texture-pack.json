@@ -1,0 +1,19 @@
+{
+  "version": "2026.11.12",
+  "folder": "xd-upscale-4x",
+  "sha256": "d6e9a3ced203d58c3b3a99ab2f1857039c55da767d7450e729a19c1b6f162982",
+  "parts": [
+    {
+      "url": "https://github.com/chasem-dev/pokemon-colosseum-extras/releases/download/xd-texture-pack-2026.11.12/xd-texture-pack-4x-2026-11-12.part1.zip",
+      "sha256": "d6e9a3ced203d58c3b3a99ab2f1857039c55da767d7450e729a19c1b6f162982",
+      "size": 1949684977
+    },
+    {
+      "url": "https://github.com/chasem-dev/pokemon-colosseum-extras/releases/download/xd-texture-pack-2026.11.12/xd-texture-pack-4x-2026-11-12.part2.zip",
+      "sha256": "8889a06eb50d5398d1d52da4510ac73d518819b7ad9e631da6b64c4e8d3830ad",
+      "size": 1862741888
+    }
+  ],
+  "size": 3812426865,
+  "unpacked": 3809920667
+}

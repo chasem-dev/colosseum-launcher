@@ -23,6 +23,31 @@ test('a build id fits what the room keeps, and tells builds apart', () => {
   assert.notEqual(online.buildId({ commit, decomp }), online.buildId({ commit, decomp: `c${decomp.slice(1)}` }));
 });
 
+test('a room for both games is one commit of the port, whichever game and decomp', () => {
+  const commit = 'a'.repeat(40);
+  const colosseum = { commit, decomp: 'b'.repeat(40) }, xd = { commit, decomp: 'c'.repeat(40) };
+  assert.equal(online.crossBuildId(colosseum), online.crossBuildId(xd));
+  assert.notEqual(online.buildId(colosseum), online.buildId(xd), 'a room for one game stays that game\'s');
+  assert.notEqual(online.crossBuildId(colosseum), online.crossBuildId({ ...xd, commit: `c${commit.slice(1)}` }));
+  assert.ok(online.crossBuildId(xd).length <= 64);
+  assert.equal(online.isCrossBuild(online.crossBuildId(xd)), true);
+  assert.equal(online.isCrossBuild(online.buildId(xd)), false);
+  assert.equal(online.isCrossBuild(undefined), false);
+});
+
+test('in a room for both games the game is told so', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, features: { rules: true, picks: false, crossplay: true } });
+  const ws = await hosted(session);
+  assert.equal(ws.messages()[0].gamePicks, undefined);
+  const make = fakeBridge();
+  await session.attachGame(make);
+  const bridge = make({});
+  session.prepareGame();
+  assert.equal(bridge.lines[0], 'rules crossplay=1');
+  assert.match(bridge.lines[1], /^config 0 50 6 \d KQ7-M2D$/);
+  session.close();
+});
+
 test('the game is told what to set up, and who is in the battle', () => {
   assert.equal(online.configLine({ side: 1, rules: { level: 100, size: 3, stage: 2 } }), 'config 1 100 3 2');
   assert.equal(online.configLine({ side: 0, rules: { level: 50, size: 6 }, code: 'KQ7M2D' }), 'config 0 50 6 0 KQ7-M2D');

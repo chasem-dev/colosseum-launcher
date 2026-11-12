@@ -11,6 +11,10 @@ const port = require('../src/port');
 const game = require('../src/game-version');
 const compilerCache = require('../src/compiler-cache');
 const windowsDlls = require('../src/windows-dlls');
+const games = require('../src/games');
+// COLO_SMOKE_GAME=xd builds Pokémon XD from its pin (src/xd-release.json) instead of Colosseum's
+const gameId = games.normalizeId(process.env.COLO_SMOKE_GAME || games.DEFAULT);
+const pin = games.get(gameId).release;
 const { execFileSync, spawnSync } = require('node:child_process');
 const capture = async (command, args, cwd, env) => execFileSync(command, args, { cwd, env, encoding: 'utf8' }).trim();
 const { run, runMain } = require('./tool-run');
@@ -36,7 +40,7 @@ function executableType(file) {
   } finally { fs.closeSync(fd); }
 }
 // (a Mac's game goes by the processor it runs on, unless it is a game for Rosetta: port.js, gameArch)
-const EXPECTED = { linux: 'ELF x86-64', win32: 'PE x86-64', darwin: port.gameArch() === 'arm64' ? 'Mach-O arm64' : 'Mach-O x86-64' };
+const EXPECTED = { linux: 'ELF x86-64', win32: 'PE x86-64', darwin: port.gameArch(process.arch, pin) === 'arm64' ? 'Mach-O arm64' : 'Mach-O x86-64' };
 
 // Some players' System32 holds older DLLs named like the build tools' own (libwinpthread-1.dll, zlib1.dll...),
 // which Windows loads before the PATH's: GCC then fails without a message. A real system DLL under those names
@@ -105,33 +109,33 @@ async function main() {
     { env }, 'Check the bundled Python\'s CA certificates');
   }
   const root = path.join(scratch, 'Game Files');
-  await game.checkout(root, { git, run, capture, env });
-  if (!port.isPort(root)) throw new Error('The checkout is not a complete game folder.');
-  if (!game.matchesSource(root)) throw new Error('The checkout does not match game-release.json.');
+  await game.checkout(root, { git, run, capture, env, source: pin });
+  if (!port.isPort(root, gameId)) throw new Error('The checkout is not a complete game folder.');
+  if (!game.matchesSource(root, pin)) throw new Error(`The checkout does not match ${gameId}'s pin.`);
   // Through the caches, as a player's build goes: CI keeps them in COLO_COMPILER_CACHE_DIR between runs.
   const buildEnv = compilerCache.environment(env, await compilerCache.prepare(userData, { log: text => process.stdout.write(`${text}\n`) }),
     { userData, root });
-  const cmd = port.buildCommand(root, platform, buildEnv);
+  const cmd = port.buildCommand(root, platform, buildEnv, gameId);
   await game.buildSafely(root, path.join(scratch, 'Saves'), () => run(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Build the game'),
-    { backups: path.join(scratch, 'Backups'), toolFolder: toolRoot });
+    { backups: path.join(scratch, 'Backups'), toolFolder: toolRoot, source: pin });
   const { removed, bytes } = await compilerCache.trim(userData);
   process.stdout.write(`Unit cache: ${Math.round(bytes / 1048576)} MB kept, ${removed} files removed.\n`);
-  const binary = port.binaryPath(root);
+  const binary = port.binaryPath(root, platform, gameId);
   const type = executableType(binary);
   if (type !== EXPECTED[platform]) throw new Error(`The game is ${type}, not ${EXPECTED[platform]}.`);
-  if (!game.isCurrent(root)) throw new Error('The launcher does not take this build for the current game.');
+  if (!game.isCurrent(root, pin)) throw new Error('The launcher does not take this build for the current game.');
   if (platform === 'win32') {
     const missing = windowsDlls.unresolved(binary, [path.dirname(binary)], { environment: base });
     if (missing === null || missing.length) throw new Error(`The game needs DLLs Windows does not have: ${missing}`);
   }
   const start = port.gameRunCommand(root, path.join(scratch, 'no disc here.iso'), platform,
-    { ...base, COLO_AUDIO: '0', SMS_HEADLESS: '1' });
+    { ...base, COLO_AUDIO: '0', SMS_HEADLESS: '1' }, undefined, gameId);
   const started = spawnSync(start.command, start.args, { cwd: start.cwd, env: start.env, encoding: 'utf8', timeout: 120000 });
   process.stdout.write(`${started.stdout || ''}${started.stderr || ''}`);
   if (started.error) throw started.error;
   if (started.status !== 1 || !/disc image needed/.test(started.stderr))
     throw new Error(`The game did not reach its disc check (exit ${started.status}, signal ${started.signal}).`);
-  process.stdout.write(`${type} built and reached its disc check.\n`);
+  process.stdout.write(`${games.get(gameId).name}: ${type} built and reached its disc check.\n`);
   fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5 });
 }
 

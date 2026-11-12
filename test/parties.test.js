@@ -6,7 +6,7 @@ const parties = require('../src/parties');
 
 test('a first run has no parties and the default rules', () => {
   assert.deepEqual(parties.normalize(undefined),
-    { trainer: 'Trainer', parties: [], selected: null, level: 50, size: 6, turnTime: 0, battleTime: 0, listed: true, battleRules: 3, format: 'casual',
+    { trainer: 'Trainer', parties: [], selected: null, level: 50, size: 6, turnTime: 0, battleTime: 0, listed: true, crossplay: false, battleRules: 3, format: 'casual',
       custom: {}, bestOf: 1 });
 });
 

@@ -25,6 +25,9 @@ function mapPaths(saved, convert) {
   const mapped = { ...saved };
   for (const key of PATH_KEYS) if (typeof mapped[key] === 'string' && mapped[key]) mapped[key] = convert(mapped[key]);
   if (mapped.previousInstall) mapped.previousInstall = mapPaths(mapped.previousInstall, convert);
+  // Each other game's own folder, disc and earlier version (games.js).
+  if (mapped.games && typeof mapped.games === 'object')
+    mapped.games = Object.fromEntries(Object.entries(mapped.games).map(([id, entry]) => [id, mapPaths(entry, convert)]));
   // The Game Boy Advance's files (src/gba.js): its BIOS, and each socket's Game Pak and save.
   if (mapped.gba && typeof mapped.gba === 'object') {
     const file = value => typeof value === 'string' && value ? convert(value) : value;

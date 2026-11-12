@@ -93,6 +93,7 @@ select { width: 100%; padding: 7px 10px; border: 1px solid #dcd4dd; border-radiu
 .range-field output { color: #849196; font-size: 12px; font-variant-numeric: tabular-nums; }
 .range-field input[type=range] { flex: 0 1 200px; min-width: 0; accent-color: #841d74; }
 .preset-tip { margin-top: 10px; padding: 9px 12px; border-radius: 9px; background: #fff6dc; color: #5b4a17; font-size: 12px; }
+.generations-disc-note { margin: 0 0 10px; }
 .small-path { min-height: 34px; margin: 5px 0 9px; color: #86727e; font-size: 11px; white-space: pre-line; overflow-wrap: anywhere; }
 .backup-picker { display: grid; gap: 6px; margin: 10px 0; color: #5e4257; font-size: 12px; }
 .danger { color: #a04d49; }
@@ -110,14 +111,46 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 @media (max-width: 920px) { .topbar { gap: 14px; padding: 0 18px; } .viewport, .statusbar { padding-left: 18px; padding-right: 18px; } .brand { min-width: 160px; } .tab { padding: 0 9px; } }
 @media (prefers-reduced-motion: reduce) { .spinner, .progress-track.indeterminate #progress-fill, .status-icon.checking svg { animation-duration: 3s; } }
 
-/* The supplied desert painting is the launch screen's full-window backdrop. */
+/* The window's backdrop: both games, split by a diagonal (#game-art). The chosen game's side takes 70% in full colour,
+   the other 30%, faded; choosing the other moves the line across. Each is a painting made for the launcher: Colosseum's
+   desert train, and XD's S.S. Libra wrecked in the sand under the moon. */
+/* --split is where the line crosses the middle, and --slant how far it leans, each in hundredths of the window's width:
+   numbers, so the Play page's game buttons above the art can follow the line too (in vw). */
+@property --split { syntax: '<number>'; inherits: true; initial-value: 70; }
 :root { background: #420d2b; }
-.shell {
+.shell { --split: 70; --slant: 7; --tween: .75s cubic-bezier(.7, 0, .25, 1); position: relative; isolation: isolate; background: #2a0b26; transition: --split var(--tween); }
+.shell:has(> .game-art[data-active="xd"]) { --split: 30; }
+.game-art { --at: calc(var(--split) * 1%); --lean: calc(var(--slant) * 1%); position: absolute; inset: 0; z-index: -1; overflow: hidden; background: #1a0f2c; }
+.game-art-side { position: absolute; inset: 0; transition: filter var(--tween); }
+.game-art-side[data-game="colosseum"] { clip-path: polygon(0 0, calc(var(--at) + var(--lean)) 0, calc(var(--at) - var(--lean)) 100%, 0 100%); }
+.game-art-side[data-game="xd"] { clip-path: polygon(calc(var(--at) + var(--lean)) 0, 100% 0, 100% 100%, calc(var(--at) - var(--lean)) 100%); }
+/* Each side's scene slides with the line, so what it shows stays in view on its narrow side. */
+.game-art-scene { position: absolute; inset: 0; }
+.game-art-side[data-game="colosseum"] .game-art-scene { translate: calc((var(--split) - 70) * .55%) 0;
   background:
     linear-gradient(180deg, #480a2d70 0%, #480a2d05 31%, #3f0926aa 100%),
     linear-gradient(90deg, #420a28ac 0%, #420a282e 47%, transparent 80%),
-    url('assets/launcher-bg.png') 40% center / cover no-repeat;
-}
+    url('assets/launcher-bg.png') 40% center / cover no-repeat; }
+/* XD's painting is no taller than the window below the title bar, so a narrow window still has the wreck from its
+   funnels to the moon; above it, the night sky's colour. */
+.game-art-side[data-game="xd"] .game-art-scene { translate: calc((var(--split) - 30) * .25%) 0;
+  background:
+    linear-gradient(180deg, #0a0f2a80 0%, #0a0f2a05 31%, #080b22a8 100%),
+    linear-gradient(270deg, #0a0f2a70 0%, #0a0f2a1a 40%, transparent 70%),
+    url('assets/xd-launcher-bg.png') 50% 100% / max(100%, calc((100vh - 58px) * 1.777)) auto no-repeat #151f36; }
+/* The side not chosen: faded, until the pointer is over it */
+.game-art[data-active="xd"] .game-art-side[data-game="colosseum"] { filter: grayscale(.6) brightness(.55); }
+.game-art[data-active="colosseum"] .game-art-side[data-game="xd"] { filter: grayscale(.5) brightness(.72); }
+.shell:not(.log-expanded):has(#page-home:not([hidden])) .game-art:not(.locked)[data-active="colosseum"] .game-art-side[data-game="xd"]:hover,
+.shell:not(.log-expanded):has(#page-home:not([hidden])) .game-art:not(.locked)[data-active="xd"] .game-art-side[data-game="colosseum"]:hover { filter: grayscale(.25) brightness(.78); cursor: pointer; }
+/* The line between them: a thin light with a soft glow */
+.game-art-edge { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, #fff3d600 0%, #fff3d6d0 22%, #e4dcffd0 78%, #e4dcff00 100%);
+  clip-path: polygon(calc(var(--at) + var(--lean) - 1px) 0, calc(var(--at) + var(--lean) + 1px) 0, calc(var(--at) - var(--lean) + 1px) 100%, calc(var(--at) - var(--lean) - 1px) 100%);
+  filter: drop-shadow(0 0 6px #ffe7b0aa); }
+/* On the Play page the art takes the clicks the page's own controls don't. */
+.viewport:has(> #page-home:not([hidden])), #page-home, #page-home .intro, #page-home .hero-spacer { pointer-events: none; }
+#page-home :is(.intro > *, .setup-flow, .launch-panel, .game-tab) { pointer-events: auto; }
 .topbar { flex-basis: 58px; gap: 16px; background: #420c29bb; border-bottom: 1px solid #ffffff2a; color: #fff; backdrop-filter: blur(16px); -webkit-app-region: drag; user-select: none; }
 .platform-pill{ color: #eacbe2; }
 .window-controls { display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
@@ -134,7 +167,82 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .intro { flex: none; align-items: start; min-height: 0; color: #fff; text-shadow: 0 2px 18px #420b2699; }
 .intro h1 { font-size: clamp(30px, 3.5vw, 44px); }
 .intro .eyebrow { color: #f6ddf0; }
-.intro #home-description { color: #fef1fa; font-size: 14px; }
+.intro #home-description { color: #fef1fa; font-size: clamp(14px, 1vw, 17px); }
+/* The games over their sides of the art: each one's logo from the player's disc (renderer.js showLogos), or its name
+   until that is read, and the button that chooses it. renderer.js layoutPlayStage places them (play-stage.js): the
+   other game's large and centred in its strip, with Switch under it; the chosen game's large and centred above Play
+   with the headline under it, or small at the top of its side while a panel (the setup steps) is over the art.
+   Choosing the other game, or a panel coming or going, moves them there with the line, by transforms (renderer.js
+   tweenPlayStage), and their fading takes the line's time and easing too (--tween). */
+.home-page { --logo-band: clamp(66px, 14vh, 160px); --page-left: 28px; position: relative; padding-top: calc(var(--logo-band) + 2px); }
+/* ready to play, nothing is at the top: the logo and the headline are over the art above Play */
+.home-page.ready-mode { padding-top: 0; }
+@media (max-width: 920px) { .home-page { --page-left: 18px; } }
+.game-picker { position: absolute; top: 0; left: calc(-1 * var(--page-left)); width: 100vw; height: 0; pointer-events: none; }
+.home-page:not(.stage-placed) :is(.game-picker, #home-headline) { visibility: hidden; }
+/* --x is the middle of the logo across the window, --y its top and --w its width (layoutPlayStage) */
+.game-tab { position: absolute; left: var(--x, 50%); top: calc(var(--y, 0px) - 6px); translate: -50% 0; display: grid; justify-items: center;
+  padding: 6px 12px 4px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #fff; text-align: center;
+  text-shadow: 0 2px 14px #12051acc, 0 1px 3px #12051a99; white-space: normal; transition: opacity var(--tween), background .2s, border-color .2s; }
+.game-tab-art { display: grid; place-content: center; justify-items: center; gap: 1px; width: var(--w, 200px); aspect-ratio: 2.4; }
+/* the tween draws each part from where it was by a transform (renderer.js tweenPlayStage): kept on its own layer, a logo isn't
+   drawn afresh as its tween ends, which left it blank for a frame */
+.game-tab-art, .game-tab-state { will-change: transform; }
+.game-tab.has-logo .game-tab-art { display: block; aspect-ratio: auto; }
+.game-tab-art small { font-size: max(9px, calc(var(--w, 200px) * .05)); font-weight: 800; letter-spacing: .2em; text-transform: uppercase; opacity: .85; }
+.game-tab-art strong { font-size: calc(var(--w, 200px) * .125); font-weight: 900; letter-spacing: .04em; line-height: 1; text-transform: uppercase; }
+.game-tab-art .game-tab-subtitle { font-size: max(9px, calc(var(--w, 200px) * .045)); font-weight: 700; letter-spacing: .16em; text-transform: uppercase; opacity: .8; }
+/* under the logo: the chosen game's gold bar, or Switch on the other, each fading in as its game is chosen or not */
+.game-tab-state { display: grid; place-items: center; height: 24px; margin-top: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; line-height: 16px; text-shadow: none; }
+.game-tab-state::before, .game-tab-state::after { grid-area: 1 / 1; transition: opacity var(--tween); }
+.game-tab-state::before { content: ''; width: 38px; height: 3px; border-radius: 3px; background: #ffc75a; box-shadow: 0 0 10px #ffc75a99; }
+.game-tab-state::after { content: 'Switch \203A'; padding: 3px 10px; border: 1px solid #ffffff5c; border-radius: 20px; background: #ffffff1a; color: #fff; }
+.game-tab[aria-pressed="true"] .game-tab-state::after, .game-tab[aria-pressed="false"] .game-tab-state::before { opacity: 0; }
+.game-tab[aria-pressed="false"] { opacity: .78; }
+.game-tab[aria-pressed="false"]:hover:not(:disabled), .shell:has(#game-art-xd:hover) .game-tab[data-game="xd"][aria-pressed="false"]:not(:disabled),
+.shell:has(#game-art-colosseum:hover) .game-tab[data-game="colosseum"][aria-pressed="false"]:not(:disabled) { opacity: 1; background: #ffffff14; border-color: #ffffff30; }
+.game-tab[aria-pressed="true"] { cursor: default; }
+.game-tab:disabled { opacity: .5; }
+.game-tab:focus-visible { outline: 2px solid #ffda91; outline-offset: 2px; }
+/* the filters list the same functions in the same order, so the fade between them is smooth */
+.game-tab-logo { display: block; width: 100%; height: auto; filter: grayscale(0) brightness(1) drop-shadow(0 3px 12px #12051add); transition: filter var(--tween); }
+.game-tab-logo[hidden] { display: none; }
+.game-tab.has-logo .game-tab-art :is(small, strong, .game-tab-subtitle) { display: none; }
+.game-tab.has-logo[aria-pressed="false"] .game-tab-logo { filter: grayscale(.5) brightness(.75) drop-shadow(0 3px 12px #12051add); }
+.game-tab.has-logo[aria-pressed="false"]:hover:not(:disabled) .game-tab-logo { filter: grayscale(.2) brightness(.95) drop-shadow(0 3px 12px #12051add); }
+/* The headline, under the chosen game's logo (layoutPlayStage's --x): setting up, below the logo at the top of the page;
+   ready, only the status line shows (the logo names the game), under the logo wherever it is (--top, as wide as --max).
+   Any banner beside it goes to the other side. */
+#page-home .intro { position: relative; min-height: 22px; }
+#page-home:not(.ready-mode) .intro { min-height: calc(clamp(30px, 3.5vw, 44px) * 1.1 + 25px); }
+#home-headline { position: absolute; top: 0; left: var(--x, 50%); translate: -50% 0; width: max-content; max-width: 60vw; text-align: center; }
+#page-home.ready-mode .intro { position: static; }
+#page-home.ready-mode #home-headline { top: var(--top, 0px); max-width: var(--max, 60vw); }
+#page-home .intro-banners { margin-left: auto; }
+/* a short window setting up: the step's own heading says it, so the headline goes (kept for screen readers) */
+@media (max-height: 720px) {
+  #page-home:not(.ready-mode) .intro { min-height: 0; }
+  #page-home:not(.ready-mode) .intro > div:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.shell:has(> .game-art[data-active="xd"]) #page-home .intro-banners { margin-left: 0; margin-right: auto; }
+/* Setting up, the steps and the button under them stay on the chosen game's side, clear of the line where it is
+   nearest (63% of the width at the window's foot for Colosseum, 37% at its head for XD), so the other game's logo has
+   its strip: as wide as fits there, and under the chosen game's logo where they can be. */
+#page-home:not(.ready-mode) :is(.setup-flow, .launch-panel) { --side-w: calc(63vw - 18px - var(--page-left)); align-self: flex-start;
+  margin-left: clamp(0px, 37.1vw - var(--page-left) - var(--flow-w) / 2, 63vw - 18px - var(--page-left) - var(--flow-w)); }
+#page-home:not(.ready-mode) .setup-flow { --flow-w: min(660px, var(--side-w)); width: var(--flow-w); }
+#page-home:not(.ready-mode) .launch-panel { --flow-w: min(620px, var(--side-w)); width: var(--flow-w); }
+/* (on XD's side, the page's own width, which a scroll bar narrows) */
+.shell:has(> .game-art[data-active="xd"]) #page-home:not(.ready-mode) :is(.setup-flow, .launch-panel) { --side-w: calc(100% + var(--page-left) - 37vw - 18px);
+  margin-left: clamp(37vw + 18px - var(--page-left), 67.1vw - var(--page-left) - var(--flow-w) / 2, 100% - var(--flow-w)); }
+/* Reduced motion: no tween (renderer.js tweenPlayStage doesn't move the logos either), just where it ends */
+@media (prefers-reduced-motion: reduce) { .shell, .game-art-side, .game-tab, .game-tab-logo, .game-tab-state::before, .game-tab-state::after { transition-duration: .01s; } }
+/* XD's panels take its indigo; Play itself stays as it is */
+.shell:has(> .game-art[data-active="xd"]) .launch-panel { border-color: #a9a8ff6e; background: linear-gradient(135deg, #1d1a52f2, #43248ef0); box-shadow: 0 16px 36px #0a082490; }
+.shell:has(> .game-art[data-active="xd"]) .setup-step { border-color: #c4c3ff5e; background: #17143fe8; box-shadow: 0 10px 28px #0a082466; }
+.shell:has(> .game-art[data-active="xd"]) .setup-step p, .shell:has(> .game-art[data-active="xd"]) .setup-step .helper { color: #d9d8f6; }
+/* What the chosen game doesn't have (games.js): hidden, whatever else shows it. */
+.feature-off { display: none !important; }
 .hero-spacer { flex: 1 1 auto; min-height: 10px; }
 .launch-panel { flex: none; align-self: center; width: min(100%, 620px); padding: 16px 19px 14px; border-color: #e1a8d97d; background: linear-gradient(135deg, #551638f2, #8a0f6ff0); box-shadow: 0 16px 36px #33081b90; text-align: center; backdrop-filter: blur(14px); }
 .launch-primary { display: flex; align-items: stretch; gap: 9px; margin-top: 14px; }

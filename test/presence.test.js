@@ -90,3 +90,14 @@ test('every image the activity names is one of the art assets', () => {
   const listed = fs.readFileSync(path.join(__dirname, '..', 'docs', 'discord-art.md'), 'utf8');
   for (const key of art) assert.ok(listed.includes(`\`${key}\``), `${key} is not in docs/discord-art.md`);
 });
+
+test('XD\'s activity names XD, and only a place\'s own name picks its picture (its areas are numbered its own way)', () => {
+  const xd = { gameName: 'Pokémon XD: Gale of Darkness', areaImages: false };
+  const field = presence.activity({ mode: 'field', story: 1, floor: 100, area: 2, place: 'PHENAC CITY', lead: 'EEVEE', level: 10 }, xd);
+  assert.equal(field.details, 'Phenac City');
+  assert.equal(field.assets.large_image, presence.PLACE_IMAGES['PHENAC CITY'] || 'logo');
+  const lab = presence.activity({ mode: 'field', story: 1, floor: 141, area: 5, place: 'POKéMON HQ LAB' }, xd);
+  assert.equal(lab.assets.large_image, presence.PLACE_IMAGES['POKéMON HQ LAB'] || 'logo', 'no Colosseum area art for an XD area number');
+  const menu = presence.activity({ mode: 'menu', floor: 921, area: 14, place: '' }, xd);
+  assert.equal(menu.assets.large_text, 'Pokémon XD: Gale of Darkness');
+});

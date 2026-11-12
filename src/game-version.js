@@ -8,6 +8,7 @@ const tools = require('./build-tools');
 const saves = require('./saves');
 const portable = require('./portable');
 const windowsDlls = require('./windows-dlls');
+const games = require('./games');
 const release = require('./game-release.json');
 const { GIT_PERMANENT } = require('./retry');
 
@@ -66,47 +67,51 @@ async function patchPort(directory, source, { git, run, env }) {
 
 // What a game version is made from: the port, the decomp it compiles and, for an older port, the renderer's sources
 // (with the Super Mario Sunshine decomp whose headers those use), each at one commit (game-release.json), and the tools.
+// A game other than Colosseum says which (games.js); Colosseum's record stays as it was, so its builds stay current.
 function identity(platform = process.platform, arch = process.arch, source = release) {
   const asset = tools.assetFor(platform, arch);
-  return { schema: 1, gameVersion: source.version, commit: source.commit, decomp: source.decomp, renderer: source.renderer?.commit ?? null,
+  const game = games.ofSource(source).id;
+  return { schema: 1, ...(game !== games.DEFAULT && { game }), gameVersion: source.version, commit: source.commit, decomp: source.decomp, renderer: source.renderer?.commit ?? null,
     portPatch: patchHash(source),
     platform, hostArch: arch, toolVersion: tools.toolsetFor(platform, arch), toolSha256: asset.sha256 };
 }
 
-function metadataPath(root) { return path.join(path.dirname(port.binaryPath(root)), 'launcher-build.json'); }
+// Each game has its own checkout folder (games.js), so its build folder, and this record in it, are its own.
+function metadataPath(root, game = games.DEFAULT) { return path.join(path.dirname(port.binaryPath(root, process.platform, game)), 'launcher-build.json'); }
 
-function installed(root) {
-  try { return JSON.parse(fs.readFileSync(metadataPath(root), 'utf8')); }
+function installed(root, game = games.DEFAULT) {
+  try { return JSON.parse(fs.readFileSync(metadataPath(root, game), 'utf8')); }
   catch (_) { return null; }
 }
 
 // The tools a build was made with, whose runtime libraries the game loads. A portable
 // folder that moved to another drive or computer took them along.
-function toolRoot(root, base = portable.root()) {
-  const recorded = installed(root)?.toolRoot;
+function toolRoot(root, base = portable.root(), game = games.DEFAULT) {
+  const recorded = installed(root, game)?.toolRoot;
   return recorded ? portable.relocated(recorded, base) : null;
 }
 
 // A Windows game links its libraries in, so it plays without its build tools once nothing it imports is
 // missing. Elsewhere it loads libraries from the tools themselves (Linux's RUNPATH), so it never does.
-function playsWithoutTools(root, platform = process.platform, environment = process.env) {
+function playsWithoutTools(root, platform = process.platform, environment = process.env, game = games.DEFAULT) {
   if (platform !== 'win32') return false;
-  const binary = port.binaryPath(root, platform);
+  const binary = port.binaryPath(root, platform, game);
   return windowsDlls.unresolved(binary, [path.dirname(binary)], { environment })?.length === 0;
 }
 
 function matchesSource(root, source = release) {
-  const { decomp, renderer } = port.dependencyPaths(root);
+  const { decomp, renderer } = port.dependencyPaths(root, games.ofSource(source).id);
   return gitRevision(root) === source.commit && gitRevision(decomp) === source.decomp &&
     (!source.renderer || gitRevision(renderer) === source.renderer.commit);
 }
 
 function isCurrent(root, source = release, base = portable.root()) {
-  if (!fs.existsSync(port.binaryPath(root))) return false;
-  const record = installed(root);
+  const game = games.ofSource(source).id;
+  if (!fs.existsSync(port.binaryPath(root, process.platform, game))) return false;
+  const record = installed(root, game);
   const expected = identity(undefined, undefined, source);
   return Boolean(record && Object.keys(expected).every(key => record[key] === expected[key]) &&
-    (!record.toolRoot || fs.existsSync(portable.relocated(record.toolRoot, base)) || playsWithoutTools(root)) &&
+    (!record.toolRoot || fs.existsSync(portable.relocated(record.toolRoot, base)) || playsWithoutTools(root, undefined, undefined, game)) &&
     matchesSource(root, source));
 }
 
@@ -169,7 +174,7 @@ async function checkout(root, { git = 'git', run, capture, env, source = release
     // A chosen source, or a newer port, may have these changes already.
     if (source.portPatch && !fs.existsSync(path.join(temporary, 'tools', 'unit_cache.py')))
       await patchPort(temporary, source, tools);
-    const { decomp, renderer } = port.dependencyPaths(temporary);
+    const { decomp, renderer } = port.dependencyPaths(temporary, games.ofSource(source).id);
     await shallowCheckout(decomp, source.decompRepository, source.decomp, 'decomp source', tools);
     if (source.renderer) {
       await shallowCheckout(renderer, source.renderer.repository, source.renderer.commit, 'renderer source', tools);
@@ -339,7 +344,9 @@ async function pruneBuildLeftovers(root, protect = [], onError = () => {}, shoul
 
 // `toolFolder` is the build tools this build runs with, recorded for playing it later (toolRoot).
 async function buildSafely(root, saveDir, compile, { backups = saves.backupRoot(), source = release, toolFolder = null } = {}) {
-  const directory = path.dirname(port.binaryPath(root));
+  const game = games.ofSource(source).id;
+  const binary = port.binaryPath(root, process.platform, game);
+  const directory = path.dirname(binary);
   const previous = `${directory}.previous-${crypto.randomUUID()}`;
   const hadBuild = fs.existsSync(directory);
   const journal = `${directory}.launcher-transaction.json`;
@@ -347,11 +354,11 @@ async function buildSafely(root, saveDir, compile, { backups = saves.backupRoot(
   try {
     if (hadBuild) saves.moveBuildKeepingSaves(directory, previous, saveDir, backups);
     const result = await compile();
-    if (!fs.existsSync(port.binaryPath(root))) throw new Error('Setup finished without a playable game. Please retry.');
+    if (!fs.existsSync(binary)) throw new Error('Setup finished without a playable game. Please retry.');
     if (!matchesSource(root, source))
       throw new Error('Game files changed during setup. Please retry.');
     const record = { ...identity(undefined, undefined, source), toolRoot: toolFolder, builtAt: new Date().toISOString() };
-    const file = metadataPath(root);
+    const file = metadataPath(root, game);
     fs.writeFileSync(`${file}.tmp`, JSON.stringify(record, null, 2));
     fs.renameSync(`${file}.tmp`, file);
     fs.rmSync(journal, { force: true });
@@ -367,8 +374,8 @@ async function buildSafely(root, saveDir, compile, { backups = saves.backupRoot(
   }
 }
 
-function recoverBuild(root) {
-  const directory = path.dirname(port.binaryPath(root));
+function recoverBuild(root, game = games.DEFAULT) {
+  const directory = path.dirname(port.binaryPath(root, process.platform, game));
   const journal = `${directory}.launcher-transaction.json`;
   if (!fs.existsSync(journal)) return false;
   const record = JSON.parse(fs.readFileSync(journal, 'utf8'));

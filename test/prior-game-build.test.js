@@ -2,10 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { priorGameBuild, SYSTEMS } = require('../scripts/prior-game-build');
+const { priorGameBuild, SYSTEMS, GAMES, jobName } = require('../scripts/prior-game-build');
 
-const job = (system, conclusion = 'success') => ({ name: `compile-port (${system})`, conclusion });
-const passed = SYSTEMS.map(system => job(system));
+const job = (system, conclusion = 'success', game = 'colosseum') => ({ name: jobName(game, system), conclusion });
+const passed = GAMES.flatMap(game => SYSTEMS.map(system => job(system, 'success', game)));
 function world({ pulls = [{ number: 6, merged_at: 'now', merge_commit_sha: 'merge', head: { sha: 'head' } }], runs = [{ id: 1 }], jobs = passed } = {}) {
   return async resource => {
     if (resource === 'commits/merge/pulls') return pulls;
@@ -41,4 +41,9 @@ test('a release builds the game when no run passed on every system', async () =>
   assert.equal(await check(world({ jobs: passed.slice(1) })), false);
   assert.equal(await check(world({ jobs: [...passed.slice(1), job(SYSTEMS[0], 'failure')] })), false);
   assert.equal(await check(world({ jobs: [...passed.slice(1), job(SYSTEMS[0], 'skipped')] })), false);
+});
+
+test('a release builds the game when one game passed everywhere but the other did not', async () => {
+  assert.equal(await check(world({ jobs: SYSTEMS.map(system => job(system, 'success', 'colosseum')) })), false);
+  assert.equal(await check(world({ jobs: passed.map(each => each.name === jobName('xd', 'windows-2025') ? { ...each, conclusion: 'failure' } : each) })), false);
 });

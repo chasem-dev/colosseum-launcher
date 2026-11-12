@@ -7,6 +7,7 @@ const fsys = require('./fsys');
 const pokedex = require('./pokedex');
 const { SOUNDS, SOUND_EFFECT } = require('./pokemon-cries');
 const { NAMES } = require('./jukebox-names');
+const xdDisc = require('./xd-disc');
 
 // common_rel's .data: the song table, and the word after it that holds its length (module 125).
 const SONG_TABLE = { offset: 0x111B8C, size: 8, countAt: 0x14A6BC, most: 256 };
@@ -36,7 +37,9 @@ function build({ sounds, songs, names }) {
   return tracks;
 }
 
+// Pokémon XD's disc streams its music: its own sound test's list (xd-disc.js readSongs).
 function read(disc) {
+  if (xdDisc.isXd(disc)) return xdDisc.readSongs(disc);
   const common = fsys.entries(disc.file('common.fsys')).find(entry => entry.name === 'common_rel');
   if (!common) throw new Error('The game disc has no sound data.');
   const data = pokedex.relData(common.data());

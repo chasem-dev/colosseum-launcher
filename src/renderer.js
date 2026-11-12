@@ -7,7 +7,13 @@ let wizardStep = null;
 // The failure of a game `--play` started, shown once when the launcher opens instead.
 let directPlayShown = null;
 let setupPending = false;
-const GAME_LABEL = 'Play Pokémon Colosseum';
+// The activity while a game runs: "Play Pokémon Colosseum", or "Play" and the other game's name (main.js playLabel).
+const isGameLabel = label => typeof label === 'string' && label.startsWith('Play Pokémon ');
+// The game chosen on the Play page (games.js summary), and whether it has one of the launcher's features. A state
+// without one is Colosseum's, with everything.
+const COLOSSEUM = { id: 'colosseum', name: 'Pokémon Colosseum', shortName: 'Colosseum', discId: 'GC6E01', features: null };
+const chosenGame = data => data?.currentGame || COLOSSEUM;
+const gameHas = (data, feature) => !chosenGame(data).features || chosenGame(data).features[feature] !== false;
 const activityLog = window.coloActivityLog.createActivityLog();
 let logRenderPending = false;
 let consoleOpen = false, consoleExpanded = false, consoleFollowing = true;
@@ -544,7 +550,7 @@ function badge(id, label, good = false, warn = false) {
 
 function taskName(label) {
   if (!label) return 'Nothing running';
-  if (label === GAME_LABEL) return 'Game running';
+  if (isGameLabel(label)) return 'Game running';
   if (label.startsWith('Build ')) return 'Setting up your game';
   if (label.startsWith('Download port') || label.startsWith('Download decomp') || label.startsWith('Download renderer')) return 'Downloading setup files';
   if (label.startsWith('Download build') || label.startsWith('Prepare build') ||
@@ -558,7 +564,8 @@ function taskName(label) {
 function backupReason(reason) {
   return ({ manual: 'Manual backup', 'before-play': 'Before playing', 'after-play': 'After playing',
     'before-restore': 'Before restoring', 'before-dolphin-import': 'Before importing', 'before-cleanup': 'Before cleanup',
-    'before-port-update': 'Before update', 'before-tools-change': 'Before changing build tools' })[reason] || 'Backup';
+    'before-port-update': 'Before update', 'before-tools-change': 'Before changing build tools',
+    'before-moving-xd-save': 'Before moving the XD save' })[reason] || 'Backup';
 }
 
 function needsTextureDownload(data) {
@@ -579,14 +586,22 @@ function showWizardStep(data) {
   else if (wizardStep === null || wizardStep === 0 || wizardStep > required) wizardStep = required;
   const ready = wizardStep === 0;
   const downloadTextures = ready && data.binaryReady && needsTextureDownload(data);
-  $('page-home').classList.toggle('ready-mode', ready);
-  $('setup-flow').hidden = ready;
-  $('home-title').textContent = ready ? 'Pokémon Colosseum' : 'Set up your game';
-  $('home-description').textContent = ready
-    ? downloadTextures ? 'Set up HD visuals to finish setup.'
-      : !data.binaryReady ? `This version of the game is not set up yet. Prepare & play gets it ready and starts it, or ▾ Prepare only gets it ready for later.`
-      : data.game.needsUpdate ? `Game update${data.game.availableVersion ? ` ${data.game.availableVersion}` : ''} is ready. Your saves carry over.` : 'Ready when you are.'
-    : "Three steps, then you're ready to play.";
+  const home = $('page-home');
+  const show = () => {
+    home.classList.toggle('ready-mode', ready);
+    // a panel over the art (the setup steps): the chosen game's logo goes small to the top for it (layoutPlayStage)
+    home.classList.toggle('has-panel', !ready);
+    $('setup-flow').hidden = ready;
+    $('home-title').textContent = ready ? chosenGame(data).name : 'Set up your game';
+    // ready, the game's logo or name above says which game it is; the heading stays for screen readers
+    $('home-title').classList.toggle('visually-hidden', ready);
+    $('home-description').textContent = ready
+      ? downloadTextures ? 'Set up HD visuals to finish setup.'
+        : !data.binaryReady ? `This version of the game is not set up yet. Prepare & play gets it ready and starts it, or ▾ Prepare only gets it ready for later.`
+        : data.game.needsUpdate ? `Game update${data.game.availableVersion ? ` ${data.game.availableVersion}` : ''} is ready. Your saves carry over.` : 'Ready when you are.'
+      : "Three steps, then you're ready to play.";
+  };
+  if (home.classList.contains('has-panel') === ready) tweenPlayStage(show, { carry: true }); else show();
   $('setup-install-description').textContent = data.config.settings.textures && !data.texturesInstalled
     ? "We'll download HD textures, then build a playable copy of the game on your computer. This can take a while."
     : "We'll build a playable copy of the game on your computer. This can take a while.";
@@ -669,13 +684,13 @@ function renderActivity(active) {
   if (active && !consoleWasActive) consoleFailed = false;
   consoleWasActive = Boolean(active);
   renderConsoleState(active);
-  const working = Boolean(active) && active.label !== GAME_LABEL;
+  const working = Boolean(active) && !isGameLabel(active.label);
   $('task-progress').hidden = !working;
   $('status-progress').hidden = !working || !Number.isFinite(active.percent);
   if (!$('status-progress').hidden) $('status-progress-fill').style.width = `${active.percent}%`;
   $('activity-label').textContent = taskName(active?.label);
   $('stop').hidden = !active?.canStop;
-  $('stop').textContent = active?.label === GAME_LABEL ? 'Stop game'
+  $('stop').textContent = isGameLabel(active?.label) ? 'Stop game'
     : active?.label.startsWith('Build ') ? 'Stop build' : 'Stop task';
   $('view-build-log').textContent = active?.label.startsWith('Build ') ? 'View build log' : 'View activity';
   const pbrNote = pbrProgress(active);
@@ -707,10 +722,252 @@ function renderConsoleState(active) {
   }
 }
 
+// The two games of the Play page: a side of the art each, split by a diagonal that gives the chosen one most of the
+// window (style.css #game-art), and a button each over its side: its logo from the disc, or its name (layoutPlayStage).
+const GAME_IDS = ['colosseum', 'xd'];
+function showChosenGame(id) {
+  const show = () => {
+    $('game-art').dataset.active = id;
+    for (const each of GAME_IDS) $(`game-${each}`).setAttribute('aria-pressed', String(each === id));
+  };
+  // the logos move with the line (tweenPlayStage)
+  if ($('game-art').dataset.active !== id) tweenPlayStage(show); else show();
+}
+
+// The game picker, and what the chosen game has: its disc, and the tabs and settings of features it doesn't have hidden.
+// The Pokédex and the Jukebox read the chosen game's disc, so they start again when another game is chosen.
+let renderedGame = null;
+function renderGame(data) {
+  const chosen = chosenGame(data), locked = Boolean(data.active) || setupPending;
+  if (renderedGame && renderedGame !== chosen.id) { window.coloPokedex?.reset?.(); window.coloJukebox?.reset?.(); }
+  renderedGame = chosen.id;
+  showChosenGame(choosingGame || chosen.id);
+  for (const id of GAME_IDS) $(`game-${id}`).disabled = locked;
+  // the art can't be clicked to choose either while a task runs
+  $('game-art').classList.toggle('locked', locked);
+  $('setup-disc-description').textContent = `Select a file from your own North American ${chosen.name} disc (${chosen.discId}). Use an .iso or .gcm file.`;
+  // Dolphin's name for the game's save (gci-save.js exportName)
+  const gciName = chosen.id === 'xd' ? '01-GXXE-PokemonXD.gci' : '01-GC6E-pokemon_colosseum.gci';
+  $('dolphin-import-help').textContent = `Drop your North American ${chosen.name} .gci save here, or the folder it is in, or choose it. Dolphin names it ${gciName}. Your current saves are backed up before importing.`;
+  renderGenerationsText(data, chosen);
+  renderPokemonText(chosen);
+  renderGbaText(chosen);
+  for (const node of document.querySelectorAll('[data-feature]')) node.classList.toggle('feature-off', !gameHas(data, node.dataset.feature));
+  if (!gameHas(data, 'gbaLink') && settingsTab === 'gba') settingsTab = 'gameplay';
+  if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online' }[page] || '')) showPage('play');
+}
+
+// Later generations, as each game has them: Colosseum's own, with packs and Battle Revolution assets; another game's are
+// made from Colosseum's disc (main.js prepareGenerations), and its Pokémon look as the ones standing in for them.
+const GENERATION_RULES = 'Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types\' Sp. Def; and moves Diamond and Pearl changed play as they did there.';
+function renderGenerationsText(data, chosen) {
+  // Colosseum's own (with the Pokédex and the randomizer), or another game's, made from Colosseum's disc
+  const own = chosen.id === 'colosseum';
+  $('battle-rules-gen3').textContent = `${chosen.shortName} (Gen 3)`;
+  $('battle-rules-note').textContent = own
+    ? `${GENERATION_RULES} An online battle plays by its room's rules, chosen under Rules on the Online page.`
+    : `${GENERATION_RULES} It applies to Colosseum too, and ${chosen.shortName}'s online battles play by Gen 3 rules for now.`;
+  // another game's story gives none yet, but its randomizer can choose them
+  const story = gameHas(data, 'randomizer') ? `Nothing in ${chosen.shortName}'s story gives you one, but the randomizer can choose them, with Gen 4 under its Generations.`
+    : `Nothing in ${chosen.shortName}'s story gives you one yet.`;
+  $('generation4-note').textContent = own
+    ? 'Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models and cries come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one\'s looks and cry.'
+    : gameHas(data, 'pbrAssets')
+      ? `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}, and the game's own Pokémon learn moves and evolve as in Platinum. Their models and cries come from your own Pokémon Battle Revolution disc; without it, a Pokémon of the game stands in for each one's looks and cry. ${story} It applies to Colosseum too.`
+      : `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}. Each one looks and sounds like a Pokémon of the game standing in for it. ${story} It applies to Colosseum too.`;
+  // made from Colosseum's disc, which has to be set up first
+  $('generations-disc-note').hidden = own || data.teamDiscReady !== false;
+  $('generations-disc-note').textContent = `Generation 4 in ${chosen.shortName} is made from your Pokémon Colosseum disc. Choose Colosseum on the Play page and set up its disc first; until then ${chosen.shortName} plays by Gen 3 rules.`;
+}
+
+// The GBA link, as each game has it: Colosseum registers a team and gives Poké Coupons; XD only trades, at the Trade
+// Center (host/xd/gbalink.c)
+let gbaIntro = null;
+function renderGbaText(chosen) {
+  gbaIntro ??= $('gba-intro').textContent;
+  $('gba-intro').textContent = chosen.id === 'xd'
+    ? 'Link your Pokémon Ruby, Sapphire, Emerald, FireRed or LeafGreen save to XD, as the GCN-GBA cable did, and trade at the Trade Center in a Pokémon Center\'s basement. Use socket 2. Choose the save your emulator keeps: the game reads it, and writes trades back into it, with a backup first. Save in a Pokémon Center on the GBA first.'
+    : gbaIntro;
+}
+
+// Shiny Shadow Pokémon, choosing starters and the randomizer, as each game has them: XD's Shadow Pokémon could never be
+// shiny, its starter is one Eevee, and its gifts are trades and Mt. Battle's Johto starters (host/shiny.c,
+// host/starters.c, host/randomizer.c).
+const POKEMON_TEXT = {};
+const XD_RANDOMIZER_TEXT = {
+  'randomizer-starters-title': 'Starter',
+  'randomizer-starters-note': 'Your first Pokémon, instead of Eevee.',
+  'randomizer-shadow-note': 'Every Shadow Pokémon you can snag. Each is a different species. Lugia and the Shadow Togepi you\'re given stay as they are.',
+  'randomizer-trainers-note': 'Everything else trainers send out, in the story, on Mt. Battle and in the Orre Colosseum. Quick Battle and the battle CDs stay as they are.',
+  'randomizer-gifts-note': 'The Pokémon traded to you in the story, and Mt. Battle\'s Chikorita, Cyndaquil and Totodile. Poké Spot Pokémon stay as they are.'
+};
+function renderPokemonText(chosen) {
+  for (const id of ['shiny-shadow-note', 'choose-starters-title', 'choose-starters-note', ...Object.keys(XD_RANDOMIZER_TEXT)]) POKEMON_TEXT[id] ??= $(id).textContent;
+  const xd = chosen.id === 'xd';
+  for (const [id, text] of Object.entries(XD_RANDOMIZER_TEXT)) $(id).textContent = xd ? text : POKEMON_TEXT[id];
+  // XD's game has no Pokémon packs' own Pokémon to choose (host/randomizer.c ignores the option there)
+  $('randomizer-packs-row').hidden = xd;
+  $('shiny-shadow-note').textContent = xd
+    ? 'A Shadow Pokémon can be shiny, at 1 in 8192 as other Pokémon are, and looks it in battle before you snag it. The original XD never makes them shiny. Each one\'s chance is decided when you first meet it in battle.'
+    : POKEMON_TEXT['shiny-shadow-note'];
+  $('choose-starters-title').textContent = xd ? 'Choose starter' : POKEMON_TEXT['choose-starters-title'];
+  $('choose-starters-note').textContent = xd
+    ? 'After you enter your name for a New Game, the game asks whether to begin with Eevee. Say No to pick any Pokémon instead, at level 10. A randomized game that randomizes the starter doesn\'t ask.'
+    : POKEMON_TEXT['choose-starters-note'];
+}
+
+// The line moves across as the game is chosen, before the launcher has switched to it; a failure puts it back.
+let choosingGame = null;
+async function chooseGame(id) {
+  if (chosenGame(current).id === id || choosingGame || $(`game-${id}`).disabled) return;
+  setMessage('');
+  choosingGame = id;
+  showChosenGame(id);
+  try {
+    const result = await window.colo.selectGame(id);
+    wizardStep = null;
+    if (result?.config) refresh(result);
+    await sync();
+  } catch (error) { showError(error); }
+  finally {
+    choosingGame = null;
+    if (current) renderGame(current);
+  }
+}
+// The other game: what a controller's X (or Square) does on the Play page.
+function switchGame() { chooseGame(GAME_IDS.find(id => id !== chosenGame(current).id)); }
+for (const id of GAME_IDS) {
+  $(`game-${id}`).addEventListener('click', () => chooseGame(id));
+  // the side of the art not chosen is the other game's, to click (the chosen side's clicks do nothing)
+  $(`game-art-${id}`).addEventListener('click', () => { if (page === 'play' && !consoleExpanded) chooseGame(id); });
+}
+
+// Each game's logo, read from its own disc by the launcher (main.js gameLogos), in place of its name:
+// asked for again when a disc, the language or the HD textures change. A game without a disc, or whose logo couldn't
+// be read, keeps its name.
+let logoKey = null;
+function logoState(config = {}) {
+  const chosen = config.game || GAME_IDS[0];
+  return JSON.stringify([GAME_IDS.map(id => (id === chosen ? config.rom : config.games?.[id]?.rom) || ''),
+    config.settings?.language || 'en', Boolean(config.settings?.textures)]);
+}
+function showLogos(logos) {
+  for (const id of GAME_IDS) {
+    const url = typeof logos?.[id] === 'string' && logos[id].startsWith('data:image/') ? logos[id] : null, logo = $(`game-logo-${id}`);
+    if (url) logo.src = url; else logo.removeAttribute('src');
+    logo.hidden = !url;
+    $(`game-${id}`).classList.toggle('has-logo', Boolean(url));
+  }
+}
+async function syncLogos(config) {
+  const key = logoState(config);
+  if (key === logoKey || !window.colo.gameLogos) return;
+  logoKey = key;
+  let logos = null;
+  try { logos = await window.colo.gameLogos(); } catch (_) { /* the names stay */ }
+  if (key === logoKey) showLogos(logos);
+}
+
+// Where the logos and the headline go on the Play page (play-stage.js has the rules): measured from the window, the
+// page, Play and any banner, and set as --x, --y and --w on each game's button, and --x, --top and --max on the
+// headline. Asked again when the window or Play changes size, a logo loads, or the page is refreshed.
+function stageGeometry() {
+  const home = $('page-home'), viewport = home.parentElement;
+  if (home.hidden || !viewport || typeof window.getComputedStyle !== 'function') return null;
+  const shell = $('shell').getBoundingClientRect(), page = home.getBoundingClientRect();
+  if (!shell.width || !shell.height || !page.width) return null;
+  // the page's own heights are from its top, and the window's across from its left; the page as it is when it isn't
+  // scrolled (setting up, it can be)
+  const scroll = viewport.scrollTop || 0, pageTop = page.top + scroll - shell.top;
+  const across = box => ({ left: box.left - shell.left, right: box.right - shell.left });
+  const play = $('launch-panel').getBoundingClientRect(), banner = $('add-to-steam'), bannerBox = banner.getBoundingClientRect();
+  const aspect = {};
+  for (const id of GAME_IDS) {
+    const logo = $(`game-logo-${id}`);
+    aspect[id] = !logo.hidden && logo.naturalWidth > 0 && logo.naturalHeight > 0 ? logo.naturalWidth / logo.naturalHeight : 0;
+  }
+  return {
+    W: shell.width, H: shell.height, pageTop, active: $('game-art').dataset.active, panel: home.classList.contains('has-panel'), aspect,
+    play: { ...across(play), top: play.top - page.top },
+    // the window's foot
+    visibleBottom: viewport.getBoundingClientRect().bottom - page.top - scroll - 8,
+    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), bottom: bannerBox.bottom - page.top } : null,
+    band: parseFloat(window.getComputedStyle(home).paddingTop) || 0,
+    headlineHeight: $('home-headline').offsetHeight || 0,
+    origin: { x: $('game-picker').getBoundingClientRect().left - shell.left, page: page.left - shell.left }
+  };
+}
+function layoutPlayStage() {
+  const geometry = stageGeometry();
+  if (!geometry || !window.ColoPlayStage) return false;
+  let places = window.ColoPlayStage.layout(geometry);
+  const headline = $('home-headline'), px = value => `${Math.round(value * 10) / 10}px`;
+  const placeHeadline = () => {
+    const at = places.headline || { cx: places[geometry.active].cx };
+    headline.style.setProperty('--x', px(at.cx - geometry.origin.page));
+    if (places.headline) { headline.style.setProperty('--top', px(at.top)); headline.style.setProperty('--max', px(at.maxWidth)); }
+  };
+  placeHeadline();
+  // the headline wraps to the width it is given, which moves the logo above it: once more with its new height
+  if (places.headline && Math.abs((headline.offsetHeight || 0) - geometry.headlineHeight) > 1) {
+    places = window.ColoPlayStage.layout({ ...geometry, headlineHeight: headline.offsetHeight || 0 });
+    placeHeadline();
+  }
+  for (const id of GAME_IDS) {
+    const place = places[id], tab = $(`game-${id}`);
+    tab.style.setProperty('--x', px(place.cx - geometry.origin.x));
+    tab.style.setProperty('--y', px(place.cy - place.h / 2));
+    tab.style.setProperty('--w', px(place.w));
+  }
+  $('page-home').classList.add('stage-placed');
+  return true;
+}
+
+// Moving between places (another game chosen, or a panel coming or going) is a tween of the same .75 s and easing as the
+// line (style.css --tween): each part is put in its new place at once, then drawn from where it was by a transform that
+// eases away. Logos grow or shrink as they go; the rest slides. Reduced motion: no tween.
+const STAGE_TWEEN = { duration: 750, easing: 'cubic-bezier(.7, 0, .25, 1)' };
+let stageAnimations = [];
+const stageParts = () => [...GAME_IDS.flatMap(id => [$(`game-mark-${id}`), $(`game-state-${id}`)]), $('home-headline'), $('setup-flow'), $('launch-panel')];
+function reducedMotion() { return Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches); }
+// carry: a change during a tween (a panel coming as the other game is chosen) keeps to that tween's time, as the line does
+function tweenPlayStage(change, { carry = false } = {}) {
+  const parts = stageParts();
+  const tween = page === 'play' && $('page-home').classList.contains('stage-placed') && !reducedMotion() && typeof parts[0].animate === 'function';
+  const from = tween ? parts.map(part => part.getBoundingClientRect()) : [];
+  const running = carry ? stageAnimations.find(animation => animation.playState === 'running') : null;
+  const elapsed = running ? Number(running.currentTime) || 0 : 0, done = running ? running.effect.getComputedTiming().progress || 0 : 0;
+  for (const animation of stageAnimations) animation.cancel();
+  stageAnimations = [];
+  change();
+  if (!layoutPlayStage() || !tween) return;
+  // keeping to a running tween, each part starts far enough back that it is where it was at the time already gone
+  const keep = elapsed > 0 && done < 0.9 ? 1 / (1 - done) : 0;
+  parts.forEach((part, index) => {
+    const was = from[index], now = part.getBoundingClientRect();
+    if (!was.width || !now.width) return;
+    let dx = was.left + was.width / 2 - now.left - now.width / 2, dy = was.top + was.height / 2 - now.top - now.height / 2;
+    let scale = part.classList.contains('game-tab-art') ? was.width / now.width : 1;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(scale - 1) < 0.002) return;
+    if (keep) { dx *= keep; dy *= keep; scale = 1 + (scale - 1) * keep; }
+    const round = (value, places = 100) => Math.round(value * places) / places;
+    const animation = part.animate([{ transform: `translate(${round(dx)}px, ${round(dy)}px) scale(${round(scale, 1e4)})` }, { transform: 'none' }], STAGE_TWEEN);
+    if (keep) animation.currentTime = elapsed;
+    stageAnimations.push(animation);
+  });
+}
+if (typeof ResizeObserver === 'function') {
+  const observer = new ResizeObserver(() => layoutPlayStage());
+  for (const id of ['page-home', 'launch-panel']) observer.observe($(id));
+}
+for (const id of GAME_IDS) $(`game-logo-${id}`).addEventListener('load', () => layoutPlayStage());
+
 function refresh(data) {
   if (Number.isFinite(data.logResetSequence)) resetLog(data.logResetSequence);
   current = data;
   const { config, platform } = data;
+  renderGame(data);
+  syncLogos(config);
   $('platform').textContent = platform.name;
   $('repo-path').textContent = config.repo;
   $('repo-path').title = config.repo;
@@ -728,6 +985,8 @@ function refresh(data) {
   renderMacTools(data.tools);
   $('play').disabled = Boolean(data.active) || setupPending;
   renderPlayMenu(data);
+  // the headline's words may have changed, and with them its height under the logo
+  layoutPlayStage();
   for (const button of document.querySelectorAll('[data-setup-back]')) button.disabled = Boolean(data.active) || setupPending;
   $('build').hidden = !data.binaryReady || !data.romReady;
   $('rebuild-note').hidden = $('build').hidden;
@@ -870,12 +1129,19 @@ async function loadUpdateChannels() {
 }
 
 const sourceFields = { port: ['source-port-repository', 'source-port-ref'], decomp: ['source-decomp-repository', 'source-decomp-ref'] };
-let sourceShown = false;
+let sourceShown = null;
 function renderGameSource(data) {
   const chosen = data.gameSource;
-  // Fill the fields from the saved choice once, so typing is never overwritten.
-  if (!sourceShown) {
-    sourceShown = true;
+  // The chosen game's release repositories, for the rows left empty.
+  const release = data.currentGame?.release;
+  if (release) {
+    $('source-port-repository').placeholder = release.repository;
+    $('source-port-ref').placeholder = release.branch || 'master';
+    $('source-decomp-repository').placeholder = release.decompRepository;
+  }
+  // Fill the fields from the saved choice once for each game, so typing is never overwritten.
+  if (sourceShown !== chosenGame(data).id) {
+    sourceShown = chosenGame(data).id;
     for (const [part, [repository, ref]] of Object.entries(sourceFields)) {
       $(repository).value = chosen?.override[part]?.repository || '';
       $(ref).value = chosen?.override[part]?.ref || '';
@@ -1187,7 +1453,7 @@ async function choosePbrDisc() {
 // they look like without it. Not asked when they all have them already, or when this game can't make them.
 function offerPbrModels() {
   const pbr = current?.pbr || {};
-  if (current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
+  if (!gameHas(current, 'pbrAssets') || current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
   const remake = pbr.made > 0 || pbr.outdated > 0 || pbr.noCry > 0;
   $('pbr-offer-lead').textContent = pbr.discFound
     ? `Your Battle Revolution disc is chosen: ${pbr.disc}. Make ${remake ? 'what\'s still missing' : `their ${pbrAssets(pbr, true)}`} from it now? It takes a few minutes.`
@@ -1657,7 +1923,7 @@ async function importDolphinSave(files) {
     if (result.cancelled) resultText.textContent = 'Import cancelled.';
     else {
       const skipped = result.skipped.length ? ` Skipped ${result.skipped.map(save => `${save.file} (${save.reason})`).join(', ')}.` : '';
-      resultText.textContent = `Imported ${result.trainer}'s save from ${result.file}. Start the game to play it.${skipped}`;
+      resultText.textContent = `Imported ${result.trainer ? `${result.trainer}'s save` : 'the save'} from ${result.file}. Start the game to play it.${skipped}`;
     }
   } catch (error) { resultText.textContent = errorText(error); }
   await sync();
@@ -1674,7 +1940,7 @@ $('export-gci-save').addEventListener('click', async () => {
       const randomized = result.randomized ? ' This is a randomizer run: your team comes with it, but Dolphin plays the rest as the normal game.' : '';
       const n = result.extraBoxPokemon;
       const boxes = n ? ` Dolphin's game has 3 PC boxes, so ${n === 1 ? 'the Pokémon' : `the ${n} Pokémon`} in boxes 4 to 10 ${n === 1 ? 'is' : 'are'} not in this file.` : '';
-      resultText.textContent = `Exported ${result.trainer}'s save to ${result.file}.${warning}${randomized}${boxes}`;
+      resultText.textContent = `Exported ${result.trainer ? `${result.trainer}'s save` : 'the save'} to ${result.file}.${warning}${randomized}${boxes}`;
     }
   } catch (error) { resultText.textContent = errorText(error); }
   await sync();
@@ -1727,7 +1993,7 @@ window.colo.onLogReset(resetLog);
 window.colo.onActivity(value => {
   const changed = Boolean(value) !== Boolean(current?.active);
   // Update & play builds and then starts the game in one task: reread the versions once the new game boots.
-  const gameStarted = value?.label === GAME_LABEL && current?.active?.label !== value.label;
+  const gameStarted = isGameLabel(value?.label) && current?.active?.label !== value.label;
   if (current) current.active = value;
   renderActivity(value);
   // Lock the settings now: the next state (sync) can take a while to arrive.
@@ -1817,13 +2083,14 @@ window.coloGamepadNav.start({
   regions: '.switch, .field',
   defaultFocus: () => [page === 'settings' ? $(`tab-${settingsTab}`) : page === 'play' ? $('play') : $(pages[page].nav), $('play'), $('settings-cog')],
   // The game reads the same controller, and Controls waits for a button to bind.
-  paused: () => current?.active?.label === GAME_LABEL || Boolean(capture),
+  paused: () => isGameLabel(current?.active?.label) || Boolean(capture),
   actions: {
     back: gamepadBack,
     menu: () => openDialog() ? closeModal() : showPage(page === 'settings' ? 'play' : 'settings'),
     view: () => consoleOpen ? setConsoleOpen(false) : showActivityLog(),
     previous: () => stepPage(-1),
-    next: () => stepPage(1)
+    next: () => stepPage(1),
+    alternate: () => { if (page === 'play' && !openDialog()) switchGame(); }
   }
 });
 window.colo.windowState().then(renderWindowState).catch(showError);

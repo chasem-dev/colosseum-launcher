@@ -6,6 +6,9 @@ const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
 const SYSTEMS = ['ubuntu-24.04', 'windows-2025', 'macos-15-intel', 'macos-15'];
+// each game the workflow builds (game-build.yml's matrix): a release ships both pins
+const GAMES = ['colosseum', 'xd'];
+const jobName = (game, system) => `compile-port (${game}, ${system})`;
 
 async function priorGameBuild({ sha, api, tree, log = () => {} }) {
   const pull = (await api(`commits/${sha}/pulls`)).find(item => item.merged_at && item.merge_commit_sha === sha);
@@ -16,7 +19,7 @@ async function priorGameBuild({ sha, api, tree, log = () => {} }) {
   const { workflow_runs: runs } = await api(`actions/workflows/game-build.yml/runs?head_sha=${head}&event=pull_request&status=success&per_page=20`);
   for (const run of runs) {
     const { jobs } = await api(`actions/runs/${run.id}/jobs?per_page=100`);
-    if (SYSTEMS.every(system => jobs.some(job => job.name === `compile-port (${system})` && job.conclusion === 'success'))) {
+    if (GAMES.every(game => SYSTEMS.every(system => jobs.some(job => job.name === jobName(game, system) && job.conclusion === 'success')))) {
       log(`Run ${run.id} of pull request #${pull.number} built these files on every system.`);
       return true;
     }
@@ -38,4 +41,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { priorGameBuild, SYSTEMS };
+module.exports = { priorGameBuild, SYSTEMS, GAMES, jobName };

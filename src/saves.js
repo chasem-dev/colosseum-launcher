@@ -6,15 +6,42 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const portable = require('./portable');
 
-// Where the game keeps its memory card (host/card.c): $XDG_DATA_HOME/colo-port/card-a, by default
-// ~/.local/share/colo-port/card-a, or on Windows %APPDATA%\\colo-port\\card-a. The portable launcher points
-// APPDATA at its own folder (gameDataEnvironment).
-function saveDirectory(env = process.env, platform = process.platform) {
+// Where the games keep their memory cards (host/card.c): $XDG_DATA_HOME/colo-port, by default ~/.local/share/colo-port,
+// or on Windows %APPDATA%\\colo-port. The portable launcher points APPDATA at its own folder (gameDataEnvironment).
+function portDataDirectory(env = process.env, platform = process.platform) {
   const portableRoot = portable.root(env, platform);
-  if (portableRoot) return path.join(portableRoot, 'saves', 'colo-port', 'card-a');
-  if (platform === 'win32') return path.resolve(env.APPDATA || path.join(env.USERPROFILE || os.homedir(), 'AppData', 'Roaming'), 'colo-port', 'card-a');
-  if (env.XDG_DATA_HOME) return path.resolve(env.XDG_DATA_HOME, 'colo-port', 'card-a');
-  return path.resolve(env.HOME || os.homedir(), '.local', 'share', 'colo-port', 'card-a');
+  if (portableRoot) return path.join(portableRoot, 'saves', 'colo-port');
+  if (platform === 'win32') return path.resolve(env.APPDATA || path.join(env.USERPROFILE || os.homedir(), 'AppData', 'Roaming'), 'colo-port');
+  if (env.XDG_DATA_HOME) return path.resolve(env.XDG_DATA_HOME, 'colo-port');
+  return path.resolve(env.HOME || os.homedir(), '.local', 'share', 'colo-port');
+}
+
+// Each game has a card of its own: Colosseum's colo-port/card-a, as always, and XD's colo-port/xd/card-a. Their saves
+// (48 and 43 blocks) don't fit on one 59-block card.
+const CARD_FOLDERS = { colosseum: ['card-a'], xd: ['xd', 'card-a'] };
+function saveDirectory(env = process.env, platform = process.platform, gameId = 'colosseum') {
+  return path.join(portDataDirectory(env, platform), ...(CARD_FOLDERS[gameId] || CARD_FOLDERS.colosseum));
+}
+
+// XD's save on the shared card, where builds before XD had a card of its own kept it, moves to XD's card, unless that
+// already has one (host/card.c does the same when XD starts). The shared card is backed up first. The .stat goes
+// first and the .dat last, as the game finds a save by its .dat. The Pokémon packs' rows (pokemon-packs.json) are
+// copied: Colosseum's save may rely on them too.
+const XD_SAVE = ['PokemonXD.stat', 'PokemonXD.dat'];
+function moveSharedXdSave(env = process.env, platform = process.platform, backups = backupRoot(env, platform)) {
+  const shared = saveDirectory(env, platform, 'colosseum'), own = saveDirectory(env, platform, 'xd');
+  if (!fs.existsSync(path.join(shared, 'PokemonXD.dat')) || fs.existsSync(path.join(own, 'PokemonXD.dat'))) return null;
+  const backup = backupSaves(shared, backups, 'before-moving-xd-save');
+  fs.mkdirSync(own, { recursive: true });
+  const registry = path.join(shared, 'pokemon-packs.json');
+  if (fs.existsSync(registry)) fs.copyFileSync(registry, path.join(own, 'pokemon-packs.json'));
+  for (const name of XD_SAVE) {
+    const from = path.join(shared, name);
+    if (!fs.existsSync(from)) continue;
+    fs.rmSync(path.join(own, name), { force: true });
+    fs.renameSync(from, path.join(own, name));
+  }
+  return { from: shared, to: own, backup: backup.directory || null };
 }
 
 // What the portable launcher's game needs to keep its memory card and caches in the portable folder.
@@ -145,5 +172,5 @@ function moveBuildKeepingSaves(buildDirectory, destination, saveDir, backups = b
   return backup;
 }
 
-module.exports = { saveDirectory, gameDataEnvironment, backupRoot, cleanupWouldRemoveSaves, cardFiles: saveFiles, backupSaves, listBackups, backupFolder,
+module.exports = { saveDirectory, moveSharedXdSave, gameDataEnvironment, backupRoot, cleanupWouldRemoveSaves, cardFiles: saveFiles, backupSaves, listBackups, backupFolder,
   restoreBackup, moveBuildKeepingSaves };

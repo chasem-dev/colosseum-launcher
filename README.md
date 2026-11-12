@@ -11,9 +11,9 @@
 <img width="1512" height="943" alt="image" src="https://github.com/user-attachments/assets/a513d488-33c6-4249-9792-5fb9c79a0b1b" />
 
 
-Set up and play the native PC port of Pokémon Colosseum on **Windows, macOS, and Linux**. The launcher guides you through setup, downloads the tools it needs, and gives you one big **Play** button when you're ready.
+Set up and play the native PC port of Pokémon Colosseum, and of Pokémon XD: Gale of Darkness, on **Windows, macOS, and Linux**. The launcher guides you through setup, downloads the tools it needs, and gives you one big **Play** button when you're ready.
 
-**Bring your own game.** You need a disc image made from your own North American Pokémon Colosseum disc. The launcher does not include a game or disc image.
+**Bring your own game.** You need a disc image made from your own North American Pokémon Colosseum disc (or Pokémon XD disc, GXXE01, for XD). The launcher does not include a game or disc image.
 
 This is an unofficial fan project, not affiliated with Nintendo, Creatures, GAME FREAK or The Pokémon Company.
 
@@ -54,6 +54,8 @@ The launcher walks you through three steps:
 1. **Download setup files.** Use the suggested location, or choose a different folder before downloading.
 2. **Choose disc image.** Select a copy of your own original North American Pokémon Colosseum disc: **GC6E01, revision 0**. Supported files are `.iso` and `.gcm`. Compressed formats (CISO, RVZ, GCZ) need converting to ISO first, which Dolphin does with **Convert File**. The bonus disc is not the game.
 3. **Begin setup.** The launcher downloads HD textures and builds the game on your computer. This first setup can take a while.
+
+For **Pokémon XD**, click XD's side of the Play page first. Each game has its own setup folder, disc and memory card: XD saves to `colo-port/xd/card-a` beside Colosseum's `colo-port/card-a`, and an XD save already on Colosseum's card moves there by itself (backed up first). XD is early: it plays with the renderer, display, controller, widescreen, HD text, fast-forward and Skip movies settings, and Online; Colosseum's other extras stay hidden while XD is chosen.
 
 On Mac, setup may ask you to install Apple's Command Line Tools. Follow **Mac setup help** in the launcher. The game is built for your Mac: on Apple Silicon, Beta's game is a native program that draws with Metal, with no Rosetta needed. Stable's game still runs through Rosetta, and setup asks for it.
 
@@ -112,7 +114,7 @@ If the game crashes, it saves a report on your computer. **Settings → Launcher
 
 ### Saved games and backups
 
-The launcher keeps your save location when you update or rebuild the game, and makes dated backups before and after playing, and before game updates or cleanup. The memory card is `colo-port/card-a` in your user data folder (`%APPDATA%` on Windows, `~/.local/share` elsewhere).
+The launcher keeps your save location when you update or rebuild the game, and makes dated backups before and after playing, and before game updates or cleanup. The memory card is `colo-port/card-a` in your user data folder (`%APPDATA%` on Windows, `~/.local/share` elsewhere), and XD's is `colo-port/xd/card-a`.
 
 The **Saves** tab backs up saves, opens the backup folder and restores a backup, backing up your current saves first. Backups are stored in **Colosseum Launcher Backups** in your home folder.
 
@@ -160,6 +162,8 @@ A party is of **Generation 3** or **Generation 4**, chosen at the top of the tea
 Your game starts and waits in the stadium, and your room appears for everyone on the list. Untick **Show on the room list** to keep it private and give a friend the code instead. When someone joins, your game starts again and you're both in the battle: first the screen with both trainers and their Pokémon, then, with team preview, the game's own selection screen, where you each pick your Pokémon in order with the buttons shown beside them (you have 90 seconds, then the first of your party go; the other player's picks show once you've both chosen), and after the battle its results, with each Pokémon's HP and who won. A game from before these screens closes while you each pick on the Online tab instead. Players choose their moves at the same time. **Give in** from the battle menu ends the battle, and closing the game counts as leaving.
 
 Both players need the same build of the game. A room on another version says which one it needs.
+
+**Pokémon XD** battles online too. Its parties come from the team builder, which reads the Pokémon from your Colosseum disc, so set up Colosseum's disc as well. Tick **Colosseum and XD players can join** when you create a room, and a player of either game can take it: the two games play one battle, with XD following Colosseum's rules where they differ. XD's online battles have Colosseum's timers, the in-game pick screen with team preview, and the screens around a battle. Rooms for both games don't have Platinum's rules yet, and both games must come from the same version of the port.
 
 ### Game Boy Advance
 

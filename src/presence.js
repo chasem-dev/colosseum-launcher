@@ -53,7 +53,8 @@ function titleCase(text) {
 
 function placeName(place) { return PLACE_NAMES[place] || titleCase(place); }
 
-function placeImage(game) { return PLACE_IMAGES[game?.place] || AREA_IMAGES[game?.area] || null; }
+// XD's areas are numbered its own way: only a place's own name picks its picture there (several are in both games)
+function placeImage(game, areas = true) { return PLACE_IMAGES[game?.place] || (areas ? AREA_IMAGES[game?.area] : null) || null; }
 
 // Discord rejects texts shorter than 2 or longer than 128 characters.
 function fit(text) {
@@ -63,13 +64,14 @@ function fit(text) {
 }
 
 // The latest game presence and the session -> a Discord activity. `online` is an online battle's
-// opponent, as the room names them: the launcher knows that one better than the game.
-function activity(game, { startedAt, online = null } = {}) {
+// opponent, as the room names them: the launcher knows that one better than the game. `gameName` is the game being
+// played (Colosseum's unless given), `areaImages` whether the floor table's area numbers are Colosseum's.
+function activity(game, { startedAt, online = null, gameName = GAME, areaImages = true } = {}) {
   const result = {
     details: undefined,
     state: undefined,
     timestamps: startedAt ? { start: startedAt } : undefined,
-    assets: { large_image: 'logo', large_text: GAME, small_image: 'launcher', small_text: 'Played with Colosseum Launcher' },
+    assets: { large_image: 'logo', large_text: gameName, small_image: 'launcher', small_text: 'Played with Colosseum Launcher' },
     buttons: [{ label: 'Play it on PC', url: LAUNCHER_URL }, { label: 'Join the Discord', url: DISCORD_URL }]
   };
   if (online) {
@@ -81,7 +83,7 @@ function activity(game, { startedAt, online = null } = {}) {
   // A game without host/presence.c never says more than this.
   if (!game) return clean(result);
   const place = game.place ? placeName(game.place) : '';
-  const image = placeImage(game);
+  const image = placeImage(game, areaImages);
   const lead = game.story && game.lead && game.level ? `Lead: ${titleCase(game.lead)}, Lv. ${game.level}` : '';
   const opponent = game.opponent ? `Battling ${titleCase(game.opponent)}` : 'In a battle';
   if (game.mode === 'battle') {
@@ -100,7 +102,7 @@ function activity(game, { startedAt, online = null } = {}) {
   // Menus and movies keep the title's picture; a place, its area's.
   if (image && ['battle', 'field', 'scene'].includes(game.mode)) {
     result.assets.large_image = image;
-    if (result.assets.large_text === GAME && place) result.assets.large_text = place;
+    if (result.assets.large_text === gameName && place) result.assets.large_text = place;
   }
   return clean(result);
 }

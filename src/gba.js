@@ -14,7 +14,7 @@ const BIOS_SIZE = 16384;
 const KNOWN_BIOS_SHA1 = '300c20df6731a33952ded8c436f7f186d25d3492';
 // The sockets a GBA can be on: socket 1 is the player's controller.
 const SOCKETS = ['2', '3', '4'];
-// Pokémon games that link with Pokémon Colosseum, by their header's game code (without the region letter).
+// Pokémon games that link with Pokémon Colosseum and XD, by their header's game code (without the region letter).
 const POKEMON = { AXV: 'Pokémon Ruby', AXP: 'Pokémon Sapphire', BPE: 'Pokémon Emerald', BPR: 'Pokémon FireRed', BPG: 'Pokémon LeafGreen' };
 const EREADER = { PSAE: 'e-Reader', PSAJ: 'Card e-Reader+', PEAJ: 'Card e-Reader' };
 const REGIONS = { E: 'English', J: 'Japanese', D: 'German', F: 'French', I: 'Italian', S: 'Spanish', P: 'European' };
@@ -46,10 +46,10 @@ function checkGamePak(file) {
   const region = code[3] || '';
   if (EREADER[code]) return { title, code, name: EREADER[code], ereader: true };
   const pokemon = POKEMON[code.slice(0, 3)];
-  if (!pokemon) return { title, code, name: title || code, warning: "This isn't a Pokémon game that links with Colosseum: Ruby, Sapphire, Emerald, FireRed or LeafGreen." };
+  if (!pokemon) return { title, code, name: title || code, warning: "This isn't a Pokémon game that links with Colosseum or XD: Ruby, Sapphire, Emerald, FireRed or LeafGreen." };
   const language = REGIONS[region] || region;
   return { title, code, name: `${pokemon}${language ? ` (${language})` : ''}`,
-    ...(region === 'E' ? {} : { warning: 'This copy of Colosseum is the English one: it links with the English GBA games.' }) };
+    ...(region === 'E' ? {} : { warning: 'This copy of the game is the English one: it links with the English GBA games.' }) };
 }
 
 // Where a Game Pak's save is by default: beside it, with .sav, as mGBA and other emulators keep it.
