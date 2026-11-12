@@ -38,7 +38,7 @@ function main(t, { platform = process.platform, childProcess } = {}) {
     } }),
     setTimeout, setInterval, module: { exports: {} } };
   vm.runInNewContext(fs.readFileSync(filename, 'utf8') +
-    '\nmodule.exports = { launch, capture, exclusive, createWindow, registerHandlers, log, logOutput, activityLog, makeSaveBackup, setConfig: value => { config = value; }, saveLog: file => sessionLog.save(file, [...partialOutput.values()]) };', context, { filename });
+    '\nmodule.exports = { launch, capture, exclusive, createWindow, registerHandlers, log, logOutput, activityLog, makeSaveBackup, preparePlayPacks, teamDiscReady, setConfig: value => { config = value; }, saveLog: file => sessionLog.save(file, [...partialOutput.values()]) };', context, { filename });
   return { ...context.module.exports, root, appEvents, processEvents, consoleEvents, handlers, copied };
 }
 
@@ -232,4 +232,48 @@ test('the game\'s Discord presence lines stay out of the activity log, and other
   await runtime.launch(process.execPath, print(`${presenceLine}\n`), {}, 'Build game');
   const stdout = runtime.activityLog.snapshot().filter(entry => entry.stream === 'stdout').map(entry => entry.text);
   assert.deepEqual(stdout, ['floor loaded', presenceLine]);
+});
+
+// XD reads Colosseum's file of later generations (host/xd/packs.c): made from Colosseum's disc, whichever disc XD's is.
+test('XD gets the later generations the settings ask for, made from Colosseum\'s disc', t => {
+  const runtime = main(t);
+  const { gcm } = require('./disc-fixture');
+  const pokemonPacks = require('../src/pokemon-packs'), generations = require('../src/generations');
+  const colosseum = path.join(runtime.root, 'colosseum.iso'), xd = path.join(runtime.root, 'xd.iso');
+  fs.writeFileSync(colosseum, gcm()); fs.writeFileSync(xd, gcm('GXXE01', 0, 'Pokemon XD'));
+  const read = [], built = [], originals = { readGameTables: pokemonPacks.readGameTables, generationPokemon: pokemonPacks.generationPokemon, build: generations.build };
+  t.after(() => { Object.assign(pokemonPacks, { readGameTables: originals.readGameTables, generationPokemon: originals.generationPokemon }); generations.build = originals.build; });
+  pokemonPacks.readGameTables = rom => { read.push(rom); return { rom }; };
+  pokemonPacks.generationPokemon = () => ({ pokemon: [], problems: [] });
+  generations.build = (tables, settings) => {
+    built.push(settings);
+    return { moves: [], species: [], abilities: [], rules: settings.battleRules > 3 ? { generation: settings.battleRules, features: 3, categories: Buffer.alloc(4), changed: [], species: [] } : null };
+  };
+  const folder = path.join(runtime.root, 'cache');
+  fs.mkdirSync(folder);
+  const settings = { battleRules: 4, generationPokemon: [4] };
+  runtime.setConfig({ game: 'xd', rom: xd, settings, games: { colosseum: { rom: colosseum } } });
+  const played = runtime.preparePlayPacks(xd, folder);
+  assert.equal(played.own, 0);
+  assert.equal(played.file, path.join(folder, 'generations.bin'));
+  assert.deepEqual(read, [colosseum], 'Colosseum\'s disc, not XD\'s');
+  assert.deepEqual(built, [{ battleRules: 4, generationPokemon: [4] }]);
+  const bytes = fs.readFileSync(played.file);
+  assert.equal(bytes.subarray(0, 4).toString('latin1'), 'CPKM');
+  assert.ok(bytes.includes(Buffer.from('MECH')), 'the rules go in');
+  assert.ok(!bytes.includes(Buffer.from('ROWS')), 'no rows of Colosseum\'s own Pokémon, which XD has no use for');
+  assert.equal(runtime.teamDiscReady(), true);
+  // Colosseum's rules and no later Pokémon: nothing to read
+  runtime.setConfig({ game: 'xd', rom: xd, settings: { battleRules: 3, generationPokemon: [] }, games: { colosseum: { rom: colosseum } } });
+  assert.deepEqual({ ...runtime.preparePlayPacks(xd, folder) }, { file: null, own: 0 });
+  assert.equal(read.length, 1);
+  // An online battle in XD has no settings' generations: its room's Gen 3 rules make nothing
+  runtime.setConfig({ game: 'xd', rom: xd, settings, games: { colosseum: { rom: colosseum } } });
+  assert.deepEqual({ ...runtime.preparePlayPacks(xd, folder, { rules: { battleRules: 3 } }) }, { file: null, own: 0 });
+  // Without Colosseum's disc XD plays by Gen 3, and the activity log says why
+  runtime.setConfig({ game: 'xd', rom: xd, settings, games: {} });
+  assert.deepEqual({ ...runtime.preparePlayPacks(xd, folder) }, { file: null, own: 0 });
+  assert.match(runtime.activityLog.snapshot().map(entry => entry.text).join('\n'),
+    /Later generations weren't loaded: XD's later generations are made from Pokémon Colosseum's disc\. Choose Colosseum on the Play page/);
+  assert.equal(runtime.teamDiscReady(), false);
 });

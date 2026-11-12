@@ -732,9 +732,27 @@ function renderGame(data) {
   // Dolphin's name for the game's save (gci-save.js exportName)
   const gciName = chosen.id === 'xd' ? '01-GXXE-PokemonXD.gci' : '01-GC6E-pokemon_colosseum.gci';
   $('dolphin-import-help').textContent = `Drop your North American ${chosen.name} .gci save here, or the folder it is in, or choose it. Dolphin names it ${gciName}. Your current saves are backed up before importing.`;
+  renderGenerationsText(data, chosen);
   for (const node of document.querySelectorAll('[data-feature]')) node.classList.toggle('feature-off', !gameHas(data, node.dataset.feature));
   if (!gameHas(data, 'gbaLink') && settingsTab === 'gba') settingsTab = 'gameplay';
   if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online' }[page] || '')) showPage('play');
+}
+
+// Later generations, as each game has them: Colosseum's own, with packs and Battle Revolution assets; another game's are
+// made from Colosseum's disc (main.js prepareGenerations), and its Pokémon look as the ones standing in for them.
+const GENERATION_RULES = 'Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types\' Sp. Def; and moves Diamond and Pearl changed play as they did there.';
+function renderGenerationsText(data, chosen) {
+  const own = gameHas(data, 'pokemonPacks');
+  $('battle-rules-gen3').textContent = `${chosen.shortName} (Gen 3)`;
+  $('battle-rules-note').textContent = own
+    ? `${GENERATION_RULES} An online battle plays by its room's rules, chosen under Rules on the Online page.`
+    : `${GENERATION_RULES} It applies to Colosseum too, and ${chosen.shortName}'s online battles play by Gen 3 rules for now.`;
+  $('generation4-note').textContent = own
+    ? 'Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models and cries come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one\'s looks and cry.'
+    : `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}. Each one looks and sounds like a Pokémon of the game standing in for it. Nothing in ${chosen.shortName}'s story gives you one yet. It applies to Colosseum too.`;
+  // made from Colosseum's disc, which has to be set up first
+  $('generations-disc-note').hidden = own || data.teamDiscReady !== false;
+  $('generations-disc-note').textContent = `Generation 4 in ${chosen.shortName} is made from your Pokémon Colosseum disc. Choose Colosseum on the Play page and set up its disc first; until then ${chosen.shortName} plays by Gen 3 rules.`;
 }
 
 // The line moves across as the game is chosen, before the launcher has switched to it; a failure puts it back.
@@ -1251,7 +1269,7 @@ async function choosePbrDisc() {
 // they look like without it. Not asked when they all have them already, or when this game can't make them.
 function offerPbrModels() {
   const pbr = current?.pbr || {};
-  if (current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
+  if (!gameHas(current, 'pbrAssets') || current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
   const remake = pbr.made > 0 || pbr.outdated > 0 || pbr.noCry > 0;
   $('pbr-offer-lead').textContent = pbr.discFound
     ? `Your Battle Revolution disc is chosen: ${pbr.disc}. Make ${remake ? 'what\'s still missing' : `their ${pbrAssets(pbr, true)}`} from it now? It takes a few minutes.`

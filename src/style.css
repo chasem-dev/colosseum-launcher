@@ -93,6 +93,7 @@ select { width: 100%; padding: 7px 10px; border: 1px solid #dcd4dd; border-radiu
 .range-field output { color: #849196; font-size: 12px; font-variant-numeric: tabular-nums; }
 .range-field input[type=range] { flex: 0 1 200px; min-width: 0; accent-color: #841d74; }
 .preset-tip { margin-top: 10px; padding: 9px 12px; border-radius: 9px; background: #fff6dc; color: #5b4a17; font-size: 12px; }
+.generations-disc-note { margin: 0 0 10px; }
 .small-path { min-height: 34px; margin: 5px 0 9px; color: #86727e; font-size: 11px; white-space: pre-line; overflow-wrap: anywhere; }
 .backup-picker { display: grid; gap: 6px; margin: 10px 0; color: #5e4257; font-size: 12px; }
 .danger { color: #a04d49; }

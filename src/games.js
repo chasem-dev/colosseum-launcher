@@ -39,9 +39,11 @@ const GAMES = {
     // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its
     // 2D stays 4:3, centred); its save goes to and from Dolphin as a .gci (gci-save.js); it prints its [presence] lines
     // (host/xd/presence.c); its text goes through HD text (host/hdtext.c); its online battles (host/xd/online.c) speak
-    // Colosseum's lines, with parties from the team builder, which reads Colosseum's disc (main.js teamDisc); the rest
-    // hook Colosseum's functions
-    features: ['online', 'teamBuilder', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence']
+    // Colosseum's lines, with parties from the team builder, which reads Colosseum's disc (main.js teamDisc); later
+    // generations' rules, Pokémon and moves come in Colosseum's file, made from Colosseum's disc (main.js
+    // prepareGenerations), which host/xd/packs.c turns into XD's rows, its Pokémon looking as the ones standing in for
+    // them; the rest hook Colosseum's functions
+    features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence']
   }
 };
 

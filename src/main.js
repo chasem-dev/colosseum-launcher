@@ -1111,6 +1111,42 @@ function prepareBattleRules(rom, folder, battleRules) {
   return file;
 }
 
+// A game without packs of its own but with later generations (XD, games.js): the player's battle rules, and the later
+// generations' Pokémon and moves, as Colosseum's file has them, made from Colosseum's disc (teamDisc), or null when the
+// settings ask for none. The game turns its rows into its own (host/xd/packs.c), its Pokémon looking and sounding as
+// the ones standing in for them, so no models or cries go in.
+function prepareGenerations(rom, folder, settings = config.settings) {
+  const chosen = generations.normalize(settings);
+  if (chosen.battleRules <= generations.COLOSSEUM_RULES && !chosen.generationPokemon.length) return null;
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const built = generations.build(packTables.tables, chosen);
+  const { pokemon, problems } = pokemonPacks.generationPokemon(packTables.tables, built);
+  for (const problem of problems) log(`Later generation's Pokémon ${packLabel(problem)}: ${problem.message}`);
+  const file = path.join(folder, 'generations.bin');
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules }));
+  for (const generation of chosen.generationPokemon) log(`Generation ${generation} Pokémon, from Pokémon Colosseum's disc: ${pokemon.filter(each => each.generation === generation).length} Pokémon and ${built.moves.length} new moves.`);
+  if (built.rules) log(`Battle rules: generation ${built.rules.generation}.`);
+  return file;
+}
+
+// What a play gives the game of Pokémon packs and later generations: { file, own } (own: how many of its Pokémon are
+// packs' own). An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules
+// are both games' (the room's own, not either player's settings). A game without packs of its own reads its later
+// generations from Colosseum's disc.
+function preparePlayPacks(rom, folder, battle = null) {
+  if (battle) {
+    if (!(battle.rules?.battleRules > generations.COLOSSEUM_RULES) || !supports('generations')) return { file: null, own: 0 };
+    return { file: prepareBattleRules(supports('pokemonPacks') ? rom : teamDisc('The room\'s battle rules are made'), folder, battle.rules.battleRules), own: 0 };
+  }
+  if (supports('pokemonPacks')) {
+    try { return preparePokemonPacks(rom, folder); }
+    catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); return { file: null, own: 0 }; }
+  }
+  if (!supports('generations')) return { file: null, own: 0 };
+  try { return { file: prepareGenerations(teamDisc(`${activeGame().shortName}'s later generations are made`), folder), own: 0 }; }
+  catch (error) { log(`Later generations weren't loaded: ${error.message}`); return { file: null, own: 0 }; }
+}
+
 // The HD textures the Pokédex draws with: the folders the game would read, the player's custom textures and then
 // the HD pack once it's turned on and downloaded. Indexed again when the folders change and each time the list is read.
 let pokedexTextures = { key: null, index: new Map() };
@@ -1335,16 +1371,7 @@ async function play(installation = null, battle = null) {
   if (!battle) makeSaveBackup('before-play');
   const cacheFolder = path.join(app.getPath('userData'), 'game-cache');
   fs.mkdirSync(cacheFolder, { recursive: true });
-  // An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules are both
-  // games' (the room's own, not either player's settings).
-  let packsFile = null, packPokemon = 0;
-  if (!supports('pokemonPacks')) { /* the game has no packs, nor later generations' rules */ }
-  else if (!battle) {
-    try { ({ file: packsFile, own: packPokemon } = preparePokemonPacks(rom, cacheFolder)); }
-    catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); }
-  } else if (battle.rules?.battleRules > generations.COLOSSEUM_RULES) {
-    packsFile = prepareBattleRules(rom, cacheFolder, battle.rules.battleRules);
-  }
+  const { file: packsFile, own: packPokemon } = preparePlayPacks(rom, cacheFolder, battle);
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory(), laterGenerations: onlineFeatures(root).randomizerGenerations,
     // a new randomized run can have packs' own Pokémon: there are some, and the game can choose them
     packPokemon: packPokemon > 0 && onlineFeatures(root).randomizerPacks, game: chosen.id }),
@@ -1573,11 +1600,13 @@ function onlineFeatures(root, id = config.game) {
 
 // The disc the team builder and online parties read their Pokémon from: Colosseum's, whichever game is chosen. XD's
 // Pokémon, moves and items have Colosseum's numbers, so a party built from it battles in either game.
-function teamDisc() {
+function teamDisc(reader = 'The team builder reads its Pokémon') {
   const rom = games.allFields(config).colosseum?.rom;
-  if (!rom) throw new Error('The team builder reads its Pokémon from Pokémon Colosseum\'s disc. Choose Colosseum at the top of the Play page and set up its disc first.');
+  if (!rom) throw new Error(`${reader} from Pokémon Colosseum's disc. Choose Colosseum on the Play page and set up its disc first.`);
   return port.validateRom(rom, 'colosseum');
 }
+// Whether Colosseum's disc is set up: what another game's team builder and later generations read.
+function teamDiscReady() { try { teamDisc(); return true; } catch (_) { return false; } }
 const gameHasOnline = root => onlineFeatures(root).online;
 
 // The Story party, read again whenever the save changes. null without a save; error when it can't be read.
@@ -1899,6 +1928,8 @@ function state() {
     // Where the build tools download: the launcher's data folder, wherever the game is installed.
     toolsFolder: path.dirname(buildTools.rootFor(app.getPath('userData'))),
     romReady: Boolean(config.rom) && !romError, romError,
+    // Colosseum's disc, which XD's later generations are made from (prepareGenerations)
+    teamDiscReady: config.game === games.DEFAULT ? Boolean(config.rom) && !romError : teamDiscReady(),
     hdVisualsReady: repoReady && hdVisualsReady(config.repo, config.settings),
     texturesInstalled: repoReady && supports('hdTextures') && port.texturePackInstalled(config.repo, config.game),
     pbr: pbrState(),

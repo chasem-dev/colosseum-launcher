@@ -787,3 +787,25 @@ test('a controller\'s X switches between the games on the Play page', async () =
   await new Promise(setImmediate);
   assert.deepEqual(chosen(), ['xd', 'colosseum']);
 });
+
+test('XD\'s later generations explain where they come from, and need Colosseum\'s disc', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), teamDiscReady: true, game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const text = id => ui.elements.get(id).textContent, off = id => ui.elements.get(id).classList.contains('feature-off');
+  assert.equal(text('battle-rules-gen3'), 'Colosseum (Gen 3)');
+  assert.match(text('battle-rules-note'), /chosen under Rules on the Online page/);
+  assert.match(text('generation4-note'), /Battle Revolution disc/);
+  assert.equal(ui.elements.get('generations-disc-note').hidden, true);
+  assert.equal(off('pbr-row'), false);
+  data.teamDiscReady = false;
+  await ui.click('game-xd');
+  assert.equal(off('pbr-row'), true, 'and no Battle Revolution assets');
+  assert.equal(text('battle-rules-gen3'), 'XD (Gen 3)');
+  assert.match(text('battle-rules-note'), /XD's online battles play by Gen 3 rules for now/);
+  assert.match(text('generation4-note'), /Each one looks and sounds like a Pokémon of the game standing in for it/);
+  assert.equal(ui.elements.get('generations-disc-note').hidden, false);
+  assert.match(text('generations-disc-note'), /made from your Pokémon Colosseum disc/);
+  data.teamDiscReady = true;
+  await ui.refresh();
+  assert.equal(ui.elements.get('generations-disc-note').hidden, true);
+});
