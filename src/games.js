@@ -9,7 +9,7 @@ const path = require('node:path');
 // ones its port has so far. Renderer, display, picture and input settings apply to every game.
 const FEATURES = ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdModels', 'hdTextures', 'languagePacks',
   'discordPresence', 'storyParty', 'pcBoxes', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters',
-  'shiny', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves'];
+  'shiny', 'shinyStarters', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves'];
 
 const GAMES = {
   colosseum: {
@@ -43,7 +43,11 @@ const GAMES = {
     // generations' rules, Pokémon and moves come in Colosseum's file, made from Colosseum's disc (main.js
     // prepareGenerations), which host/xd/packs.c turns into XD's rows, its Pokémon looking as the ones standing in for
     // them; the rest hook Colosseum's functions
-    features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence']
+    // battle speed, quick moves and status, shiny Shadow Pokémon and choosing the starter are the port's shared host code
+    // (host/battlespeed.c, quickmoves.c, shiny.c, starters.c with XD's parts); XD's Eevee can already be shiny, so it
+    // has no shinyStarters
+    features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
+      'battleSpeed', 'quickMoves', 'shiny', 'starters']
   }
 };
 

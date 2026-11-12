@@ -7,6 +7,7 @@
       "Choosing the other game's disc switches the Play page to that game, instead of turning the disc down.",
       "Saves: Pokémon XD saves export to Dolphin as a .gci file and import from one, as Colosseum's do. Choose XD on the Play page, then use Import or Export on the Saves tab.",
       "Discord: Pokémon XD shows on your Discord profile too, with the place you're in, the trainer you're battling and your lead Pokémon, when Discord activity is on under Settings.",
+      "Pokémon XD: battle animation speed and Skip battle animations, Quick moves and quick status effects, shiny Shadow Pokémon and Choose starter now work in XD too, from the same settings under Gameplay. In XD a Shadow Pokémon can be shiny, which the original never allows, and a New Game asks whether to begin with Eevee.",
       "Online: Pokémon XD battles online too, with a party from the team builder, which reads its Pokémon from your Colosseum disc. Tick Colosseum and XD players can join when you create a room, and a player of either game can battle you. Rooms for both games have no timers or Platinum's rules yet, and both players need the same version of the games."
     ],
     "game": []

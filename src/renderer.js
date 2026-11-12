@@ -745,6 +745,7 @@ function renderGame(data) {
   const gciName = chosen.id === 'xd' ? '01-GXXE-PokemonXD.gci' : '01-GC6E-pokemon_colosseum.gci';
   $('dolphin-import-help').textContent = `Drop your North American ${chosen.name} .gci save here, or the folder it is in, or choose it. Dolphin names it ${gciName}. Your current saves are backed up before importing.`;
   renderGenerationsText(data, chosen);
+  renderPokemonText(chosen);
   for (const node of document.querySelectorAll('[data-feature]')) node.classList.toggle('feature-off', !gameHas(data, node.dataset.feature));
   if (!gameHas(data, 'gbaLink') && settingsTab === 'gba') settingsTab = 'gameplay';
   if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online' }[page] || '')) showPage('play');
@@ -765,6 +766,21 @@ function renderGenerationsText(data, chosen) {
   // made from Colosseum's disc, which has to be set up first
   $('generations-disc-note').hidden = own || data.teamDiscReady !== false;
   $('generations-disc-note').textContent = `Generation 4 in ${chosen.shortName} is made from your Pokémon Colosseum disc. Choose Colosseum on the Play page and set up its disc first; until then ${chosen.shortName} plays by Gen 3 rules.`;
+}
+
+// Shiny Shadow Pokémon and choosing starters, as each game has them: XD's Shadow Pokémon could never be shiny, and its
+// starter is one Eevee (host/shiny.c, host/starters.c).
+const POKEMON_TEXT = {};
+function renderPokemonText(chosen) {
+  for (const id of ['shiny-shadow-note', 'choose-starters-title', 'choose-starters-note']) POKEMON_TEXT[id] ??= $(id).textContent;
+  const xd = chosen.id === 'xd';
+  $('shiny-shadow-note').textContent = xd
+    ? 'A Shadow Pokémon can be shiny, at 1 in 8192 as other Pokémon are, and looks it in battle before you snag it. The original XD never makes them shiny. Each one\'s chance is decided when you first meet it in battle.'
+    : POKEMON_TEXT['shiny-shadow-note'];
+  $('choose-starters-title').textContent = xd ? 'Choose starter' : POKEMON_TEXT['choose-starters-title'];
+  $('choose-starters-note').textContent = xd
+    ? 'After you enter your name for a New Game, the game asks whether to begin with Eevee. Say No to pick any Pokémon instead, at level 10.'
+    : POKEMON_TEXT['choose-starters-note'];
 }
 
 // The line moves across as the game is chosen, before the launcher has switched to it; a failure puts it back.
