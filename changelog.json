@@ -16,7 +16,8 @@
       "Pokémon XD: the Pokédex and the Jukebox work in XD too, read from your XD disc. The Pokédex shows XD's own models, sprites and cries, and says how XD gives each Pokémon: your Eevee, a trade or Mt. Battle reward, a Shadow Pokémon to snag, a Poké Spot, or an evolution. The Jukebox plays the songs of XD's own sound test, looping as the game does."
     ],
     "game": [
-      "Online: in a room for both games, Colosseum makes every Pokémon by the same list of Pokémon, moves and held items as XD does, so both games battle with the same Pokémon."
+      "Online: in a room for both games, Colosseum makes every Pokémon by the same list of Pokémon, moves and held items as XD does, so both games battle with the same Pokémon.",
+      "Online battles now check the battle itself at every turn, so two games that drift apart end the battle instead of playing on with different HP."
     ]
   },
   "releases": [
