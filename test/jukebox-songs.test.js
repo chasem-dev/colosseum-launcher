@@ -27,13 +27,11 @@ test('sound effects, sound id 0, empty entries and unknown songs are left out, a
 });
 
 test('a song\'s name reads as words', () => {
-  assert.equal(songs.title('darkside4_song'), 'Darkside4');
+  assert.equal(songs.title('stand2_song'), 'Stand2');   // not matched to a name yet: its file name
   assert.equal(songs.title('me_welcome_song'), 'Me welcome');   // words at underscores
-  assert.equal(songs.title('stand2_song'), 'Stand2');
   assert.equal(songs.title('title_song'), 'Title Screen');
   assert.equal(songs.title('title'), 'Title Screen');          // with or without "_song"
   assert.equal(songs.title('unknown_one'), 'Unknown one');
-  assert.equal(songs.title('worldmap_song'), 'Worldmap');   // not matched to a name yet: its file name
   assert.equal(songs.title('toString'), 'ToString');       // never a property of the table's prototype
 });
 

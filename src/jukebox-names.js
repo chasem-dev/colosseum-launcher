@@ -41,8 +41,12 @@ const NAMES = {
   dungeon: 'Pyrite Building',
   saint: 'Relic Forest',
   country: 'Realgam Tower',
+  darkside4: 'Shadow Pokémon Lab',   // heard and confirmed by the person who tried it (83.9 s predicted, 93 s in the rip)
   gtsolo: 'Mt. Battle Rest Room',   // heard and confirmed by the person who tried it, not matched by length (80.7 s predicted, 86 s in the rip)
-  worldmap2: 'World Map',
+  // the game has two world-map songs: worldmap was heard and confirmed by the person who tried it; the rip has only one "World Map"
+  // (74 s), whose length fits worldmap2 better, so the second is not claimed to be that one
+  worldmap: 'World Map',
+  worldmap2: 'World Map 2',
   ev_shadow: "Cipher Syndicate's Theme",
   jyakira: "Nascour's Theme",
   hyper_shiccho: 'Evice Theme',
