@@ -6,14 +6,18 @@
 const fsys = require('./fsys');
 const pokedex = require('./pokedex');
 const { SOUNDS, SOUND_EFFECT } = require('./pokemon-cries');
+const { NAMES } = require('./jukebox-names');
 
 // common_rel's .data: the song table, and the word after it that holds its length (module 125).
 const SONG_TABLE = { offset: 0x111B8C, size: 8, countAt: 0x14A6BC, most: 256 };
 const WAVE_INDEX = 3;  // a sound table row's byte for it
 
+// A song's name to show: the one we know it by (jukebox-names.js), else its file name made readable:
 // "battle2_song" shows as "Battle2", "me_win_song" as "Me win".
 function title(name) {
-  const words = String(name).replace(/_song$/, '').replace(/_/g, ' ');
+  const file = String(name).replace(/_song$/, '');
+  if (Object.hasOwn(NAMES, file)) return NAMES[file];
+  const words = file.replace(/_/g, ' ');
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
