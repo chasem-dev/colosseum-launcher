@@ -544,7 +544,17 @@ function requireRepo() {
   return config.repo;
 }
 
-function currentSaveDirectory() { return saves.saveDirectory(); }
+// The chosen game's memory card (saves.js: each game has its own). XD's save left on the shared card by an earlier
+// build moves to XD's card the first time it is needed, with a backup of the shared card first.
+function currentSaveDirectory() {
+  if (config.game === 'xd' && !active) {
+    try {
+      const moved = saves.moveSharedXdSave();
+      if (moved) log(`Moved the XD save to XD's own memory card, ${moved.to}. The shared card was backed up first${moved.backup ? ` to ${moved.backup}` : ''}.`);
+    } catch (error) { log(`Could not move the XD save to XD's own memory card: ${error.message}`); }
+  }
+  return saves.saveDirectory(process.env, process.platform, config.game);
+}
 
 // The backups the launcher makes by itself, which Back up automatically (Saves) turns off. Back up saves, and the backups
 // before a restore or before moving a build the card is in, still happen.
@@ -949,7 +959,7 @@ async function removeOldBuildTools() {
 async function removeOldVersions(shouldStop) {
   const every = games.allFields(config);
   // Each game's discs and folders are safe from the other's cleanup.
-  const protect = [currentSaveDirectory(), ...Object.values(every).flatMap(fields => [fields.rom, fields.previousInstall?.rom, fields.repo])];
+  const protect = [...games.ids().map(id => saves.saveDirectory(process.env, process.platform, id)), ...Object.values(every).flatMap(fields => [fields.rom, fields.previousInstall?.rom, fields.repo])];
   for (const [id, fields] of Object.entries(every)) {
     if (shouldStop?.()) break;
     await removeOldGameVersions(id, fields, protect, shouldStop);

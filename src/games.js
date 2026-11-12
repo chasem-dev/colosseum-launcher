@@ -1,8 +1,8 @@
 'use strict';
 
 // The games the launcher gets, builds and plays. One port checkout builds either (its build.sh reads COLO_GAME), each
-// from its own decomp, into its own executable. Each game has its own checkout folder, disc and game source; the
-// memory card (saves.js) is one folder for both, as a real memory card would be.
+// from its own decomp, into its own executable. Each game has its own checkout folder, disc, game source and memory
+// card (saves.js): their saves don't fit on one 59-block card.
 const path = require('node:path');
 
 // What the launcher adds to a game beyond building and playing it. Colosseum has them all; another game lists the

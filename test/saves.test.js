@@ -55,6 +55,48 @@ test('the save path is where the game keeps its memory card', () => {
     path.resolve('C:\\Users\\Player\\AppData\\Roaming', 'colo-port', 'card-a'));
 });
 
+test('XD has a memory card of its own, beside Colosseum\'s', () => {
+  assert.equal(saves.saveDirectory({ HOME: '/home/player' }, 'linux', 'xd'), path.resolve('/home/player', '.local', 'share', 'colo-port', 'xd', 'card-a'));
+  assert.equal(saves.saveDirectory({ HOME: '/home/player', XDG_DATA_HOME: '/data' }, 'linux', 'xd'), path.resolve('/data', 'colo-port', 'xd', 'card-a'));
+  assert.equal(saves.saveDirectory({ APPDATA: 'C:\\Users\\Player\\AppData\\Roaming' }, 'win32', 'xd'),
+    path.resolve('C:\\Users\\Player\\AppData\\Roaming', 'colo-port', 'xd', 'card-a'));
+  assert.equal(saves.saveDirectory({ HOME: '/home/player' }, 'linux', 'colosseum'), saves.saveDirectory({ HOME: '/home/player' }, 'linux'));
+});
+
+test('an XD save on the shared card moves to XD\'s card, after a backup', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-save-xd-move-'));
+  const env = { HOME: root, XDG_DATA_HOME: path.join(root, 'data') };
+  const shared = saves.saveDirectory(env, 'linux'), own = saves.saveDirectory(env, 'linux', 'xd');
+  const backups = path.join(root, 'backups');
+  try {
+    fs.mkdirSync(shared, { recursive: true });
+    fs.writeFileSync(path.join(shared, 'pokemon_colosseum.dat'), 'colosseum progress');
+    fs.writeFileSync(path.join(shared, 'PokemonXD.dat'), 'xd progress');
+    fs.writeFileSync(path.join(shared, 'PokemonXD.stat'), 'xd stat');
+    fs.writeFileSync(path.join(shared, 'pokemon-packs.json'), '{"rows":{}}');
+    const moved = saves.moveSharedXdSave(env, 'linux', backups);
+    assert.equal(moved.to, own);
+    assert.equal(fs.readFileSync(path.join(own, 'PokemonXD.dat'), 'utf8'), 'xd progress');
+    assert.equal(fs.readFileSync(path.join(own, 'PokemonXD.stat'), 'utf8'), 'xd stat');
+    assert.equal(fs.existsSync(path.join(shared, 'PokemonXD.dat')), false);
+    assert.equal(fs.existsSync(path.join(shared, 'PokemonXD.stat')), false);
+    // Colosseum's save stays; the Pokémon packs' rows are on both cards
+    assert.equal(fs.readFileSync(path.join(shared, 'pokemon_colosseum.dat'), 'utf8'), 'colosseum progress');
+    assert.equal(fs.readFileSync(path.join(shared, 'pokemon-packs.json'), 'utf8'), '{"rows":{}}');
+    assert.equal(fs.readFileSync(path.join(own, 'pokemon-packs.json'), 'utf8'), '{"rows":{}}');
+    const [backup] = saves.listBackups(backups);
+    assert.equal(backup.reason, 'before-moving-xd-save');
+    assert.equal(backup.source, shared);
+    assert.equal(fs.readFileSync(path.join(backups, backup.id, 'files', 'PokemonXD.dat'), 'utf8'), 'xd progress');
+    // once moved, nothing more to do
+    assert.equal(saves.moveSharedXdSave(env, 'linux', backups), null);
+    // a save on XD's own card is never replaced by one left on the shared card
+    fs.writeFileSync(path.join(shared, 'PokemonXD.dat'), 'older xd progress');
+    assert.equal(saves.moveSharedXdSave(env, 'linux', backups), null);
+    assert.equal(fs.readFileSync(path.join(own, 'PokemonXD.dat'), 'utf8'), 'xd progress');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('cleanup refuses a custom memory card inside a removable build folder', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-save-clean-'));
   try {
