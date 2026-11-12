@@ -205,10 +205,19 @@ test('a song\'s length is its last note\'s end, or its loop\'s, and the loop is 
   assert.equal(render.loop, null);
 });
 
-test('the soft limit keeps a render below full scale, and leaves a quiet one nearly as it is', () => {
-  const left = Float32Array.of(0.01, 3, -3), right = Float32Array.of(0, 0.5, -0.5);
-  mx.limit(left, right);
-  assert.ok(Math.abs(left[0] - 0.01) < 1e-4);
-  assert.ok(left[1] < 1 && left[1] > 0.99 && left[2] > -1 && left[2] < -0.99);
-  assert.ok(Math.abs(right[1] - Math.tanh(0.5)) < 1e-6);
+test('the limiter leaves a quiet render exactly as it is, and keeps a loud burst under its ceiling without disturbing what is far from it', () => {
+  const quiet = Float32Array.from({ length: 4000 }, (_, i) => 0.5 * Math.sin(i / 7)), copy = Float32Array.from(quiet);
+  mx.limit(quiet, Float32Array.from(quiet));
+  assert.deepEqual(quiet, copy);                                     // nothing over the ceiling: nothing changes
+
+  const n = 96000, left = new Float32Array(n), right = new Float32Array(n);
+  for (let i = 0; i < n; i++) { left[i] = right[i] = 0.5 * Math.sin(i / 9); }
+  for (let i = 40000; i < 40400; i++) left[i] = 3 * Math.sin(i / 9);   // a burst at three times full scale
+  const before = Float32Array.from(left);
+  mx.limit(left, right, 0.9);
+  let peak = 0; for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(left[i]));
+  assert.ok(peak <= 0.9 + 1e-6, `peak ${peak}`);
+  for (const i of [1000, 20000, 39000]) assert.equal(left[i], before[i]);   // well before the burst: untouched
+  assert.ok(left[39900] !== before[39900]);                           // the gain is already down just ahead of it
+  assert.ok(Math.abs(left[90000] - before[90000]) < 0.01 * 0.5 + 1e-9 || Math.abs(left[90000]) > 0.9 * Math.abs(before[90000]));   // and back up well after
 });

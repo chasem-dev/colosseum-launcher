@@ -12,7 +12,7 @@ const fsys = require('./fsys');
 const { decodeAdpcm } = require('./pokemon-cries');
 
 const RATE = 32000;               // the game's own output rate
-const DEFAULT_GAIN = 1.1;         // what the game's output measures at, against this mix of the same songs
+const DEFAULT_GAIN = 0.95;        // what the game's output measures at, against this mix of the same songs
 const TICKS_PER_BEAT = 384;
 // A MIDI value, 0 to 127, as a time in milliseconds (midi2TimeTab, synthmacros.c): what SetADSRFromCtrl turns controllers into.
 const MIDI_TIME = [
@@ -475,6 +475,7 @@ function render(bank, song, midiSetup, options = {}) {
   let notes = 0, voices = 0, missing = new Set();
   for (const ev of timeline) {
     const channel = channels[ev.midi & 15], isDrums = (ev.midi & 15) === 9;
+    if (options.only && !ev.set && !options.only.includes(ev.midi & 15)) continue;   // a debugging aid: play only these channels
     if (ev.set) { if (ev.set.ctrl) channel.ctrls[ev.set.ctrl[0]] = ev.set.ctrl[1]; else Object.assign(channel, ev.set); continue; }
     const start = ev.time;
     if (start >= seconds) continue;
@@ -492,6 +493,7 @@ function render(bank, song, midiSetup, options = {}) {
     notes++;
     const tickSeconds = (clock(ev.tick + TICKS_PER_BEAT) - clock(ev.tick)) / TICKS_PER_BEAT;
     const made = voicesFor(bank, page.pages[row].macro, ev.note.key, ev.note.velocity, length, { tickSeconds, ctrl: n => channel.ctrls[n] ?? 0 });
+    if (options.trace) options.trace({ time: start, midi: ev.midi & 15, program: channel.program, key: ev.note.key, velocity: ev.note.velocity, length, voices: made.map(v => ({ sample: v.sample, note: v.note, volume: v.volumeAt(0), startAt: v.startAt })) });
     if (!made.length) missing.add(`macro ${page.pages[row].macro.toString(16)}`);
     for (const voice of made) {
       const sample = samplePcm(bank, voice.sample);
@@ -502,7 +504,10 @@ function render(bank, song, midiSetup, options = {}) {
       let gl = 0, gr = 0, al = 0, ar = 0;
       const first = Math.floor((start + voice.startAt) * RATE);
       const baseSemis = voice.note + voice.detune / 100 - sample.rootKey, startTime = start + voice.startAt;
-      const releaseAt = voice.releaseAt - voice.startAt, bendList = bends[ev.midi & 15], modList = mods[ev.midi & 15];
+      // A one-shot sample with no envelope of its own rings out to its end: the game's key off only releases an envelope, and these
+      // voices (drum hits, bells) have none. A looped sample with none stops with its note, as it would hold for ever otherwise.
+      const ringsOut = !voice.env && !(sample.loopEnd > 0);
+      const releaseAt = ringsOut ? Infinity : voice.releaseAt - voice.startAt, bendList = bends[ev.midi & 15], modList = mods[ev.midi & 15];
       const bendCursor = { i: 0 }, modCursor = { i: 0 };
       let position = 0, ratio = 0;
       for (let n = first, t = 0; n < total; n++, t = (n - first) / RATE) {
@@ -567,9 +572,32 @@ function songSeconds(song) {
   return { seconds: end, region };
 }
 
-// Soft-limits a render in place, as a WAV of it would be: no harsh clipping where voices add up.
-function limit(left, right) {
-  for (let i = 0; i < left.length; i++) { left[i] = Math.tanh(left[i]); right[i] = Math.tanh(right[i]); }
+// Limits a render's peaks in place, so that it never passes `ceiling`. It turns the gain down smoothly before a peak (5 ms ahead) and
+// lets it back up over about a tenth of a second, so what is below the ceiling is left exactly as it is: unlike a waveshaper
+// (tanh), it adds no distortion to the quiet and loud passages that don't need it.
+function limit(left, right, ceiling = 0.92) {
+  const n = left.length, look = 160, release = Math.pow(0.001, 1 / (0.12 * RATE));   // the gain's way back up: -60 dB per 0.12 s
+  const want = new Float32Array(n);                     // the gain each sample needs
+  let any = false;
+  for (let i = 0; i < n; i++) { const peak = Math.max(Math.abs(left[i]), Math.abs(right[i])); if (peak > ceiling) { want[i] = ceiling / peak; any = true; } else want[i] = 1; }
+  if (!any) return;
+  // the lowest gain asked for in the next `look` samples, then smoothed over `look`: it is never above what a sample needs
+  const low = new Float32Array(n), queue = new Int32Array(n);
+  let head = 0, tail = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    while (tail > head && want[queue[tail - 1]] >= want[i]) tail--;
+    queue[tail++] = i;
+    while (queue[head] > i + look) head++;
+    low[i] = want[queue[head]];
+  }
+  // the average of the last `look` of those (all 1 before the start): a sample's average includes the lowest gain asked of it, so it
+  // is never above what that sample needs, and the gain eases down over the `look` samples before a peak
+  let sum = look, gain = 1;
+  for (let i = 0; i < n; i++) {
+    sum += low[i] - (i >= look ? low[i - look] : 1);
+    gain = Math.min(sum / look, gain / release);   // down at once, and back up slowly
+    if (gain < 1) { left[i] *= gain; right[i] *= gain; } else gain = 1;
+  }
 }
 
 // 16-bit stereo PCM as a WAV file.
