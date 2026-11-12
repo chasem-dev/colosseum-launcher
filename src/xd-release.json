@@ -1,9 +1,9 @@
 {
   "game": "xd",
-  "version": "2026.11.12.xd7",
+  "version": "2026.11.12.xd8",
   "repository": "https://git.softwareauralabs.com/chase/pokemon-colosseum.git",
   "branch": "feat/xd-bringup",
-  "commit": "203638af7e6aee71bc9f0a3af391e1aeb3fcb714",
+  "commit": "91da0d387be91722b99e2c5352967b56628434c1",
   "decompRepository": "https://github.com/chasem-dev/Pokemon-XD-Decomp.git",
   "decomp": "919b71308ac76bf788b5ad8b67c8f7830793eaf1"
 }
