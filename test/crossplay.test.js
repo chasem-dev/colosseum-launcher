@@ -16,7 +16,7 @@ const one = (species, options) => crossplay.memberProblems(species, wire(species
 
 test('a Pokémon both games make alike goes as it is', () => {
   assert.deepEqual(one(143, { item: 200, ability: 1, moves: [34, 156, 214, 89], evs: [252, 252, 0, 0, 4, 0] }), []);   // Snorlax, Leftovers, Thick Fat
-  assert.deepEqual(one(376, { item: 13, moves: [309, 89] }), []);                         // Metagross holding a Potion
+  assert.deepEqual(one(376, { item: 13, moves: [309, 89] }), []);                         // species 376 (Absol) holding a Potion
   assert.deepEqual(one(65, { nickname: '30b230f3' }), []);                                 // a nickname in katakana: both games take it
   assert.deepEqual(crossplay.problems([143, 6, 0], [wire(143), wire(6), null]), []);
   assert.deepEqual(crossplay.problems([143, 6]), []);                                      // species alone
