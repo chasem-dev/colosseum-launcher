@@ -1,5 +1,5 @@
 name: Game build
-# Builds the game the way the launcher does for players, with its private toolsets: Linux, Windows, and
+# Builds each game (Colosseum, and Pokémon XD from src/xd-release.json) the way the launcher does for players, with its private toolsets: Linux, Windows, and
 # Intel and Apple Silicon Macs (native on both, x86_64 and arm64, unless game-release.json marks the game "rosetta"). Each build
 # starts the game far enough to reach its disc check. No disc image is used and no game binary is published.
 # It runs for pull requests, before every release (release.yml) and Beta (build.yml), and weekly, so a change to GitHub's runners,
@@ -49,11 +49,13 @@ concurrency:
   cancel-in-progress: true
 jobs:
   compile-port:
-    name: compile-port (${{ matrix.os }})
+    name: compile-port (${{ matrix.game }}, ${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-2025, macos-15-intel, macos-15]
+        # Colosseum from src/game-release.json, Pokémon XD from src/xd-release.json (scripts/smoke-build-tools.js COLO_SMOKE_GAME)
+        game: [colosseum, xd]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     steps:
@@ -81,7 +83,7 @@ jobs:
         shell: bash
         env:
           HASH: ${{ hashFiles('src/**', 'scripts/**', 'package-lock.json', '.github/workflows/game-build.yml', '!src/main.js', '!src/preload.js', '!src/renderer.js', '!src/index.html', '!src/style.css', '!src/assets/**', '!scripts/discord-beta.js') }}
-        run: echo "key=game-build-passed-v1-${{ matrix.os }}-$HASH" >> "$GITHUB_OUTPUT"
+        run: echo "key=game-build-passed-v1-${{ matrix.game }}-${{ matrix.os }}-$HASH" >> "$GITHUB_OUTPUT"
       - name: Look for a passed build of these inputs
         id: passed
         if: inputs.reuse-passed || github.event_name == 'pull_request'
@@ -96,7 +98,7 @@ jobs:
       - run: npm ci --ignore-scripts
         if: steps.passed.outputs.cache-hit != 'true'
       - name: Enable Intel execution on the Apple Silicon runner, for a game that needs it
-        if: matrix.os == 'macos-15' && steps.passed.outputs.cache-hit != 'true'
+        if: matrix.os == 'macos-15' && matrix.game == 'colosseum' && steps.passed.outputs.cache-hit != 'true'
         run: |
           if [ "$(node -p "require('./src/game-release.json').rosetta === true")" = true ]; then
             sudo softwareupdate --install-rosetta --agree-to-license
@@ -109,20 +111,21 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/Build Cache
-          key: build-cache-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: build-cache-${{ matrix.os }}-
+          key: build-cache-${{ matrix.game }}-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: build-cache-${{ matrix.game }}-${{ matrix.os }}-
       - name: Build and start the game with the private tools
         if: steps.passed.outputs.cache-hit != 'true'
         run: node scripts/smoke-build-tools.js
         env:
           COLO_SMOKE_SYSTEM32_DECOYS: ${{ runner.os == 'Windows' && '1' || '0' }}
           COLO_COMPILER_CACHE_DIR: ${{ runner.temp }}/Build Cache
+          COLO_SMOKE_GAME: ${{ matrix.game }}
       - name: Save build caches
         if: (success() || failure()) && github.event_name != 'pull_request' && steps.passed.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/Build Cache
-          key: build-cache-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: build-cache-${{ matrix.game }}-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       # Only after the game built and reached its disc check. A later full run of the same inputs finds the key taken
       # and only warns.
       - name: Note that these inputs passed
