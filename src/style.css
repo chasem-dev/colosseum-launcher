@@ -1144,3 +1144,10 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 @keyframes jukebox-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .disc-spin, .jukebox-track.playing .disc-spin { animation: none; } }
 .jukebox-track-name { flex: 1; text-align: left; }
+
+.jukebox-tabs { display: flex; gap: 6px; padding: 10px 16px 0; border-bottom: 1px solid var(--jk-line); }
+.jukebox-tabs[hidden] { display: none; }
+.jukebox-tab { padding: 8px 14px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--jk-muted); font: inherit; font-size: 13px; font-weight: 600; margin-bottom: -1px; }
+.jukebox-tab:hover { color: var(--jk-text); background: var(--jk-hover); }
+.jukebox-tab[aria-selected="true"] { color: var(--jk-text); background: var(--jk-panel); border-color: var(--jk-line); box-shadow: inset 0 -2px 0 var(--jk-accent); }
+.jukebox-tab:focus-visible { outline: 2px solid var(--jk-accent); outline-offset: -2px; }

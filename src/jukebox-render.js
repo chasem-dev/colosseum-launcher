@@ -4,9 +4,10 @@
 // by its wave index, the song's entry in the song table, whose file id names the song in bgm_archive.fsys.
 const fsys = require('./fsys');
 const pokedex = require('./pokedex');
-const { SOUNDS } = require('./pokemon-cries');
+const { SOUNDS, SOUND_EFFECT } = require('./pokemon-cries');
 const music = require('./musyx-music');
 const xdDisc = require('./xd-disc');
+const effects = require('./jukebox-effects');
 
 const SONG_TABLE = { offset: 0x111B8C, size: 8, countAt: 0x14A6BC, most: 256 };
 const PROJECTS = new Map([[0, { base: 'snd_music', samples: 'sound/snd_music.samp' }], [1, { base: 'snd_music_atmos', samples: 'sound/snd_music_atmos.samp' }]]);
@@ -32,10 +33,23 @@ function create(disc) {
     return banks.get(group);
   };
 
+  const sounds = data.subarray(SOUNDS.offset, SOUNDS.offset + SOUNDS.count * SOUNDS.size);
+  let effectBanks = null;   // read when the first effect is asked for
+
+  // A sound effect: its one sample, as it is played, in both channels.
+  function renderEffect(sound) {
+    effectBanks ||= effects.readBanks(disc);
+    const decoded = effects.decode(disc, effectBanks, sounds, sound);
+    if (!decoded) throw new Error('That sound is not on the disc.');
+    const wave = Float32Array.from(decoded.samples, value => value / 32768);
+    return { left: wave, right: wave, rate: decoded.rate, loop: null };
+  }
+
   // sound: a sound id of the sound table. Returns { left, right, rate, loop: { start, end } | null } (seconds), soft-limited.
   function render(sound, options = {}) {
     if (!Number.isInteger(sound) || sound < 1 || sound >= SOUNDS.count) throw new Error('That song is not on the disc.');
     const row = SOUNDS.offset + sound * SOUNDS.size;
+    if (data[row] & SOUND_EFFECT) return renderEffect(sound);
     const entry = archive.get(songFiles[data[row + 3]]);
     if (!entry) throw new Error('That song is not on the disc.');
     const song = music.readSong(Buffer.from(entry.data()));

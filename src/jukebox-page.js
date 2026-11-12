@@ -15,17 +15,38 @@
   // A song's length in the list: the clock's, except that a jingle over in a moment shows tenths of a second ("0.4 s").
   const lengthText = seconds => (seconds > 0 && seconds < 9.95 ? `${seconds.toFixed(1)} s` : clock(seconds));
 
-  let tracks = null, loading = null, current = null, busy = false, notice = '';
+  let tracks = null, loading = null, current = null, busy = false, notice = '', tab = 'music';
   let state = { playing: null, paused: false, volume: 100 };
   let context = null, gain = null, active = null, token = 0;
   const songs = new Map();   // id -> { buffer, loop }, oldest first
-  const index = () => tracks.findIndex(each => each.id === current);
+  // Music or a sound effect: each has its tab, and the previous and next buttons stay among those of the same kind.
+  const kindOf = track => (track?.kind === 'sfx' ? 'sfx' : 'music');
+  const pool = () => {
+    if (!tracks) return [];
+    const kind = current ? kindOf(tracks.find(each => each.id === current)) : tab;
+    return tracks.filter(each => kindOf(each) === kind);
+  };
+  const index = () => pool().findIndex(each => each.id === current);
 
   function render() {
     const list = $('jukebox-list');
-    if (tracks && list.dataset.rendered !== String(tracks.length)) {
+    const hasEffects = Boolean(tracks?.some(each => kindOf(each) === 'sfx'));
+    if (!hasEffects) tab = 'music';
+    $('jukebox-tabs').hidden = !hasEffects;
+    for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).setAttribute('aria-selected', String(tab === kind));
+    const shown = `${tab}:${tracks?.length}`;
+    if (tracks && list.dataset.rendered !== shown) {
       const items = [];
-      for (const track of tracks) {
+      let group = null;
+      for (const track of tracks.filter(each => kindOf(each) === tab)) {
+        // the sound effects are in groups, each under its heading
+        if (track.group && track.group !== group) {
+          group = track.group;
+          const heading = document.createElement('h2');
+          heading.className = 'jukebox-group';
+          heading.textContent = `${group} effects`;
+          items.push(heading);
+        }
         // the short tracks and jingles follow the tunes, under a heading of their own
         if (track.short && !items.some(item => item.tagName === 'H2')) {
           const heading = document.createElement('h2');
@@ -57,7 +78,7 @@
         items.push(button);
       }
       list.replaceChildren(...items);
-      list.dataset.rendered = String(tracks.length);
+      list.dataset.rendered = shown;
     }
     for (const button of list.children) {
       button.classList.toggle('selected', button.dataset.id === current);
@@ -76,7 +97,7 @@
     const playing = Boolean(state.playing) && !state.paused;
     $('jukebox-toggle').textContent = playing ? 'Pause' : state.paused ? 'Resume' : 'Play';
     $('jukebox-toggle').setAttribute('aria-label', $('jukebox-toggle').textContent);
-    const none = !tracks?.length;
+    const none = !pool().length;
     $('jukebox-toggle').disabled = none || busy;
     $('jukebox-previous').disabled = $('jukebox-next').disabled = none || busy;
     $('jukebox-stop').disabled = !state.playing;
@@ -219,16 +240,17 @@
 
   function step(offset) {
     if (!tracks?.length) return;
-    const at = index();
-    const next = tracks[(at < 0 ? (offset > 0 ? 0 : tracks.length - 1) : (at + offset + tracks.length) % tracks.length)];
-    return play(next.id);
+    const list = pool(), at = index();
+    if (!list.length) return;
+    return play(list[(at < 0 ? (offset > 0 ? 0 : list.length - 1) : (at + offset + list.length) % list.length)].id);
   }
 
   // A song that played through on its own: the same one again when looping, else the next, and the list's end stops.
   function finished() {
     if ($('jukebox-loop').checked) return play(current);
-    const at = index();
-    if (at >= 0 && at < tracks.length - 1) return play(tracks[at + 1].id);
+    // a sound effect is played once, and again only when Loop is on; it does not go on to the next
+    const list = pool(), at = index();
+    if (at >= 0 && at < list.length - 1 && kindOf(tracks.find(each => each.id === current)) === 'music') return play(list[at + 1].id);
   }
 
   function load() {
@@ -239,9 +261,10 @@
 
   $('jukebox-toggle').addEventListener('click', () => {
     if (state.playing) return state.paused ? resume() : pause();
-    if (current || tracks?.length) return play(current || tracks[0].id);
+    if (current || pool().length) return play(current || pool()[0].id);
   });
   $('jukebox-stop').addEventListener('click', stop);
+  for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).addEventListener('click', () => { tab = kind; render(); });
   $('jukebox-previous').addEventListener('click', () => step(-1));
   $('jukebox-next').addEventListener('click', () => step(1));
   $('jukebox-volume').addEventListener('input', event => volume(event.target.value));
@@ -286,6 +309,7 @@
       close();
       tracks = null;
       loading = null;
+      tab = 'music';
       $('jukebox-list').dataset.rendered = '';
       $('jukebox-list').replaceChildren();
       render();

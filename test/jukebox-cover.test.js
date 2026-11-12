@@ -19,6 +19,7 @@ test('a song\'s kind comes from its name and whether it is short', () => {
   assert.equal(cover.kind({ name: 'Level Up', short: true }), 'jingle');
   assert.equal(cover.kind({ name: 'Phenac City' }), 'tune');
   assert.equal(cover.kind({}), 'tune');
+  assert.equal(cover.kind({ name: 'General effect 1', kind: 'sfx' }), 'effect');
 });
 
 test('every disc is an svg with ids of its own, a spinning part, and none of the song\'s text', () => {

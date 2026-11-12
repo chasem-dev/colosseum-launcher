@@ -15,9 +15,10 @@
     return h >>> 0;
   }
 
-  // What a song is, for its look: 'battle', 'jingle' (a short track), 'unused' (the game has no use for it), 'silence' or 'tune'.
+  // What a song is, for its look: 'effect' (a sound effect), 'battle', 'jingle' (a short track), 'unused' (the game has no use for it), 'silence' or 'tune'.
   function kind(track) {
     const name = String(track?.name ?? '');
+    if (track?.kind === 'sfx') return 'effect';
     if (/silence/i.test(name)) return 'silence';
     if (/\(unused\)/i.test(name)) return 'unused';
     if (/battle|vs\. mode|admin|peon|final fight/i.test(name) && !track?.short) return 'battle';
@@ -30,6 +31,7 @@
     const h = hash(track?.name), kindOf = kind(track);
     let hue, sat, light;
     if (kindOf === 'battle') { hue = (350 + h % 45) % 360; sat = 72; light = 56; }   // reds and oranges
+    else if (kindOf === 'effect') { hue = 150 + h % 50; sat = 55; light = 52; }      // greens and teals
     else if (kindOf === 'jingle') { hue = 185 + h % 85; sat = 62; light = 62; }      // cool blues and violets
     else if (kindOf === 'tune') { hue = 28 + h % 290; sat = 58; light = 55; }        // anything but battle's red
     else { hue = 250; sat = 6; light = 55; }                                         // grey: nothing to hear
@@ -40,6 +42,7 @@
     tune: '<path d="M-4 6V-8l9-2v14" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="-6.5" cy="6.5" r="3.3" fill="#fff"/><circle cx="2.5" cy="4.5" r="3.3" fill="#fff"/>',
     battle: '<path d="M3 -11L-6 2H-0.5L-3.5 11L6.5 -3H1z" fill="#fff"/>',
     jingle: '<path d="M0 -9.5L2.7 -3 9.5 -3 4 1.4 6.2 8.5 0 4.4-6.2 8.5-4 1.4-9.5-3-2.7-3z" fill="#fff"/>',
+    effect: '<path d="M-9 -4H-4L2 -9V9L-4 4H-9z" fill="#fff"/><path d="M5.5 -4.5Q8.5 0 5.5 4.5M8.5 -8Q14 0 8.5 8" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/>',
     unused: '<path d="M-7 0H7" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>',
     silence: ''
   };

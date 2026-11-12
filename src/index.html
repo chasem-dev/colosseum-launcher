@@ -130,7 +130,11 @@
         </div>
       </section>
       <section id="page-jukebox" class="page sheet jukebox-page" aria-labelledby="jukebox-title" hidden>
-        <div class="modal-head"><div><h1 id="jukebox-title">Jukebox</h1><p id="jukebox-summary">The game's music, played from your disc. It keeps playing while you use the rest of the launcher.</p></div></div>
+        <div class="modal-head"><div><h1 id="jukebox-title">Jukebox</h1><p id="jukebox-summary">The game's music and sound effects, played from your disc. It keeps playing while you use the rest of the launcher.</p></div></div>
+        <div id="jukebox-tabs" class="jukebox-tabs" role="tablist" aria-label="Kind of sound" hidden>
+          <button id="jukebox-tab-music" class="jukebox-tab" role="tab" type="button" aria-selected="true">Music</button>
+          <button id="jukebox-tab-sfx" class="jukebox-tab" role="tab" type="button" aria-selected="false">Sound effects</button>
+        </div>
         <div class="jukebox-body">
           <div id="jukebox-list" class="jukebox-list" aria-label="Songs"></div>
           <p id="jukebox-empty" class="helper" hidden>The list of songs isn't available yet.</p>
