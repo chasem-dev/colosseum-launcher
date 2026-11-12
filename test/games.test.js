@@ -70,7 +70,7 @@ test('an XD disc is accepted for XD, and each game names the other\'s disc so th
   const file = disc(root, xd());
   assert.equal(port.validateRom(file, 'xd'), file);
   assert.throws(() => port.validateRom(file), error => {
-    assert.match(error.message, /^This is Pokémon XD: Gale of Darkness \(GXXE01\), not Pokémon Colosseum\. Choose XD at the top of the Play page/);
+    assert.match(error.message, /^This is Pokémon XD: Gale of Darkness \(GXXE01\), not Pokémon Colosseum\. Choose XD on the Play page/);
     assert.equal(error.otherGame, 'xd');
     return true;
   });

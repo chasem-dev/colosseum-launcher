@@ -110,14 +110,60 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 @media (max-width: 920px) { .topbar { gap: 14px; padding: 0 18px; } .viewport, .statusbar { padding-left: 18px; padding-right: 18px; } .brand { min-width: 160px; } .tab { padding: 0 9px; } }
 @media (prefers-reduced-motion: reduce) { .spinner, .progress-track.indeterminate #progress-fill, .status-icon.checking svg { animation-duration: 3s; } }
 
-/* The supplied desert painting is the launch screen's full-window backdrop. */
+/* The window's backdrop: both games, split by a diagonal (#game-art). The chosen game's side takes 70% in full colour,
+   the other 30%, faded; choosing the other moves the line across. Colosseum's is the supplied desert painting; XD's is
+   drawn here, in its cold Cipher indigo, as the launcher ships none of its art. */
+@property --split { syntax: '<percentage>'; inherits: true; initial-value: 70%; }
 :root { background: #420d2b; }
-.shell {
+.shell { position: relative; isolation: isolate; background: #2a0b26; }
+.game-art { --split: 70%; --slant: 7%; position: absolute; inset: 0; z-index: -1; overflow: hidden; background: #1a0f2c;
+  transition: --split .75s cubic-bezier(.7, 0, .25, 1); }
+.game-art[data-active="xd"] { --split: 30%; }
+.game-art-side { position: absolute; inset: 0; transition: filter .6s ease; }
+.game-art-side[data-game="colosseum"] { clip-path: polygon(0 0, calc(var(--split) + var(--slant)) 0, calc(var(--split) - var(--slant)) 100%, 0 100%); }
+.game-art-side[data-game="xd"] { clip-path: polygon(calc(var(--split) + var(--slant)) 0, 100% 0, 100% 100%, calc(var(--split) - var(--slant)) 100%); }
+/* Each side's scene slides with the line, so what it shows stays in view on its narrow side. */
+.game-art-scene { position: absolute; inset: 0; }
+.game-art-side[data-game="colosseum"] .game-art-scene { translate: calc((var(--split) - 70%) * .55) 0;
   background:
     linear-gradient(180deg, #480a2d70 0%, #480a2d05 31%, #3f0926aa 100%),
     linear-gradient(90deg, #420a28ac 0%, #420a282e 47%, transparent 80%),
-    url('assets/launcher-bg.png') 40% center / cover no-repeat;
-}
+    url('assets/launcher-bg.png') 40% center / cover no-repeat; }
+.game-art-side[data-game="xd"] .game-art-scene { translate: calc((var(--split) - 30%) * .55) 0;
+  background:
+    linear-gradient(180deg, #0b0a2a99 0%, #0b0a2a00 30%, #0a0820b0 100%),
+    radial-gradient(ellipse 38% 46% at 66% 40%, #8fb4ff40 0%, #5a5cff1f 45%, transparent 72%),
+    radial-gradient(ellipse 60% 50% at 92% 8%, #b34dff38 0%, transparent 70%),
+    radial-gradient(ellipse 70% 55% at 40% 105%, #3a1a8a99 0%, transparent 70%),
+    radial-gradient(circle at 20% 30%, #ffffff30 0 1px, transparent 1.6px) 0 0 / 97px 89px,
+    radial-gradient(circle at 70% 60%, #c9d8ff26 0 1px, transparent 1.6px) 0 0 / 151px 131px,
+    linear-gradient(160deg, #120d3a 0%, #23185f 42%, #2e1468 64%, #140b37 100%); }
+/* A ring of light at the scene's heart, and a lab floor's grid running to the horizon */
+.xd-rings { position: absolute; left: 66%; top: 40%; width: min(64vh, 46vw); aspect-ratio: 1; translate: -50% -50%; border-radius: 50%;
+  background: repeating-radial-gradient(circle, transparent 0 22px, #a9c4ff18 23px 24px, transparent 25px 46px),
+    radial-gradient(circle, #dfe9ff2a 0%, #7f8cff14 38%, transparent 70%);
+  -webkit-mask: radial-gradient(circle, #000 0 52%, transparent 71%); mask: radial-gradient(circle, #000 0 52%, transparent 71%); }
+.xd-rings::before { content: ''; position: absolute; inset: 21%; border: 1.5px solid #c6d6ff66; border-radius: 50%;
+  box-shadow: 0 0 34px #8fa8ff55, inset 0 0 34px #8fa8ff3a; }
+.xd-rings::after { content: ''; position: absolute; inset: 33%; border: 1px solid #e6b8ff4d; border-radius: 50%; transform: rotate(45deg);
+  border-radius: 18%; box-shadow: 0 0 22px #c48bff33; }
+.xd-floor { position: absolute; left: -40%; right: -40%; bottom: 0; height: 120%; transform: perspective(560px) rotateX(58deg); transform-origin: 50% 100%;
+  background: repeating-linear-gradient(90deg, #9fb4ff59 0 1.5px, transparent 1.5px 72px), repeating-linear-gradient(0deg, #9fb4ff59 0 1.5px, transparent 1.5px 72px);
+  -webkit-mask: linear-gradient(0deg, #000 10%, transparent 92%); mask: linear-gradient(0deg, #000 10%, transparent 92%); }
+/* The side not chosen: faded, until the pointer is over it */
+.game-art[data-active="xd"] .game-art-side[data-game="colosseum"] { filter: grayscale(.6) brightness(.55); }
+.game-art[data-active="colosseum"] .game-art-side[data-game="xd"] { filter: grayscale(.5) brightness(.72); }
+.shell:not(.log-expanded):has(#page-home:not([hidden])) .game-art:not(.locked)[data-active="colosseum"] .game-art-side[data-game="xd"]:hover,
+.shell:not(.log-expanded):has(#page-home:not([hidden])) .game-art:not(.locked)[data-active="xd"] .game-art-side[data-game="colosseum"]:hover { filter: grayscale(.25) brightness(.78); cursor: pointer; }
+/* The line between them: a thin light with a soft glow */
+.game-art-edge { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, #fff3d600 0%, #fff3d6d0 22%, #e4dcffd0 78%, #e4dcff00 100%);
+  clip-path: polygon(calc(var(--split) + var(--slant) - 1px) 0, calc(var(--split) + var(--slant) + 1px) 0, calc(var(--split) - var(--slant) + 1px) 100%, calc(var(--split) - var(--slant) - 1px) 100%);
+  filter: drop-shadow(0 0 6px #ffe7b0aa); }
+/* On the Play page the art takes the clicks the page's own controls don't. */
+.viewport:has(> #page-home:not([hidden])), #page-home, #page-home .intro, #page-home .hero-spacer { pointer-events: none; }
+#page-home :is(.intro > *, .setup-flow, .launch-panel, .game-tab) { pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { .game-art { transition-duration: .01s; } .game-art-side, .game-tab { transition-duration: .15s; } }
 .topbar { flex-basis: 58px; gap: 16px; background: #420c29bb; border-bottom: 1px solid #ffffff2a; color: #fff; backdrop-filter: blur(16px); -webkit-app-region: drag; user-select: none; }
 .platform-pill{ color: #eacbe2; }
 .window-controls { display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
@@ -135,15 +181,35 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .intro h1 { font-size: clamp(30px, 3.5vw, 44px); }
 .intro .eyebrow { color: #f6ddf0; }
 .intro #home-description { color: #fef1fa; font-size: 14px; }
-/* The game picker above the title: which game Play sets up and starts. */
-.game-picker { display: inline-flex; gap: 3px; margin: 0 0 8px; padding: 3px; border: 1px solid #ffffff38; border-radius: 9px; background: #420c2966; backdrop-filter: blur(10px); text-shadow: none; }
-.game-picker button { padding: 4px 12px; border: 0; border-radius: 7px; background: transparent; color: #f6ddf0; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
-.game-picker button:hover:not(:disabled) { background: #ffffff1f; }
-.game-picker button[aria-pressed="true"] { background: #fff; color: #3b1930; box-shadow: 0 1px 3px #3b19301f; }
+/* The games' names, in the bottom corners of their sides beside Play: which game Play sets up and starts. The chosen one
+   is bright; the other, faded with its side, says it can be chosen. */
+.home-page { position: relative; }
+.game-picker { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: flex-end; pointer-events: none; }
+.game-tab { display: grid; justify-items: start; gap: 1px; max-width: calc(50% - min(50% - 150px, 310px) - 14px); padding: 8px 12px 9px; border: 1px solid transparent; border-radius: 12px;
+  background: transparent; color: #fff; text-align: left; text-shadow: 0 2px 14px #12051acc, 0 1px 3px #12051a99; white-space: normal;
+  transition: opacity .5s ease, background .2s, border-color .2s; }
+.game-tab[data-game="xd"] { justify-items: end; text-align: right; }
+.game-tab small { font-size: 11px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; opacity: .85; }
+.game-tab strong { font-size: clamp(22px, 2.6vw, 34px); font-weight: 900; letter-spacing: .04em; line-height: 1; text-transform: uppercase; }
+.game-tab .game-tab-subtitle { font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; opacity: .8; }
+.game-tab .game-tab-state { margin-top: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-shadow: none; }
+.game-tab[aria-pressed="true"] .game-tab-state::before { content: ''; display: block; width: 38px; height: 3px; border-radius: 3px; background: #ffc75a; box-shadow: 0 0 10px #ffc75a99; }
+.game-tab[aria-pressed="false"] { opacity: .78; }
+.game-tab[aria-pressed="false"] .game-tab-state::before { content: 'Switch \203A'; display: inline-block; padding: 3px 10px; border: 1px solid #ffffff5c; border-radius: 20px; background: #ffffff1a; color: #fff; }
+.game-tab[aria-pressed="false"]:hover:not(:disabled), .shell:has(#game-art-xd:hover) .game-tab[data-game="xd"][aria-pressed="false"]:not(:disabled),
+.shell:has(#game-art-colosseum:hover) .game-tab[data-game="colosseum"][aria-pressed="false"]:not(:disabled) { opacity: 1; background: #ffffff14; border-color: #ffffff30; }
+.game-tab[aria-pressed="true"] { cursor: default; }
+.game-tab:disabled { opacity: .5; }
+.game-tab:focus-visible { outline: 2px solid #ffda91; outline-offset: 2px; }
+@media (max-width: 1040px) { .game-tab small, .game-tab .game-tab-subtitle { font-size: 9px; letter-spacing: .14em; } .game-tab { padding: 6px 8px; } .game-tab strong { font-size: 20px; letter-spacing: .01em; } }
+/* XD's panels take its indigo; Play itself stays as it is */
+.shell:has(> .game-art[data-active="xd"]) .launch-panel { border-color: #a9a8ff6e; background: linear-gradient(135deg, #1d1a52f2, #43248ef0); box-shadow: 0 16px 36px #0a082490; }
+.shell:has(> .game-art[data-active="xd"]) .setup-step { border-color: #c4c3ff5e; background: #17143fe8; box-shadow: 0 10px 28px #0a082466; }
+.shell:has(> .game-art[data-active="xd"]) .setup-step p, .shell:has(> .game-art[data-active="xd"]) .setup-step .helper { color: #d9d8f6; }
 /* What the chosen game doesn't have (games.js): hidden, whatever else shows it. */
 .feature-off { display: none !important; }
 .hero-spacer { flex: 1 1 auto; min-height: 10px; }
-.launch-panel { flex: none; align-self: center; width: min(100%, 620px); padding: 16px 19px 14px; border-color: #e1a8d97d; background: linear-gradient(135deg, #551638f2, #8a0f6ff0); box-shadow: 0 16px 36px #33081b90; text-align: center; backdrop-filter: blur(14px); }
+.launch-panel { flex: none; align-self: center; width: min(100% - 300px, 620px); padding: 16px 19px 14px; border-color: #e1a8d97d; background: linear-gradient(135deg, #551638f2, #8a0f6ff0); box-shadow: 0 16px 36px #33081b90; text-align: center; backdrop-filter: blur(14px); }
 .launch-primary { display: flex; align-items: stretch; gap: 9px; margin-top: 14px; }
 .play { display: block; width: 100%; min-width: 0 !important; min-height: 72px; margin-top: 14px; padding: 10px 20px; border-radius: 11px; background: #ffc75a; color: #461732; font-size: 26px; font-weight: 850; letter-spacing: -.035em; box-shadow: 0 4px 0 #b98127, 0 10px 20px #380b2340; }
 .launch-primary .play { flex: 1; width: auto; margin-top: 0; }
@@ -194,7 +260,7 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .setup-step .helper { color: #e3c8dd; }
 .setup-ready-note { margin-top: 20px; padding: 13px 15px; border: 1px solid #e4c9e75c; border-radius: 9px; background: #ffffff14; color: #dff6ed; font-size: 12px; }
 .launch-primary { margin-top: 0; }
-.ready-mode .launch-panel { width: min(100%, 580px); padding: 15px; }
+.ready-mode .launch-panel { width: min(100% - 300px, 580px); padding: 15px; }
 .statusbar { flex-basis: 36px; padding: 0 28px; border-top: 1px solid #ffffff30; background: #420b28c7; color: #eed3e7; backdrop-filter: blur(16px); }
 .status-link { color: #fff0bf; }
 .status-icon:hover:not(:disabled) { background: #ffffff1f; color: #fff0bf; }

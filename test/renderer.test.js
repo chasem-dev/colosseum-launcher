@@ -712,3 +712,78 @@ test('choosing XD on the Play page names it, asks for its disc, and hides what o
   await ui.click('game-colosseum');
   assert.equal(off('nav-online'), false);
 });
+
+// The Play page's two games: the art split by a diagonal (style.css #game-art), the chosen game's side the larger.
+test('the split follows the chosen game: the line moves at once, and a failure puts it back', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const art = ui.elements.get('game-art'), pressed = id => ui.elements.get(`game-${id}`)['aria-pressed'];
+  assert.equal(art.dataset.active, 'colosseum');
+  assert.deepEqual([pressed('colosseum'), pressed('xd')], ['true', 'false']);
+  // the line moves before the launcher has switched
+  let finish;
+  ui.window.colo.selectGame = id => new Promise(resolve => { finish = () => { data.currentGame = games.summary(id); resolve(data); }; });
+  ui.elements.get('game-xd').click();
+  assert.equal(art.dataset.active, 'xd');
+  assert.deepEqual([pressed('colosseum'), pressed('xd')], ['false', 'true']);
+  // a refresh meanwhile doesn't move it back
+  await ui.refresh();
+  assert.equal(art.dataset.active, 'xd');
+  finish();
+  await new Promise(setImmediate); await new Promise(setImmediate);
+  assert.equal(art.dataset.active, 'xd');
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon XD: Gale of Darkness');
+  // a game that couldn't be chosen: the line goes back to the one that is
+  ui.window.colo.selectGame = async () => { throw new Error('Wait for the current task to finish.'); };
+  await ui.click('game-colosseum');
+  await new Promise(setImmediate);
+  assert.equal(art.dataset.active, 'xd');
+  assert.deepEqual([pressed('colosseum'), pressed('xd')], ['false', 'true']);
+  assert.match(ui.elements.get('message-text').textContent, /Wait for the current task/);
+});
+
+test('clicking the other game\'s side of the art chooses it, on the Play page only, and not while a task runs', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const chosen = () => ui.calls.filter(call => call[0] === 'selectGame').map(call => call[1]);
+  // the chosen side does nothing
+  await ui.click('game-art-colosseum');
+  assert.deepEqual(chosen(), []);
+  // nor the other while another page shows
+  await ui.click('nav-saves');
+  await ui.click('game-art-xd');
+  assert.deepEqual(chosen(), []);
+  await ui.click('nav-play');
+  await ui.click('game-art-xd');
+  assert.deepEqual(chosen(), ['xd']);
+  assert.equal(ui.elements.get('game-art').dataset.active, 'xd');
+  // a task running: the buttons and the art are locked
+  data.active = { label: 'Update game', startedAt: Date.now() };
+  await ui.refresh();
+  assert.equal(ui.elements.get('game-colosseum').disabled, true);
+  assert.equal(ui.elements.get('game-art').classList.contains('locked'), true);
+  await ui.click('game-art-colosseum');
+  assert.deepEqual(chosen(), ['xd']);
+  data.active = null;
+  await ui.refresh();
+  assert.equal(ui.elements.get('game-art').classList.contains('locked'), false);
+  await ui.click('game-art-colosseum');
+  assert.deepEqual(chosen(), ['xd', 'colosseum']);
+});
+
+test('a controller\'s X switches between the games on the Play page', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const chosen = () => ui.calls.filter(call => call[0] === 'selectGame').map(call => call[1]);
+  ui.gamepad.actions.alternate();
+  await new Promise(setImmediate); await new Promise(setImmediate);
+  assert.deepEqual(chosen(), ['xd']);
+  ui.gamepad.actions.alternate();
+  await new Promise(setImmediate); await new Promise(setImmediate);
+  assert.deepEqual(chosen(), ['xd', 'colosseum']);
+  // elsewhere it does nothing
+  await ui.click('settings-cog');
+  ui.gamepad.actions.alternate();
+  await new Promise(setImmediate);
+  assert.deepEqual(chosen(), ['xd', 'colosseum']);
+});

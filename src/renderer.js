@@ -713,13 +713,21 @@ function renderConsoleState(active) {
   }
 }
 
+// The two games of the Play page: a side of the art each, split by a diagonal that gives the chosen one most of the
+// window (style.css #game-art), and a button each in the corners beside Play.
+const GAME_IDS = ['colosseum', 'xd'];
+function showChosenGame(id) {
+  $('game-art').dataset.active = id;
+  for (const each of GAME_IDS) $(`game-${each}`).setAttribute('aria-pressed', String(each === id));
+}
+
 // The game picker, and what the chosen game has: its disc, and the tabs and settings of features it doesn't have hidden.
 function renderGame(data) {
-  const chosen = chosenGame(data);
-  for (const id of ['colosseum', 'xd']) {
-    $(`game-${id}`).setAttribute('aria-pressed', String(chosen.id === id));
-    $(`game-${id}`).disabled = Boolean(data.active) || setupPending;
-  }
+  const chosen = chosenGame(data), locked = Boolean(data.active) || setupPending;
+  showChosenGame(choosingGame || chosen.id);
+  for (const id of GAME_IDS) $(`game-${id}`).disabled = locked;
+  // the art can't be clicked to choose either while a task runs
+  $('game-art').classList.toggle('locked', locked);
   $('setup-disc-description').textContent = `Select a file from your own North American ${chosen.name} disc (${chosen.discId}). Use an .iso or .gcm file.`;
   // Dolphin's name for the game's save (gci-save.js exportName)
   const gciName = chosen.id === 'xd' ? '01-GXXE-PokemonXD.gci' : '01-GC6E-pokemon_colosseum.gci';
@@ -729,17 +737,31 @@ function renderGame(data) {
   if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online' }[page] || '')) showPage('play');
 }
 
+// The line moves across as the game is chosen, before the launcher has switched to it; a failure puts it back.
+let choosingGame = null;
 async function chooseGame(id) {
-  if (chosenGame(current).id === id) return;
+  if (chosenGame(current).id === id || choosingGame || $(`game-${id}`).disabled) return;
   setMessage('');
+  choosingGame = id;
+  showChosenGame(id);
   try {
     const result = await window.colo.selectGame(id);
     wizardStep = null;
     if (result?.config) refresh(result);
     await sync();
   } catch (error) { showError(error); }
+  finally {
+    choosingGame = null;
+    if (current) renderGame(current);
+  }
 }
-for (const id of ['colosseum', 'xd']) $(`game-${id}`).addEventListener('click', () => chooseGame(id));
+// The other game: what a controller's X (or Square) does on the Play page.
+function switchGame() { chooseGame(GAME_IDS.find(id => id !== chosenGame(current).id)); }
+for (const id of GAME_IDS) {
+  $(`game-${id}`).addEventListener('click', () => chooseGame(id));
+  // the side of the art not chosen is the other game's, to click (the chosen side's clicks do nothing)
+  $(`game-art-${id}`).addEventListener('click', () => { if (page === 'play' && !consoleExpanded) chooseGame(id); });
+}
 
 function refresh(data) {
   if (Number.isFinite(data.logResetSequence)) resetLog(data.logResetSequence);
@@ -1865,7 +1887,8 @@ window.coloGamepadNav.start({
     menu: () => openDialog() ? closeModal() : showPage(page === 'settings' ? 'play' : 'settings'),
     view: () => consoleOpen ? setConsoleOpen(false) : showActivityLog(),
     previous: () => stepPage(-1),
-    next: () => stepPage(1)
+    next: () => stepPage(1),
+    alternate: () => { if (page === 'play' && !openDialog()) switchGame(); }
   }
 });
 window.colo.windowState().then(renderWindowState).catch(showError);

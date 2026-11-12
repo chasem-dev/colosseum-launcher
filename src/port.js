@@ -102,7 +102,7 @@ function validateRom(file, gameId = games.DEFAULT) {
   if (known) {
     const error = new Error(known.region
       ? `This is the ${known.region} release of ${known.game.name} (${disc.gameId}), not ${game.name}. ${OWN_DISC}`
-      : `This is ${known.game.name} (${disc.gameId}), not ${game.name}. Choose ${known.game.shortName} at the top of the Play page to play it. ${OWN_DISC}`);
+      : `This is ${known.game.name} (${disc.gameId}), not ${game.name}. Choose ${known.game.shortName} on the Play page to play it. ${OWN_DISC}`);
     if (!known.region) error.otherGame = known.game.id;
     throw error;
   }

@@ -55,7 +55,7 @@ The launcher walks you through three steps:
 2. **Choose disc image.** Select a copy of your own original North American Pokémon Colosseum disc: **GC6E01, revision 0**. Supported files are `.iso` and `.gcm`. Compressed formats (CISO, RVZ, GCZ) need converting to ISO first, which Dolphin does with **Convert File**. The bonus disc is not the game.
 3. **Begin setup.** The launcher downloads HD textures and builds the game on your computer. This first setup can take a while.
 
-For **Pokémon XD**, choose XD at the top of the Play page first. Each game has its own setup folder and disc, and both save to the same memory card. XD is early: it plays with the renderer, display, controller, widescreen, HD text, fast-forward and Skip movies settings, and Online; Colosseum's other extras stay hidden while XD is chosen.
+For **Pokémon XD**, click XD's side of the Play page first. Each game has its own setup folder and disc, and both save to the same memory card. XD is early: it plays with the renderer, display, controller, widescreen, HD text, fast-forward and Skip movies settings, and Online; Colosseum's other extras stay hidden while XD is chosen.
 
 On Mac, setup may ask you to install Apple's Command Line Tools. Follow **Mac setup help** in the launcher. The game is built for your Mac: on Apple Silicon, Beta's game is a native program that draws with Metal, with no Rosetta needed. Stable's game still runs through Rosetta, and setup asks for it.
 

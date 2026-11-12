@@ -9,6 +9,12 @@
 </head>
 <body>
   <div id="shell" class="shell">
+    <!-- The Play page's art: the two games side by side, split by a diagonal; the chosen one takes most of the window. A side is clicked to choose its game; the Game buttons below are the same choice for the keyboard, controllers and screen readers. -->
+    <div id="game-art" class="game-art" data-active="colosseum" aria-hidden="true">
+      <div id="game-art-colosseum" class="game-art-side" data-game="colosseum"><div class="game-art-scene"></div></div>
+      <div id="game-art-xd" class="game-art-side" data-game="xd"><div class="game-art-scene"><i class="xd-rings"></i><i class="xd-floor"></i></div></div>
+      <i class="game-art-edge"></i>
+    </div>
     <header class="topbar">
       <div class="brand"><img class="brand-mark" src="assets/brand-mark.png" alt=""><div class="brand-copy"><span>Colosseum <strong>Launcher</strong></span><span id="version-summary" class="version-summary" aria-label="Versions">Checking versions…</span></div></div>
       <button id="open-changelog" class="topbar-chip" title="Launcher and game updates"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8h7.2L15.5 6v11.2H5z"/><path d="M12 2.8V6h3.5M7.6 9.2h5.3M7.6 11.9h5.3M7.6 14.6h3.4"/></svg><span>What's new</span><i id="changelog-new" class="topbar-dot" role="img" aria-label="New" hidden></i></button>
@@ -34,7 +40,7 @@
     </nav>
     <main class="viewport">
       <section id="page-home" class="page home-page" aria-label="Launch game">
-        <div class="intro"><div><div id="game-picker" class="game-picker" role="group" aria-label="Game"><button id="game-colosseum" data-game="colosseum" aria-pressed="true" title="Play Pokémon Colosseum">POKÉMON COLOSSEUM</button><button id="game-xd" data-game="xd" aria-pressed="false" title="Play Pokémon XD: Gale of Darkness">POKÉMON XD</button></div><h1 id="home-title">Set up your game</h1><p id="home-description">A few quick steps, then you're ready to play.</p></div><div class="intro-banners"><button id="add-to-steam" class="discord-banner steam-banner" hidden aria-label="Add the launcher to your Steam library"><span class="discord-logo steam-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg></span><span class="discord-copy"><strong id="steam-banner-title">Add to Steam</strong><small id="steam-banner-detail">Play from your Steam library or Steam Deck, with artwork</small></span><span id="steam-banner-mark" class="discord-arrow" aria-hidden="true">+</span></button></div></div>
+        <div class="intro"><div><h1 id="home-title">Set up your game</h1><p id="home-description">A few quick steps, then you're ready to play.</p></div><div class="intro-banners"><button id="add-to-steam" class="discord-banner steam-banner" hidden aria-label="Add the launcher to your Steam library"><span class="discord-logo steam-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg></span><span class="discord-copy"><strong id="steam-banner-title">Add to Steam</strong><small id="steam-banner-detail">Play from your Steam library or Steam Deck, with artwork</small></span><span id="steam-banner-mark" class="discord-arrow" aria-hidden="true">+</span></button></div></div>
 
         <div id="setup-flow" class="setup-flow">
           <div class="setup-progress" role="group" aria-label="Setup progress"><span id="step-count">Step 1 of 3</span><div class="setup-progress-track" aria-hidden="true"><i></i><i></i><i></i></div></div>
@@ -59,6 +65,11 @@
         </div>
 
         <div class="hero-spacer" aria-hidden="true"></div>
+
+        <div id="game-picker" class="game-picker" role="group" aria-label="Game">
+          <button id="game-colosseum" class="game-tab" data-game="colosseum" aria-pressed="true" aria-label="Pokémon Colosseum" title="Play Pokémon Colosseum"><small>Pokémon</small><strong>Colosseum</strong><span class="game-tab-state"></span></button>
+          <button id="game-xd" class="game-tab" data-game="xd" aria-pressed="false" aria-label="Pokémon XD: Gale of Darkness" title="Play Pokémon XD: Gale of Darkness"><small>Pokémon</small><strong>XD</strong><span class="game-tab-subtitle">Gale of Darkness</span><span class="game-tab-state"></span></button>
+        </div>
 
         <section class="launch-panel" aria-label="Play game">
           <div id="pbr-banner" class="pbr-banner" role="alert" data-feature="pbrAssets" hidden><div><strong id="pbr-banner-title">Your Battle Revolution assets need making again</strong><small id="pbr-banner-detail"></small></div><button id="pbr-banner-make" class="pbr-banner-make">Make assets</button></div>

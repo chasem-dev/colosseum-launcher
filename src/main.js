@@ -65,7 +65,7 @@ const playLabel = () => `Play ${gameName()}`;
 const isPlayLabel = label => games.ids().some(id => label === `Play ${games.get(id).name}`);
 // A feature of Colosseum's asked for while another game is chosen.
 function requireFeature(feature, what) {
-  if (!supports(feature)) throw new Error(`${what} ${what.endsWith('s') ? 'are' : 'is'} for Pokémon Colosseum for now. Choose Colosseum at the top of the Play page.`);
+  if (!supports(feature)) throw new Error(`${what} ${what.endsWith('s') ? 'are' : 'is'} for Pokémon Colosseum for now. Choose Colosseum on the Play page.`);
 }
 
 let window;
@@ -1676,7 +1676,7 @@ function partyFor(rules, { cross = false } = {}) {
 
 // Why a room can't be made or joined now, or null.
 function onlineReadiness() {
-  if (!supports('online')) return `Online battles aren't in ${games.get(config.game).shortName} yet. Choose Colosseum at the top of the Play page.`;
+  if (!supports('online')) return `Online battles aren't in ${games.get(config.game).shortName} yet. Choose Colosseum on the Play page.`;
   if (!port.isPort(config.repo, config.game) || !binaryReady()) return 'Set up the game on the Play page first.';
   if (!gameHasOnline(config.repo)) return 'This version of the game has no online battles yet. Update it from the Play page.';
   if (config.online.selected === parties.STORY) return storyBlocked(Math.min(...parties.SIZES));
