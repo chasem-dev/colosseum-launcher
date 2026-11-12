@@ -82,11 +82,15 @@ function pinned(script, name) {
 function rendererPin(script) { return /^SMS_PORT_REF=/m.test(script) ? pinned(script, 'SMS_PORT_REF') : undefined; }
 
 // The decomp and renderer commits a port commit builds with.
-function pinsAt(repository, commit, tools) {
+// `name` is the game's decomp pin there (XD's is XD_DECOMP_REF); `fallback` stands in when that commit has none (a
+// port from before it built XD's in CI).
+function pinsAt(repository, commit, tools, name = 'DECOMP_REF', fallback = null) {
   return inTemporaryRepository(tools, async directory => {
     await tools.remote(['fetch', '-q', '--depth', '1', repository, commit], directory);
     const script = await tools.capture(tools.git, ['show', `${commit}:tools/ci/linux-build.sh`], directory, tools.env);
-    return { decomp: pinned(script, 'DECOMP_REF'), renderer: rendererPin(script) };
+    let decomp;
+    try { decomp = pinned(script, name); } catch (error) { if (!fallback) throw error; decomp = fallback; }
+    return { decomp, renderer: rendererPin(script) };
   });
 }
 
@@ -102,7 +106,7 @@ function rendererHeaders(repository, commit, tools) {
 }
 
 // An override -> a source with this release's fields (see game-version.js). `release` is the game's pin: a game other
-// than Colosseum keeps its pin's decomp unless one is chosen, as the port's CI script pins only Colosseum's.
+// than Colosseum takes its own pin from the port's CI script (XD's XD_DECOMP_REF), or keeps its pin's decomp.
 async function resolve(override, { git = 'git', capture, env, wait, release = colosseumRelease }) {
   if (!override) return release;
   const otherGame = Boolean(release.game);
@@ -113,7 +117,9 @@ async function resolve(override, { git = 'git', capture, env, wait, release = co
     { wait, permanent: error => GIT_PERMANENT.test(error.message) });
   const port = override.port ? { repository: override.port.repository, ...await resolveRef(override.port, tools) }
     : { repository: release.repository, branch: release.branch, commit: release.commit };
-  const pins = override.port && !otherGame ? await pinsAt(port.repository, port.commit, tools) : { decomp: release.decomp, renderer: release.renderer?.commit };
+  const pins = !override.port ? { decomp: release.decomp, renderer: release.renderer?.commit }
+    : otherGame ? { ...await pinsAt(port.repository, port.commit, tools, `${release.game.toUpperCase()}_DECOMP_REF`, release.decomp), renderer: release.renderer?.commit }
+    : await pinsAt(port.repository, port.commit, tools);
   const decomp = override.decomp ? (await resolveRef(override.decomp, tools)).commit : pins.decomp;
   const renderer = !pins.renderer ? null : pins.renderer === release.renderer?.commit ? release.renderer
     : { ...OLDER_RENDERER, commit: pins.renderer, decomp: await rendererHeaders(OLDER_RENDERER.repository, pins.renderer, tools) };

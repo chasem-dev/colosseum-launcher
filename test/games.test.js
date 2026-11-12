@@ -215,16 +215,21 @@ test("XD checks out the port's XD commit with its own decomp in deps/pkmn-xd", {
   assert.notEqual(path.dirname(game.snapshotPath(games.checkoutPath(home, 'colosseum'))), path.dirname(game.snapshotPath(root, pinned)));
 });
 
-test("a custom source for XD keeps XD's decomp and says it is XD's", async () => {
+test("a custom source for XD takes XD's decomp from the port's CI script, or keeps its pin's, and says it is XD's", async () => {
   const override = gameSource.normalizeOverride({ port: { ref: 'a'.repeat(40) } }, xdRelease);
   assert.equal(override.port.repository, xdRelease.repository);
   assert.equal(gameSource.normalizeOverride({ decomp: { ref: 'main' } }, xdRelease).decomp.repository, xdRelease.decompRepository);
-  const resolved = await gameSource.resolve(override, { capture: async () => { throw new Error('nothing to ask'); }, release: xdRelease });
+  // the port commit's tools/ci/linux-build.sh, as git show gives it
+  const askedFor = script => async (_git, args) => args.includes('show') ? script : '';
+  const pinned = 'c'.repeat(40);
+  const resolved = await gameSource.resolve(override, { capture: askedFor(`DECOMP_REF=${'b'.repeat(40)}\nXD_DECOMP_REF=${pinned}\n`), release: xdRelease });
   assert.equal(resolved.game, 'xd');
   assert.equal(resolved.commit, 'a'.repeat(40));
-  assert.equal(resolved.decomp, xdRelease.decomp);
+  assert.equal(resolved.decomp, pinned, "XD's own pin, not Colosseum's");
   assert.equal(resolved.decompRepository, xdRelease.decompRepository);
   assert.equal(resolved.portPatch, undefined);
+  const older = await gameSource.resolve(override, { capture: askedFor(`DECOMP_REF=${'b'.repeat(40)}\n`), release: xdRelease });
+  assert.equal(older.decomp, xdRelease.decomp, 'a port from before XD was in CI: the pin\'s decomp');
 });
 
 const defaultRepo = id => games.checkoutPath('/data', id);
