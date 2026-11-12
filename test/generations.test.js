@@ -216,6 +216,19 @@ test('Battle Revolution models a newer converter changed count as outdated until
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('the game says whether it makes Battle Revolution cries, and whether it plays a Pokémon\'s own', () => {
+  const fs = require('fs'), os = require('os'), path = require('path'), port = require('../src/port');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pbr-cries-'));
+  try {
+    assert.deepEqual([port.pbrMakesCries(root), port.playsPackCries(root)], [false, false], 'an older game: models only, and the base\'s cry');
+    fs.mkdirSync(path.join(root, 'tools', 'pbr2pkx'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'tools', 'pbr2pkx', 'cries.py'), '');
+    fs.mkdirSync(path.join(root, 'host'));
+    fs.writeFileSync(path.join(root, 'host', 'packcries.c'), '');
+    assert.deepEqual([port.pbrMakesCries(root), port.playsPackCries(root)], [true, true]);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("an ability Ruby writes as one word stays a Pokémon's under Generation 4's rules", () => {
   const data = generations.load(4);
   const row = Buffer.alloc(0x40); row[0x32] = 31; row[0x33] = 69;   // Rhydon: Lightning Rod, Rock Head

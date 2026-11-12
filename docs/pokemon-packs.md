@@ -4,7 +4,10 @@ A Pokémon pack adds Pokémon of your own making to the game: new species, fakem
 one has its own name, stats, types, abilities and moves, and can have its own 3D model and sprites. Pack Pokémon show in the
 launcher's Pokédex as well.
 
-Packs only add Pokémon. Nothing in the game hands them out yet, apart from evolving one pack Pokémon into another.
+There are two ways to get a pack Pokémon in the game. On a New Game, answer No when the game asks whether to begin with
+Espeon and Umbreon, and pick it as a starter. Or turn on the randomizer with **Pokémon packs** on, and a randomized run can
+choose it as a starter, a Shadow Pokémon, a trainer's Pokémon or a gift. Nothing else in the game hands them out, apart from
+evolving one pack Pokémon into another.
 
 ## Where packs go
 
@@ -23,6 +26,7 @@ mods/pokemon/
       body-shiny.png     optional: its shiny body sprite
       face.png           optional: its face icon
       face-shiny.png     optional: its shiny face icon
+      cry.wav            optional: its cry
     eclipse/
       pokemon.json
 ```
@@ -80,7 +84,7 @@ without a model, a cry or sprites of its own looks and sounds like its base.
 | `growthRate` | `mediumFast`, `erratic`, `fluctuating`, `mediumSlow`, `fast` or `slow`. |
 | `gender` | How many in 100 are female (0 to 100), or `"genderless"`. |
 | `height`, `weight` | In metres and kilograms. |
-| `cry` | Another Pokémon whose cry it uses. |
+| `cry` | Another Pokémon whose cry it uses, when it has no `cry.wav` of its own. |
 | `moves` | The moves it learns by level, up to 20, as `[level, "Move"]`, the move by name or number. Replaces its base's list. |
 | `tms` | The TMs and HMs it can learn, such as `"TM06"` or `"HM01"`. Replaces its base's. |
 | `tmMoves` | Moves it can learn from a TM or HM in any game, by name or number: it can learn those this game's TMs and HMs teach, and the rest are let go. Replaces its base's, unless `tms` is there too. |
@@ -112,6 +116,13 @@ PNG images. Any size works, and each is scaled to the game's size:
 Transparent pixels stay transparent. A shiny Pokémon uses `body-shiny.png` and `face-shiny.png`, or the normal ones when there
 aren't any.
 
+## Cry
+
+`cry.wav` is its own cry, which the game plays wherever it plays a Pokémon's cry: when it's sent out, when it faints, in its
+summary. A WAV file of 16-bit or 8-bit PCM, mono or stereo (stereo is mixed to mono), at 8,000 to 48,000 Hz, and no longer than
+4 seconds. It plays at its own rate, as loud as it is in the file, with the game's volume and echo as its base's cry has them.
+The Pokédex's Cry button plays it too. Without one, it has its base's cry, or the one `cry` names.
+
 ## Saves
 
 Pack Pokémon go in the 25 rows the game leaves empty first, then in rows of their own past the game's (from 1100: the
@@ -122,7 +133,14 @@ Pokémon of a pack you've removed stay in your save but don't appear in the game
 hidden the game may write over them. The original game, and other copies of it, don't have your pack's Pokémon either: a save
 carried there hides them the same way.
 
+If your whole party is from a pack you've removed, as it can be when both starters were, the save still loads, but you
+lose any battle at once, with no Pokémon to send out. Put the pack back and the party is there again.
+
 Online battles play without packs, as the other player's game wouldn't have your Pokémon. Pack Pokémon in your Story party
 stay home.
 
-The randomizer only chooses among the game's own Pokémon.
+The randomizer chooses pack Pokémon when **Pokémon packs** is on under Randomizer, in Settings → Gameplay, and you have
+at least one when the run begins. They can be chosen whichever generations are ticked, and **No legendaries** leaves out one
+based on a legendary Pokémon. Keep the same packs for the whole run: the run picks from the list of every
+Pokémon it may use, so adding or removing a pack changes what it chooses from then on. Someone you share the seed with
+needs the same packs to get the same run.

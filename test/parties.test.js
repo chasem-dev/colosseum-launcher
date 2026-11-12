@@ -102,3 +102,23 @@ test('a room the player makes plays by the battle rules they chose, in any forma
   assert.equal(parties.roomRules(parties.normalize({ format: 'gen3ou', battleRules: 4 })).battleRules, 4);
   assert.equal(parties.roomRules(parties.normalize({ format: 'orre' })).battleRules, 3);
 });
+
+test('a party is of the third generation or the fourth, whose Pokémon only it can have', () => {
+  const GARCHOMP = 471, STONE_EDGE = 447;
+  const sets = [{ species: GARCHOMP, moves: [STONE_EDGE, 89] }, { species: 143, moves: [STONE_EDGE, 34] }];
+  const fourth = parties.normalizeParty({ name: 'Sinnoh', generation: 4, members: [GARCHOMP, 143], sets });
+  assert.equal(fourth.generation, 4);
+  assert.deepEqual(fourth.members, [GARCHOMP, 143]);
+  assert.deepEqual(fourth.sets.map(set => set.moves), [[STONE_EDGE, 89], [STONE_EDGE, 34]]);
+  // a party from before generations is the third's, which keeps neither
+  const third = parties.normalizeParty({ name: 'Hoenn', members: [GARCHOMP, 143], sets });
+  assert.equal(third.generation, 3);
+  assert.deepEqual(third.members, [143]);
+  assert.deepEqual(third.sets[0].moves, [34]);
+  assert.equal(parties.normalizeParty({ generation: 5 }).generation, 3);
+  assert.equal(parties.rulesProblem(fourth, 4), null);
+  assert.match(parties.rulesProblem(fourth, 3), /Sinnoh is a Generation 4 party, which battles only under Pokémon Platinum's battle rules/);
+  assert.equal(parties.rulesProblem(third, 3), null);
+  assert.equal(parties.rulesProblem(third, 4), null);
+  assert.equal(parties.normalize({ parties: [{ ...fourth, id: 'p' }] }).parties[0].generation, 4);
+});

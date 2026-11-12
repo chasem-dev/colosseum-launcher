@@ -311,3 +311,81 @@ test('the Pokédex shows a pack Pokémon as it shows the game\'s, with where it 
   assert.equal(entry.status.kind, 'pack');
   assert.match(entry.status.note, /^Weather, by Me\. Based on Pikachu\. Crackles\. Credits: Them, for the model\.$/);
 });
+
+// A WAV file of PCM: channels of samples, frame by frame
+function wavFile(rate, channels, bits, frames, { extensible = false } = {}) {
+  const width = bits / 8, data = Buffer.alloc(frames.length * channels * width);
+  frames.forEach((frame, i) => frame.forEach((value, c) => {
+    const at = (i * channels + c) * width;
+    if (bits === 16) data.writeInt16LE(value, at); else data[at] = value;
+  }));
+  const fmt = Buffer.alloc(extensible ? 40 : 16);
+  fmt.writeUInt16LE(extensible ? 0xfffe : 1, 0); fmt.writeUInt16LE(channels, 2); fmt.writeUInt32LE(rate, 4);
+  fmt.writeUInt32LE(rate * channels * width, 8); fmt.writeUInt16LE(channels * width, 12); fmt.writeUInt16LE(bits, 14);
+  if (extensible) fmt.writeUInt16LE(1, 24);   // its sub-format's first two bytes: PCM
+  const chunk = (id, body) => { const head = Buffer.alloc(8); head.write(id, 0, 'latin1'); head.writeUInt32LE(body.length, 4); return Buffer.concat([head, body, Buffer.alloc(body.length & 1)]); };
+  const list = chunk('LIST', Buffer.from('INFOx'));   // a chunk of another kind, of odd size, is passed over
+  const body = Buffer.concat([Buffer.from('WAVE'), chunk('fmt ', fmt), list, chunk('data', data)]);
+  return Buffer.concat([Buffer.from('RIFF'), Buffer.from(Uint32Array.of(body.length).buffer), body]);
+}
+
+test('a cry.wav is read as the game plays it: mono, 16-bit, at its own rate', () => {
+  const mono = packs.readCry(wavFile(32000, 1, 16, [[100], [-200], [32767]]));
+  assert.equal(mono.rate, 32000);
+  assert.deepEqual([...mono.samples], [100, -200, 32767]);
+  const stereo = packs.readCry(wavFile(22050, 2, 16, [[100, 300], [-1, -2]], { extensible: true }));
+  assert.deepEqual([stereo.rate, ...stereo.samples], [22050, 200, -2], 'the channels\' mean');
+  assert.deepEqual([...packs.readCry(wavFile(11025, 1, 8, [[128], [255], [0]])).samples], [0, 127 << 8, -32768], '8-bit is unsigned');
+  assert.throws(() => packs.readCry(Buffer.from('not a wav file at all')), /isn't a WAV file/);
+  const float = wavFile(32000, 1, 16, [[1]]); float.writeUInt16LE(3, 20);
+  assert.throws(() => packs.readCry(float), /8- or 16-bit PCM/);
+  assert.throws(() => packs.readCry(wavFile(96000, 1, 16, [[1]])), /8000 to 48000 Hz/);
+  assert.throws(() => packs.readCry(wavFile(8000, 1, 8, Array.from({ length: 32000 * 4 + 1 }, () => [128]))), /longer than 4 seconds/);
+});
+
+test('a Pokémon\'s own cry goes to the game in a chunk of its own, after its row', () => {
+  const game = tables();
+  const built = packs.buildRow({ base: 'Umbreon', name: 'Moonfang' }, game, noTarget);
+  const cry = { rate: 32000, samples: Int16Array.of(1, -2, 300) };
+  const file = packs.compile({ pokemon: [{ id: 253, ...built, assets: {}, cry }, { id: 254, ...built, assets: {} }] });
+  const chunks = {};
+  for (let at = 16; at < file.length;) {
+    const tag = file.toString('latin1', at, at + 4), size = file.readUInt32BE(at + 4);
+    chunks[tag] = file.subarray(at + 8, at + 8 + size);
+    at += 8 + Math.ceil(size / 4) * 4;
+  }
+  assert.deepEqual(Object.keys(chunks), ['SPEC', 'CRYS']);
+  const crys = chunks.CRYS;
+  assert.deepEqual([crys.readUInt32BE(0), crys.readUInt16BE(4), crys.readUInt16BE(6), crys.readUInt32BE(8), crys.readUInt32BE(12)], [1, 253, 0, 32000, 3]);
+  assert.deepEqual([crys.readInt16BE(16), crys.readInt16BE(18), crys.readInt16BE(20)], [1, -2, 300], 'big-endian, as ARAM has it');
+  assert.equal(crys.length, 24, 'padded to 4');
+  assert.equal(packs.compile({ pokemon: [{ id: 254, ...built, assets: {} }] }).includes('CRYS'), false, 'no chunk without a cry');
+});
+
+test('a pack\'s cry.wav and a Battle Revolution one are read beside their Pokémon; a bad one is said, or left out', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'packs-cry-'));
+  try {
+    const good = wavFile(32000, 1, 16, [[5], [6]]);
+    writePack(root, 'moon', [
+      ['moonfang', { base: 'Umbreon', name: 'Moonfang' }, { 'cry.wav': good }],
+      ['eclipse', { base: 'Umbreon', name: 'Eclipse' }, { 'cry.wav': Buffer.from('RIFF....WAVEjunk') }]
+    ]);
+    const loaded = packs.loadPacks(root, tables(), { ids: {} });
+    assert.deepEqual(loaded.pokemon.map(each => [each.name, each.cry && [...each.cry.samples]]), [['MOONFANG', [5, 6]]]);
+    assert.deepEqual(loaded.pokemon[0].cry.wav, good, 'the file as it is, for the Pokédex');
+    assert.deepEqual(loaded.problems.map(problem => `${problem.entry}: ${problem.message}`), ['eclipse: cry.wav isn\'t a WAV file']);
+
+    // Battle Revolution's folders, by National Pokédex number: a cry without a model is still its own
+    const models = path.join(root, 'models');
+    for (const [number, files] of [[387, { 'cry.wav': good }], [388, { 'cry.wav': Buffer.from('broken') }]]) {
+      fs.mkdirSync(path.join(models, String(number)), { recursive: true });
+      for (const [name, data] of Object.entries(files)) fs.writeFileSync(path.join(models, String(number), name), data);
+    }
+    const spec = name => ({ base: 'Umbreon', name });
+    const built = { species: [{ id: 413, number: 387, generation: 4, spec: spec('Turtwig') }, { id: 414, number: 388, generation: 4, spec: spec('Grotle') }], moves: [] };
+    const { pokemon } = packs.generationPokemon(tables(), built, { modelsDirectory: models });
+    assert.deepEqual(pokemon.map(each => [each.national, Boolean(each.cry), Boolean(each.assets.model)]), [[387, true, false], [388, false, false]]);
+    const [entry] = packs.pokedexEntries([pokemon[0]], tables());
+    assert.match(entry.status.note, /with its cry from your Battle Revolution disc\. Umbreon stands in for its looks until its Battle Revolution assets are made\./);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

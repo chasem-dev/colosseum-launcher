@@ -7,7 +7,9 @@
 // set for each (src/team-sets.js): its moves, nature, EVs, IVs and the rest.
 // The species stay a list of their own so a launcher from before sets still
 // reads the party. The Story party (src/story-party.js) is the save's own,
-// chosen as STORY.
+// chosen as STORY. A party is of the third generation or the fourth, whose
+// Pokémon and moves it may also have, and which plays only under Pokémon
+// Platinum's battle rules (src/team-sets.js); a party from before is the third's.
 const teamSets = require('./team-sets');
 const formats = require('./formats');
 
@@ -20,6 +22,8 @@ const SIZES = [3, 6];
 const STORY = 'story';
 // The game numbers its species up to 411, with a gap between the second generation and the third.
 const { validSpecies } = teamSets;
+// The battle rules a party of each generation plays under: either for the third's, Platinum's for the fourth's.
+const rulesFor = generation => generation >= 4 ? [4] : formats.BATTLE_RULES;
 
 const cleanName = (value, length) => (typeof value === 'string' ? value : '').replace(/\s+/g, ' ').trim().slice(0, length);
 
@@ -30,11 +34,12 @@ function trainerName(value) {
 
 function normalizeParty(input, index = 0) {
   const raw = Array.isArray(input?.members) ? input.members : [], sets = Array.isArray(input?.sets) ? input.sets : [];
+  const generation = teamSets.generationOf(input?.generation);
   // each member with its set, in order: a set for another species, or none, starts again from the species
-  const kept = raw.map((species, i) => [species, sets[i]]).filter(([species]) => validSpecies(species)).slice(0, PARTY_SIZE);
+  const kept = raw.map((species, i) => [species, sets[i]]).filter(([species]) => validSpecies(species, generation)).slice(0, PARTY_SIZE);
   return { id: typeof input?.id === 'string' && /^[a-z0-9-]{1,40}$/.test(input.id) ? input.id : `party-${index + 1}`,
-    name: cleanName(input?.name, NAME_LENGTH) || `Party ${index + 1}`, members: kept.map(([species]) => species),
-    sets: kept.map(([species, set]) => teamSets.normalizeSet(set, species)) };
+    name: cleanName(input?.name, NAME_LENGTH) || `Party ${index + 1}`, generation, members: kept.map(([species]) => species),
+    sets: kept.map(([species, set]) => teamSets.normalizeSet(set, species, generation)) };
 }
 
 function normalize(input) {
@@ -95,4 +100,11 @@ function selectedParty(online) {
   return party?.members.length === PARTY_SIZE ? party : null;
 }
 
-module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty, roomRules };
+// Why a party can't battle under a room's battle rules, or null when it can: a Generation 4 party needs Platinum's.
+function rulesProblem(party, battleRules) {
+  if (!party || rulesFor(party.generation).includes(battleRules)) return null;
+  return `${party.name} is a Generation 4 party, which battles only under Pokémon Platinum's battle rules.`;
+}
+
+module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty, roomRules,
+  rulesFor, rulesProblem };

@@ -346,7 +346,7 @@ test('a disc chosen before is offered straight away, and nothing is asked once e
   const ui = await renderer(gen4State({ disc: '/games/pbr.rvz', discFound: true }));
   ui.window.colo.makePbrModels = async () => { ui.calls.push('makePbrModels'); return ui.run('current'); };
   await turnOnGen4(ui);
-  assert.equal(ui.elements.get('pbr-offer-confirm').textContent, 'Make models');
+  assert.equal(ui.elements.get('pbr-offer-confirm').textContent, 'Make assets');
   assert.match(ui.elements.get('pbr-offer-lead').textContent, /\/games\/pbr\.rvz/);
   await ui.click('pbr-offer-confirm');
   assert.ok(ui.calls.includes('makePbrModels'));
@@ -354,6 +354,22 @@ test('a disc chosen before is offered straight away, and nothing is asked once e
   const done = await renderer(gen4State({ disc: '/games/pbr.rvz', discFound: true, made: 107 }));
   await turnOnGen4(done);
   assert.equal(done.elements.get('pbr-offer').open, false);
+});
+
+test('models made before the game made cries are offered their cries above Play, and in Settings', async () => {
+  const ui = await renderer(gen4State({ disc: '/games/pbr.rvz', discFound: true, cries: true, made: 0, noCry: 107 }));
+  assert.equal(ui.elements.get('pbr-banner').hidden, false);
+  assert.equal(ui.elements.get('pbr-banner-title').textContent, 'Your Generation 4 Pokémon can have their own cries');
+  assert.equal(ui.elements.get('pbr-banner-detail').textContent, '107 Generation 4 Pokémon cry with a Colosseum Pokémon\'s voice. Battle Revolution\'s own is on your disc.');
+  assert.equal(ui.elements.get('pbr-banner-make').textContent, 'Make assets');
+  assert.match(ui.elements.get('pbr-note').textContent, /107 Pokémon have a model but no cry of its own yet: press Make assets to add them\./);
+
+  const done = await renderer(gen4State({ disc: '/games/pbr.rvz', discFound: true, cries: true, made: 107, noCry: 0 }));
+  assert.equal(done.elements.get('pbr-banner').hidden, true);
+  const older = await renderer(gen4State({ disc: null, cries: false }));
+  assert.match(older.elements.get('pbr-note').textContent, /their models and icons are made from it/, 'a game that makes no cries');
+  const newer = await renderer(gen4State({ disc: null, cries: true }));
+  assert.match(newer.elements.get('pbr-note').textContent, /their models, icons and cries are made from it/);
 });
 
 test('cancelling the disc picker makes nothing, and the models stay stand-ins', async () => {

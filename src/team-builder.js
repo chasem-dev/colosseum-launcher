@@ -1,6 +1,8 @@
 // The team builder: a party's six Pokémon, each with its moves, item, ability, nature, EVs and IVs, as Pokémon
 // Showdown builds them, and Showdown's text to bring a team in or take it out. What it offers is read from the
 // player's disc (src/battle-data.js); the sets themselves are src/team-sets.js's. The Online page opens it.
+// A party is of the third generation or the fourth: the fourth's is offered that generation's Pokémon and moves too,
+// each move and ability as it plays under Pokémon Platinum's battle rules, and what each can learn there.
 (() => {
   const $ = id => document.getElementById(id);
   const T = window.coloTeamSets;
@@ -27,6 +29,16 @@
   let editing = null, current = 0, view = 'set', replacing = null, level = 50, onDone = null, dragFrom = null;
   // The battle rules the Online page has chosen: a later generation's make a move physical or special by itself.
   let battleRules = 3;
+  // The open party's generation, and what it's offered: { species (to pick from), moves, moveById, info(id) }.
+  let generation = 3;
+  const later = () => generation >= 4 ? data?.generations?.[generation] : null;
+  // the Pokémon to pick from, with their abilities as the generation has them (Magnemite's Sturdy)
+  const pickable = () => !later() ? species || []
+    : [...(species || []).map(entry => later().species[entry.id] ? { ...entry, abilities: later().species[entry.id].abilities.map(each => each.name) } : entry), ...(later().dex || [])];
+  const movesOf = () => later()?.moves || data?.moves || [];
+  // the items to hold: the disc's, and a later generation's own too (Life Orb), which play only under its rules
+  const itemsOf = () => later()?.items || data?.items || [];
+  const speciesInfo = id => (later() ? later().species[id] : data?.species[id]);
   // The list under a move or item field while it's chosen from.
   let list = null;
 
@@ -43,6 +55,11 @@
         data = battle.value;
         moveById = new Map(data.moves.map(move => [move.id, move]));
         itemById = new Map(data.items.map(item => [item.id, item]));
+        // the later generations' Pokémon, for their names and sprites wherever a party has them, and their items' names
+        for (const each of Object.values(data.generations || {})) {
+          for (const entry of each.dex || []) byId.set(entry.id, entry);
+          for (const item of each.items || []) if (!itemById.has(item.id)) itemById.set(item.id, item);
+        }
       }
       const failed = [dex, battle].find(result => result.status === 'rejected');
       loadError = failed ? message(failed.reason) : null;
@@ -51,9 +68,15 @@
     return loading;
   }
 
-  // What team-sets.js's Showdown text needs to know about this disc.
-  const dex = () => ({ species, moves: data.moves, items: data.items, balls: data.balls,
-    abilities: id => data.species[id]?.abilities || [], gender: id => data.species[id]?.gender ?? T.GENDER.none });
+  // The moves as the open party's generation has them.
+  const useGeneration = value => {
+    generation = T.generationOf(value);
+    moveById = new Map(movesOf().map(move => [move.id, move]));
+  };
+
+  // What team-sets.js's Showdown text needs to know about this disc, for the open party's generation.
+  const dex = () => ({ species: pickable(), moves: movesOf(), items: [...itemById.values()], balls: data.balls,
+    abilities: id => speciesInfo(id)?.abilities || [], gender: id => speciesInfo(id)?.gender ?? T.GENDER.none });
 
   function sprite(id, size, className = '') {
     const entry = byId.get(id);
@@ -63,15 +86,19 @@
     return image;
   }
 
-  // Physical, Special or Status: the move's own under a later generation's rules (Hidden Power is special there),
-  // else by its type, Hidden Power by the type the IVs give it.
-  const categoryOf = (move, hidden) => data?.categories?.[battleRules]?.[move.id] || (hidden ? T.category(hidden.type) : move.category);
+  // Physical, Special or Status: the move's own under a later generation's rules (Hidden Power is special there; a
+  // Generation 4 party's moves are that generation's), else by its type, Hidden Power by the type the IVs give it.
+  const categoryOf = (move, hidden) => later() ? move.category
+    : data?.categories?.[battleRules]?.[move.id] || (hidden ? T.category(hidden.type) : move.category);
 
   const speciesName = id => byId.get(id)?.name || `#${id}`;
   const displayName = set => set.nickname || speciesName(set.species);
-  const learnset = id => new Map(data?.species[id]?.learnset || []);
-  // Moves its species can't learn in any game of the third generation: allowed, as Showdown's custom games allow them, and shown.
+  const learnset = id => new Map(speciesInfo(id)?.learnset || []);
+  // Moves its species can't learn in any game of the party's generation: allowed, as Showdown's custom games allow them, and shown.
   const unlearnable = set => set.moves.filter(move => !learnset(set.species).has(move));
+  // Whether the party has a Pokémon, move or held item only a Generation 4 party can have.
+  const hasLater = sets => sets.some(set => T.speciesGeneration(set.species) >= 4 || set.moves.some(move => T.moveGeneration(move) >= 4)
+    || T.itemGeneration(set.item) >= 4);
 
   function setStatus(text) { $('party-editor-status').textContent = text || ''; }
 
@@ -90,7 +117,7 @@
           el('span', { className: 'tb-slot-text' },
             el('strong', { textContent: displayName(set) }),
             el('small', { textContent: set.item ? itemById.get(set.item)?.name || 'Item' : set.moves.length ? `${set.moves.length} move${set.moves.length === 1 ? '' : 's'}` : 'Level-up moves' })),
-          odd ? el('i', { className: 'tb-slot-warn', title: `${odd} move${odd === 1 ? '' : 's'} it can't learn in Gen 3`, textContent: '!' }) : null].filter(Boolean));
+          odd ? el('i', { className: 'tb-slot-warn', title: `${odd} move${odd === 1 ? '' : 's'} it can't learn in Gen ${generation}`, textContent: '!' }) : null].filter(Boolean));
         button.addEventListener('click', () => select(i));
         button.draggable = true;
         button.addEventListener('dragstart', event => { dragFrom = i; event.dataTransfer.effectAllowed = 'move'; button.classList.add('dragging'); });
@@ -150,7 +177,7 @@
     $('tb-picker-cancel').hidden = !editing.sets.length;
     if (!species) { $('party-dex').replaceChildren(); return; }
     const query = $('party-search').value.trim().toLowerCase(), digits = query.replace(/^#?0*/, '');
-    const matches = species.filter(entry => !query || entry.name.toLowerCase().includes(query) || String(entry.national) === digits
+    const matches = pickable().filter(entry => !query || entry.name.toLowerCase().includes(query) || String(entry.national) === digits
       || entry.types.some(type => type.toLowerCase() === query) || entry.abilities.some(ability => ability.toLowerCase().includes(query)));
     const taken = new Set(editing.sets.map(set => set.species));
     $('party-dex').replaceChildren(...matches.map(entry => {
@@ -196,7 +223,7 @@
   function renderSet() {
     const set = editing.sets[current];
     if (!set) { $('tb-set').replaceChildren(); return; }
-    const entry = byId.get(set.species), info = data.species[set.species] || { abilities: [], gender: T.GENDER.none };
+    const entry = byId.get(set.species), info = speciesInfo(set.species) || { abilities: [], gender: T.GENDER.none };
     const update = () => { refresh(); renderTeam(); };
 
     // Who it is
@@ -293,7 +320,7 @@
         el('span', { textContent: `${hidden ? hidden.power : move.power > 1 ? move.power : '—'} pow` }),
         el('span', { textContent: `${move.accuracy ? `${move.accuracy}%` : '—'} acc` }),
         el('span', { textContent: `${move.pp} PP` }),
-        learned.has(move.id) ? el('span', { className: 'tb-how', textContent: learned.get(move.id) }) : el('span', { className: 'tb-how odd', textContent: 'Not in Gen 3' }));
+        learned.has(move.id) ? el('span', { className: 'tb-how', textContent: learned.get(move.id) }) : el('span', { className: 'tb-how odd', textContent: `Not in Gen ${generation}` }));
     };
     input.addEventListener('focus', () => { input.select(); openMoves(input, set, slot, show, ''); });
     input.addEventListener('input', () => openMoves(input, set, slot, show, input.value));
@@ -413,7 +440,7 @@
     if (note) {
       const odd = unlearnable(set).map(id => moveById.get(id)?.name).filter(Boolean);
       note.textContent = !set.moves.length ? `With no moves chosen, ${displayName(set)} battles with the moves it learns by the room's level.`
-        : odd.length ? `${speciesName(set.species)} can't learn ${odd.join(' or ')} in any Gen 3 game. It still battles with ${odd.length === 1 ? 'it' : 'them'}.`
+        : odd.length ? `${speciesName(set.species)} can't learn ${odd.join(' or ')} in any Gen ${generation} game${generation >= 4 ? ', nor bring it from one of Gen 3' : ''}. It still battles with ${odd.length === 1 ? 'it' : 'them'}.`
         : set.moves.includes(T.HIDDEN_POWER) ? `Hidden Power is ${T.hiddenPower(set.ivs).type}, ${T.hiddenPower(set.ivs).power} power, from its IVs.` : '';
       note.classList.toggle('warn', odd.length > 0);
     }
@@ -513,8 +540,8 @@
     own.sort((a, b) => a[0].name.localeCompare(b[0].name));
     const rows = own.map(([move, how]) => moveRow(move, how, move.id === T.HIDDEN_POWER ? hidden : null));
     if (query) {
-      const others = data.moves.filter(move => !learned.has(move.id) && matches(move) && !taken.has(move.id)).slice(0, LIST_LIMIT);
-      if (others.length) rows.push({ label: `Moves ${speciesName(set.species)} can't learn in Gen 3` }, ...others.map(move => moveRow(move, null, move.id === T.HIDDEN_POWER ? hidden : null)));
+      const others = movesOf().filter(move => !learned.has(move.id) && matches(move) && !taken.has(move.id)).slice(0, LIST_LIMIT);
+      if (others.length) rows.push({ label: `Moves ${speciesName(set.species)} can't learn in Gen ${generation}` }, ...others.map(move => moveRow(move, null, move.id === T.HIDDEN_POWER ? hidden : null)));
     }
     const header = el('div', { className: 'tb-list-row tb-list-head' }, ...['Move', 'Type', 'Category', 'Pow', 'Acc', 'PP', 'Learned', ''].map(text => el('span', { textContent: text })));
     openList(input, rows, id => { setMove(set, slot, id); show(); }, header, 'moves');
@@ -523,7 +550,7 @@
   function openItems(input, set, text) {
     const query = key(text);
     const rows = query ? [] : [{ value: 0, cells: [el('span', { className: 'tb-list-name', textContent: 'No item' }), el('span', { className: 'tb-list-doc', textContent: 'It holds nothing.' })] }];
-    for (const item of data.items) {
+    for (const item of itemsOf()) {
       if (query && !key(item.name).includes(query) && !key(item.doc).includes(query)) continue;
       rows.push({ value: item.id, title: item.doc, cells: [el('span', { className: 'tb-list-name', textContent: item.name }), el('span', { className: 'tb-list-doc', textContent: item.doc })] });
     }
@@ -549,7 +576,7 @@
   }
 
   function importText() {
-    const { sets, problems } = T.parseShowdown($('party-text-box').value, dex());
+    const { sets, problems } = T.parseShowdown($('party-text-box').value, dex(), generation);
     $('party-text-problems').replaceChildren(...problems.map(text => el('li', { textContent: text })));
     $('party-text-problems').hidden = !problems.length;
     if (!sets.length) { $('party-text-result').textContent = 'No Pokémon in that text could be brought in.'; return; }
@@ -563,7 +590,8 @@
 
   // --- The editor as a whole
   function render() {
-    const note = loadError || (data && !data.gameTakesSets ? 'Your game is from before sets: it battles with these Pokémon\'s level-up moves until you update it from the Play page.' : '');
+    const note = loadError || (data && !data.gameTakesSets ? 'Your game is from before sets: it battles with these Pokémon\'s level-up moves until you update it from the Play page.' : '')
+      || (data && generation >= 4 && !later()?.dex?.length ? 'The Generation 4 Pokémon couldn\'t be read from your disc: the Activity log says why.' : '');
     $('party-dex-note').textContent = note;
     $('party-dex-note').hidden = !note;
     if (!data) { renderTeam(); return; }
@@ -578,14 +606,17 @@
   function finish() {
     closeList();
     if (!editing) return;
-    const done = onDone, party = { ...editing, name: $('party-name').value, members: editing.sets.map(set => set.species) };
+    const done = onDone, party = { ...editing, name: $('party-name').value, generation, members: editing.sets.map(set => set.species) };
     editing = null;
     if (party.sets.length) done?.(party);
   }
 
-  // party: { id, name, members, sets } or null for a new one. done(party) is called once it closes with Pokémon in it.
-  async function open(party, { name, level: roomLevel = 50, battleRules: rules = 3, done, remove, from = null }) {
+  // party: { id, name, generation, members, sets } or null for a new one, of `generation`. done(party) is called once it
+  // closes with Pokémon in it.
+  async function open(party, { name, level: roomLevel = 50, battleRules: rules = 3, generation: wanted = 3, done, remove, from = null }) {
     battleRules = Number(rules) || 3;
+    useGeneration(party?.generation || wanted);
+    $('party-generation').value = String(generation);
     const sets = from || (party ? party.sets.map(set => JSON.parse(JSON.stringify(set))) : []);
     editing = { id: party?.id || null, name: party?.name || name, sets };
     onDone = done;
@@ -605,6 +636,7 @@
     if (!$('party-editor').open) $('party-editor').showModal();
     $('party-slots').querySelector('button:not(:disabled)')?.focus();
     await load();
+    useGeneration(generation);
     if (editing) render();
     if (view === 'picker') $('party-search').focus();
     else $('party-slots').querySelector('.tb-slot.selected')?.focus();
@@ -616,6 +648,18 @@
   $('party-editor-close').addEventListener('click', () => $('party-editor').close());
   $('party-save').addEventListener('click', () => $('party-editor').close());
   $('party-search').addEventListener('input', renderPicker);
+  // A party becomes the third generation's only once it has nothing of the fourth's.
+  $('party-generation').addEventListener('change', event => {
+    const wanted = Number(event.target.value);
+    if (wanted < 4 && hasLater(editing?.sets || [])) {
+      event.target.value = String(generation);
+      setStatus('Take out its Generation 4 Pokémon, moves and items first: a Generation 3 party can\'t have them.');
+      return;
+    }
+    useGeneration(wanted);
+    closeList();
+    render();
+  });
   $('party-search').addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); $('party-dex').querySelector('.tb-dex-row')?.click(); }
   });

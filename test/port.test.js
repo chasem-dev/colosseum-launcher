@@ -175,22 +175,55 @@ test('the shiny settings are on unless turned off, and on leaves them to the gam
   }
 });
 
-test('quick moves and quick status effects are off unless chosen, and off leaves them to the game', () => {
+test('quick moves and quick status effects are on unless turned off, and off leaves them to the game', () => {
   const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
   const saved = [process.env.COLO_QUICK_MOVES, process.env.COLO_FAST_STATUS];
   delete process.env.COLO_QUICK_MOVES;
   delete process.env.COLO_FAST_STATUS;
   try {
-    assert.equal(port.normalizeSettings({}).quickMoves, false);
-    assert.equal(port.normalizeSettings({}).quickStatus, false);
-    assert.equal(env({}).COLO_QUICK_MOVES, undefined);
-    assert.equal(env({}).COLO_FAST_STATUS, undefined);
-    assert.equal(env({ quickMoves: true }).COLO_QUICK_MOVES, '1');
-    assert.equal(env({ quickMoves: true }).COLO_FAST_STATUS, undefined);
-    assert.equal(env({ quickStatus: true }).COLO_FAST_STATUS, '1');
+    assert.equal(port.normalizeSettings({}).quickMoves, true);
+    assert.equal(port.normalizeSettings({}).quickStatus, true);
+    assert.equal(env({}).COLO_QUICK_MOVES, '1');
+    assert.equal(env({}).COLO_FAST_STATUS, '1');
+    assert.equal(env({ quickMoves: false }).COLO_QUICK_MOVES, undefined);
+    assert.equal(env({ quickMoves: false }).COLO_FAST_STATUS, '1');
+    assert.equal(env({ quickStatus: false }).COLO_FAST_STATUS, undefined);
+    assert.equal(env({ quickMoves: false, quickStatus: false }).COLO_QUICK_MOVES, undefined);
   } finally {
     if (saved[0] !== undefined) process.env.COLO_QUICK_MOVES = saved[0];
     if (saved[1] !== undefined) process.env.COLO_FAST_STATUS = saved[1];
+  }
+});
+
+test('a config saved while quick moves were off by default turns them on once, then keeps the choice', () => {
+  const off = port.normalizeSettings({ quickMoves: false, quickStatus: false });
+  const on = port.turnOnQuickBattles(off, undefined);
+  assert.equal(on.quickMoves, true);
+  assert.equal(on.quickStatus, true);
+  assert.equal(port.turnOnQuickBattles(off, true).quickMoves, false);
+  assert.equal(port.turnOnQuickBattles(off, true).quickStatus, false);
+});
+
+test('fast-forward is held at 4x unless chosen, and the default leaves it to the game', () => {
+  const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
+  const saved = [process.env.COLO_FAST_FORWARD, process.env.COLO_FAST_FORWARD_SPEED];
+  delete process.env.COLO_FAST_FORWARD;
+  delete process.env.COLO_FAST_FORWARD_SPEED;
+  try {
+    assert.equal(port.normalizeSettings({}).fastForward, 'hold');
+    assert.equal(port.normalizeSettings({}).fastForwardSpeed, 4);
+    assert.equal(env({}).COLO_FAST_FORWARD, undefined);
+    assert.equal(env({}).COLO_FAST_FORWARD_SPEED, undefined);
+    assert.equal(env({ fastForward: 'toggle' }).COLO_FAST_FORWARD, 'toggle');
+    assert.equal(env({ fastForward: 'sideways' }).COLO_FAST_FORWARD, undefined);
+    // the Settings list saves its value as text
+    assert.equal(env({ fastForwardSpeed: '3' }).COLO_FAST_FORWARD_SPEED, '3');
+    assert.equal(env({ fastForwardSpeed: '8' }).COLO_FAST_FORWARD_SPEED, '8');
+    assert.equal(env({ fastForwardSpeed: '4' }).COLO_FAST_FORWARD_SPEED, undefined);
+    assert.equal(port.normalizeSettings({ fastForwardSpeed: '5' }).fastForwardSpeed, 4);
+  } finally {
+    if (saved[0] !== undefined) process.env.COLO_FAST_FORWARD = saved[0];
+    if (saved[1] !== undefined) process.env.COLO_FAST_FORWARD_SPEED = saved[1];
   }
 });
 

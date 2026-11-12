@@ -145,13 +145,16 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
       : choiceSetting(input.display, ['launcher', 'primary'], 'launcher'),
     vsync: choiceSetting(input.vsync, ['off', 'on', 'adaptive'], 'off'),
     skipMovies: Boolean(input.skipMovies),
+    // Fast-forward (L + R, or its own binding) runs while held, or a press turns it on and the next off; and how fast.
+    fastForward: choiceSetting(input.fastForward, ['hold', 'toggle'], 'hold'),
+    fastForwardSpeed: [2, 3, 4, 6, 8].includes(Number(input.fastForwardSpeed)) ? Number(input.fastForwardSpeed) : 4,
     // A battle's animations skipped, or else played at battleSpeed: 1 is as on the disc.
     skipBattleAnimations: input.battleSpeed === 'skip' || Boolean(input.skipBattleAnimations),
     battleSpeed: battleSpeedSetting(input.battleSpeed),
-    // In battle, Z (R1 or RB on other controllers) opens the moves and A, B, X or Y uses one at once; off unless chosen.
-    quickMoves: Boolean(input.quickMoves),
-    // Status conditions and stat changes show over the move that caused them, and the battle moves on; off unless chosen.
-    quickStatus: Boolean(input.quickStatus),
+    // In battle, Z (R1 or RB on other controllers) opens the moves and A, B, X or Y uses one at once; on unless turned off.
+    quickMoves: input.quickMoves !== false,
+    // Status conditions and stat changes show over the move that caused them, and the battle moves on; on unless turned off.
+    quickStatus: input.quickStatus !== false,
     // How Quick moves shows each move's button (src/prompts.js): as the controller or keyboard in use (auto), or one style.
     buttonPrompts: prompts.normalizeStyle(input.buttonPrompts),
     promptPad: prompts.normalizePad(input.promptPad),
@@ -226,6 +229,12 @@ function moveToMetal(settings, moved, platform = process.platform, arch = gameAr
   return platformInfo(platform, arch).renderers[0] === 'metal' && !moved && settings.renderer === 'vulkan' ? { ...settings, renderer: 'metal' } : settings;
 }
 
+// Quick moves and Quick status effects were off by default at first, so every saved config says false.
+// They turn on once when they became defaults; after that the player's choice stays.
+function turnOnQuickBattles(settings, done) {
+  return done ? settings : { ...settings, quickMoves: true, quickStatus: true };
+}
+
 function texturePackDirectory(root) { return path.join(root, 'mods', 'textures'); }
 
 // The pack this launcher pins, unpacked in full (install-textures.py writes the marker last).
@@ -272,7 +281,7 @@ function texturePackFolders(settings, root, customTextures) {
 
 // What the game reads when it starts, as run.sh and run.cmd set it up. `customTextures` is the custom
 // textures folder, for playing (texturePackFolders).
-function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false } = {}) {
+function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false, packPokemon = false } = {}) {
   if (!root) throw new Error('The port folder is required to configure texture packs.');
   const env = {
     ...process.env,
@@ -308,7 +317,10 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
     SMS_GX_SHADER_WARMUP: settings.shaderWarmup === false ? '0' : '1'
   };
   if (settings.skipMovies) env.COLO_SKIP_MOVIES = '1';
-  const run = randomizer.environmentValue(settings, { laterGenerations });
+  // Unset is hold at 4x, as in a game built before these settings.
+  if (settings.fastForward === 'toggle') env.COLO_FAST_FORWARD = 'toggle';
+  if (settings.fastForwardSpeed && settings.fastForwardSpeed !== 4) env.COLO_FAST_FORWARD_SPEED = String(settings.fastForwardSpeed);
+  const run = randomizer.environmentValue(settings, { laterGenerations, packPokemon });
   if (run) env.COLO_RANDOMIZER = run;
   if (settings.hdModels === false) env.COLO_HD_MODELS = '0';
   // Unset is on in the game, as it is in a game built before these settings.
@@ -457,6 +469,11 @@ function pbrOutdated(root, models, numbers) {
   }
   return outdated;
 }
+// Whether the game makes Battle Revolution cries too (tools/pbr2pkx/cries.py, each Pokémon's cry.wav), and whether it
+// plays a Pokémon's own cry (host/packcries.c: the packs file's CRYS chunk). An older game makes models only, and
+// plays the base's cry.
+function pbrMakesCries(root) { return fs.existsSync(path.join(root, 'tools', 'pbr2pkx', 'cries.py')); }
+function playsPackCries(root) { return fs.existsSync(path.join(root, 'host', 'packcries.c')); }
 function pbrModelsCommand(root, disc, work, numbers, platform = process.platform, environment = process.env) {
   const args = [pbrModelsScript(root), disc, work, ...numbers.map(String)];
   if (platform !== 'win32') return { command: 'python3', args, cwd: path.dirname(args[0]), env: environment };
@@ -524,7 +541,7 @@ function gameRuntimeFolders(environment = process.env) {
   return [path.join(environment.MSYS2_ROOT || 'C:\\msys64', 'mingw64', 'bin')];
 }
 
-module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
+module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal, turnOnQuickBattles,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
-  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
+  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, pbrMakesCries, playsPackCries, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };

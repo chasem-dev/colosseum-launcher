@@ -138,6 +138,31 @@ test('spoilers name the Pokémon and leave the teams out', () => {
   assert.equal(randomizer.spoilerSeed(null), null);
 });
 
+test('a run has Pokémon packs\' Pokémon when there are some and the game can choose them, and is chosen to start with', () => {
+  assert.equal(randomizer.normalize({}).randomizerPacks, true);
+  assert.equal(randomizer.normalize({ randomizerPacks: false }).randomizerPacks, false);
+  assert.equal(randomizer.environmentValue(on(), { packPokemon: true }), 'C0FFEE11:83:7');
+  assert.equal(randomizer.environmentValue(on({ randomizerPacks: false }), { packPokemon: true }), 'C0FFEE11:19:7');
+  // without packs, or with a game from before, the run is the one it always was, and stays so when a pack is added
+  assert.equal(randomizer.environmentValue(on()), 'C0FFEE11:19:7');
+  assert.equal(randomizer.environmentValue(on(), { packPokemon: false }), 'C0FFEE11:19:7');
+  // packs alone randomize nothing
+  const nothing = on({ randomizerStarters: false, randomizerShadow: false });
+  assert.equal(randomizer.environmentValue(nothing, { packPokemon: true }), null);
+  const env = (settings, options) => port.buildEnvironment(port.normalizeSettings(settings), '/disc.iso', '/game', options);
+  assert.equal(env({ randomizer: true, randomizerSeed: 'C0FFEE11' }, { packPokemon: true }).COLO_RANDOMIZER, 'C0FFEE11:83:7');
+  assert.equal(env({ randomizer: true, randomizerSeed: 'C0FFEE11' }, {}).COLO_RANDOMIZER, 'C0FFEE11:19:7');
+});
+
+test('spoilers name a pack\'s Pokémon by its place in the species table, not its base\'s number', () => {
+  const raw = 'seed C0FFEE11 options 83 generations 7\nstarter 197 65788\nshadow 1 296 66636\n';
+  const species = [{ national: 197, name: 'Umbreon' }, { national: 296, name: 'Makuhita' }];
+  // Moonfang is based on Umbreon and keeps its number: 65788 is 65536 + its row, 252
+  const text = randomizer.spoilerText(raw, species, [{ packId: 252, national: 197, name: 'Moonfang' }]);
+  assert.match(text, /Umbreon is now Moonfang/);
+  assert.match(text, /Makuhita is now a Pokémon of a pack that isn't here now/);
+});
+
 test('a run has Generation 4 Pokémon when they are added and the game knows them, and is chosen to start with', () => {
   // the settings as the launcher keeps them: the randomizer's, with the generations whose Pokémon are added
   const gen4 = extra => ({ ...on(extra), generationPokemon: [4] });

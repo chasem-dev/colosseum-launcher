@@ -1,6 +1,6 @@
 'use strict';
 
-// Made by scripts/generation-data/gen3-learnsets.js from what the team builder offers (src/battle-data.js: the disc's
+// Made by scripts/generation-data/learnset-files.js from what the team builder offers (src/battle-data.js: the disc's
 // moves and generations/gen3-learnsets.json, Pokémon Showdown's data, @pkmn/dex, MIT): change those, and make this
 // again. The moves each Pokémon could know in the third generation, by the game's species numbers: each move two
 // base-36 digits.

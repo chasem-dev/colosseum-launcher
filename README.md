@@ -74,7 +74,7 @@ The defaults are **HD textures on**, **4×** picture sharpness, **60 fps** and a
 
 The launcher also works with a game controller: move with the left stick or d-pad and press **A** to select, **B** to go back and **Start** for Settings. The launcher ignores the controller while the game is running.
 
-In the game, hold **L + R** (Q + E on the keyboard) to fast-forward at 4×, and **A** skips a movie.
+In the game, hold **L + R** (Q + E on the keyboard) to fast-forward at 4×, and **A** skips a movie. Under Settings → Gameplay, fast-forward can instead turn on with one press and off with the next, and run at 2× to 8×.
 
 ### Controllers
 
@@ -126,26 +126,28 @@ The **Pokédex** tab shows every Pokémon on your disc, read from the disc itsel
 
 ### Pokémon packs
 
-A Pokémon pack adds Pokémon of your own making to the game: new species, fakemon, or forms of the game's own, each with its own name, stats, types, abilities, moves and evolutions, and its own 3D model and sprites if you like. Press **Open Pokémon packs folder** in the Pokédex: each pack is a folder there, and each Pokémon a folder in it with a `pokemon.json`. Pack Pokémon show in the Pokédex after the ones they're based on, and the game has room for 25 of them. [docs/pokemon-packs.md](docs/pokemon-packs.md) is the guide to making one.
+A Pokémon pack adds Pokémon of your own making to the game: new species, fakemon, or forms of the game's own, each with its own name, stats, types, abilities, moves and evolutions, and its own 3D model and sprites if you like. Press **Open Pokémon packs folder** in the Pokédex: each pack is a folder there, and each Pokémon a folder in it with a `pokemon.json`. Pack Pokémon show in the Pokédex after the ones they're based on. To play with one, pick it as a starter on a **New Game**, or let the randomizer choose it. [docs/pokemon-packs.md](docs/pokemon-packs.md) is the guide to making one.
 
 ### Later generations
 
 Under **Settings → Gameplay**, two choices that go together or apart:
 
-- **Battle rules**: Colosseum's (Generation 3), or Diamond and Pearl's (Generation 4), where each move is physical or special by itself rather than by its type, a sandstorm raises Rock types' Sp. Def, and the moves Diamond and Pearl changed play as they did there. Online battles keep Colosseum's rules.
+- **Battle rules**: Colosseum's (Generation 3), or Diamond and Pearl's (Generation 4), where each move is physical or special by itself rather than by its type, a sandstorm raises Rock types' Sp. Def, and the moves Diamond and Pearl changed play as they did there. An online room plays by the rules its host chose under **Rules**, whatever either player's setting.
 - **Generation 4 Pokémon**: the 107 Pokémon from Turtwig to Arceus, with their stats, abilities, learnsets and evolutions, and the new moves Colosseum can play, in your game and the Pokédex. A new move plays as a move Colosseum has with the new move's own power, accuracy, PP, type and priority; moves with nothing close, such as Trick Room, are left out. Nothing in the game hands them out yet.
 
-Their data is [Pokémon Showdown's](https://github.com/smogon/pokemon-showdown) (MIT), checked against Pokémon Battle Revolution's (`scripts/generation-data`). Until their models are made, a Pokémon Colosseum has stands in for each one's looks and cry. **Battle Revolution models** makes their models and icons from your own Pokémon Battle Revolution disc, with no Blender: the game's `tools/pbr2pkx`, built on StarsMmd's Blender add-on for GameCube models.
+Their data is [Pokémon Showdown's](https://github.com/smogon/pokemon-showdown) (MIT), checked against Pokémon Battle Revolution's (`scripts/generation-data`). Until their assets are made, a Pokémon Colosseum has stands in for each one's looks and cry. **Battle Revolution assets** makes their models, icons and cries from your own Pokémon Battle Revolution disc, with no Blender: the game's `tools/pbr2pkx`, built on StarsMmd's Blender add-on for GameCube models. The cries are the disc's own, which the game plays when a Pokémon is sent out, faints or is looked at, as it plays its own Pokémon's.
 
 ### Randomizer
 
-Under **Settings → Gameplay**, the randomizer swaps the game's Pokémon for others, chosen by a seed: your starters, Shadow Pokémon, trainers' Pokémon and gifts, each on its own switch. You can limit it to the generations you like, keep Pokémon about as strong as the ones they replace, and leave legendaries out.
+Under **Settings → Gameplay**, the randomizer swaps the game's Pokémon for others, chosen by a seed: your starters, Shadow Pokémon, trainers' Pokémon and gifts, each on its own switch. You can limit it to the generations you like, let it choose the Pokémon of your Pokémon packs too, keep Pokémon about as strong as the ones they replace, and leave legendaries out.
 
 It starts with your next **New Game**, and the seed is kept inside that save. Fights stay the same when you lose and try again, and the run goes with the save through backups and imports. An existing save is never changed, and a run keeps its seed whatever the settings say later. Share a seed and the same choices to play the same run as a friend.
 
 ### Online battles
 
 The **Online** tab is where you battle other players. Build a party first: **New party** opens the team builder, where you choose six from the Pokédex and give each its own set, as in Pokémon Showdown: four moves, a held item, its ability and nature, EVs and IVs, a nickname, gender and whether it's shiny. The moves list shows every move each Pokémon can learn in the third generation's games, as Pokémon Showdown's does (by level, TM, move tutor, egg or event, in Ruby, Sapphire, Emerald, FireRed, LeafGreen, Colosseum or XD), and how; others can still be chosen and are marked. Stats are worked out as you go, at level 50 or 100. **Import** and **Export** take a team in Showdown's text, and **Copy to a new party** on your Story party starts a party from the Pokémon in your save. A Pokémon with no moves chosen battles with the moves it learns by the room's level. You can keep as many parties as you like, and pick the one you want to battle with.
+
+A party is of **Generation 3** or **Generation 4**, chosen at the top of the team builder. A Generation 4 party can also have the 107 Generation 4 Pokémon and their moves, and the team builder shows each move and ability as it plays under Pokémon Platinum's battle rules (Shadow Ball is special, Magnemite can have Sturdy), with every move a Pokémon can learn in Diamond, Pearl, Platinum, HeartGold or SoulSilver, or bring over from Generation 3 by Pal Park. A Generation 4 party battles only in rooms on Platinum's rules (**Rules** under Create room), and choosing one picks those rules for you; a Generation 3 party can battle under either. Both games of a Platinum room have the Generation 4 Pokémon, each looking as your own Battle Revolution models make it, or as its stand-in until you make them, which changes nothing in the battle.
 
 **Create room** opens a room in the **Format** you choose. **Casual** is a room at level 50 or 100, with 3 or 6 Pokémon each (the first three of your party in a 3-Pokémon battle) and no rules. The competitive formats are the ones players have used for years on Pokémon Showdown and OrreLink:
 

@@ -61,7 +61,7 @@
         <div class="hero-spacer" aria-hidden="true"></div>
 
         <section class="launch-panel" aria-label="Play game">
-          <div id="pbr-banner" class="pbr-banner" role="alert" hidden><div><strong id="pbr-banner-title">Your Battle Revolution models need making again</strong><small id="pbr-banner-detail"></small></div><button id="pbr-banner-make" class="pbr-banner-make">Make models</button></div>
+          <div id="pbr-banner" class="pbr-banner" role="alert" hidden><div><strong id="pbr-banner-title">Your Battle Revolution assets need making again</strong><small id="pbr-banner-detail"></small></div><button id="pbr-banner-make" class="pbr-banner-make">Make assets</button></div>
           <div class="launch-primary"><button id="play" class="play">Continue</button><button id="play-more" class="play-more" popovertarget="play-menu" aria-haspopup="menu" aria-expanded="false" aria-label="More ways to play" title="More ways to play" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"/></svg></button></div>
           
           <button id="play-source" class="play-source" title="Change it under Settings → Manage game → Game source" hidden><span class="play-source-dot" aria-hidden="true"></span><strong>Custom Game Source</strong><span id="play-source-detail"></span></button><p id="play-more-hint" class="play-more-hint" hidden></p><div id="play-menu" class="play-menu" popover role="menu" aria-label="Ways to play"><button id="menu-default" class="play-menu-item" role="menuitem" data-kind="update"><svg viewBox="0 0 20 20" aria-hidden="true" class="for-update"><path d="M15.5 8.5A6 6 0 0 0 4.6 6.2M4.5 3v3.4h3.4M4.5 11.5a6 6 0 0 0 10.9 2.3M15.5 17v-3.4h-3.4"/></svg><svg viewBox="0 0 20 20" aria-hidden="true" class="for-play"><path d="M6.5 4.5v11l9-5.5z"/></svg><svg viewBox="0 0 20 20" aria-hidden="true" class="for-hd"><rect x="2.8" y="4.5" width="14.4" height="11" rx="2"/><path d="M6 8v4M9 8v4M6 10h3M11.5 8v4h1.3a2 2 0 0 0 0-4z"/></svg><span><strong id="menu-default-label">Update &amp; play</strong><small id="menu-default-detail"></small></span><em>Default</em></button><button id="menu-update-play" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8.5A6 6 0 0 0 4.6 6.2M4.5 3v3.4h3.4M4.5 11.5a6 6 0 0 0 10.9 2.3M15.5 17v-3.4h-3.4"/></svg><span><strong>Update &amp; play</strong><small id="menu-update-play-detail"></small></span></button><button id="menu-update-only" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9.5M6 8.8l4 4 4-4M4 16.5h12"/></svg><span><strong id="menu-update-only-label">Update only</strong><small id="menu-update-only-detail"></small></span></button><button id="menu-play-now" class="play-menu-item" role="menuitem"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.5v11l9-5.5z"/></svg><span><strong>Play now</strong><small id="menu-play-now-detail"></small></span></button><p id="play-menu-note">The default follows <b>Update automatically</b> in Settings.</p></div><div class="task-progress" id="task-progress" role="status" hidden><div class="progress-summary"><span class="spinner" aria-hidden="true"></span><strong id="progress-title">Working…</strong><span id="progress-time"></span><span id="progress-percent"></span></div><p id="progress-detail">Starting…</p><div class="progress-track" id="progress-track" role="progressbar" aria-label="Task progress"><span id="progress-fill"></span></div><button id="view-build-log" class="progress-log-button">View build log</button></div>
@@ -220,7 +220,12 @@
               <p id="language-note" class="row-note" hidden></p>
               <div class="field"><span>Other languages<small>A fan translation is a folder with a pack.json and a text.txt: put it in the languages folder and it shows in the list above.</small></span><button class="subtle" id="open-languages" type="button">Open languages folder</button></div>
             </div>
-            <p class="preset-tip"><strong>Fast-forward:</strong> hold <strong>L + R</strong> (Q + E on the keyboard) to run the game at 4× and skip movies. <strong>A</strong> skips a movie.</p>
+            <h2 class="group-title">Fast-forward</h2>
+            <div class="settings-group">
+              <label class="field"><span>Fast-forward button<small>Fast-forward is L + R together: both triggers, or both bumpers, on a controller, and Q + E or Tab on the keyboard. Hold runs the game faster while you hold them. Press to turn on and off runs it faster from one press until the next, and shows Fast-forward at the top right while it's on.</small></span><select id="fastForward"><option value="hold">Hold</option><option value="toggle">Press to turn on and off</option></select></label>
+              <label class="field"><span>Fast-forward speed<small>How many times faster the game runs while fast-forwarding. A slower computer may not reach the faster speeds.</small></span><select id="fastForwardSpeed"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="6">6×</option><option value="8">8×</option></select></label>
+            </div>
+            <p class="preset-tip"><strong>Movies:</strong> <strong>A</strong> or the fast-forward button skips a movie.</p>
                       <h2 class="group-title">Randomizer</h2>
             <div class="settings-group">
               <label class="switch"><span><strong>Randomize new games</strong><small>Swaps the game's Pokémon for others, chosen by a seed. It starts with your next New Game and stays with that save: an existing save is never changed.</small></span><input id="randomizer" type="checkbox"><i></i></label>
@@ -232,6 +237,7 @@
                 <label class="switch"><span><strong>Gifts</strong><small>The Pokémon Duking and Mt. Battle give you.</small></span><input id="randomizerGifts" type="checkbox"><i></i></label>
                 <div class="field randomizer-generations"><span>Generations<small>Choose at least one.</small></span><span class="randomizer-checks"><label><input id="randomizerGen1" type="checkbox">Gen 1</label><label><input id="randomizerGen2" type="checkbox">Gen 2</label><label><input id="randomizerGen3" type="checkbox">Gen 3</label><label id="randomizer-gen4"><input id="randomizerGen4" type="checkbox">Gen 4</label></span></div>
                 <p id="randomizer-gen4-note" class="row-note" hidden></p>
+                <label class="switch"><span><strong>Pokémon packs</strong><small id="randomizer-packs-note"></small></span><input id="randomizerPacks" type="checkbox"><i></i></label>
                 <label class="switch"><span><strong>Similar strength</strong><small>Picks Pokémon about as strong as the ones they replace, so early trainers stay beatable.</small></span><input id="randomizerSimilar" type="checkbox"><i></i></label>
                 <label class="switch"><span><strong>No legendaries</strong><small>Leaves legendary and mythical Pokémon out.</small></span><input id="randomizerNoLegendaries" type="checkbox"><i></i></label>
               </div>
@@ -240,8 +246,8 @@
             <h2 class="group-title">Later generations</h2>
             <div class="settings-group">
               <label class="field"><span>Battle rules<small>Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types' Sp. Def; and moves Diamond and Pearl changed play as they did there. An online battle plays by its room's rules, chosen under Rules on the Online page.</small></span><select id="battleRules"><option value="3">Colosseum (Gen 3)</option><option value="4">Diamond and Pearl (Gen 4)</option></select></label>
-              <label class="switch"><span><strong>Generation 4 Pokémon</strong><small>Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one's looks. A Colosseum Pokémon's cry stands in either way.</small></span><input id="generation4Pokemon" type="checkbox"><i></i></label>
-              <div class="path-row"><div><strong>Battle Revolution models</strong><span class="small-path" id="pbr-note"></span></div><div class="actions"><button class="subtle" id="choose-pbr-disc">Choose disc</button><button class="subtle" id="make-pbr-models">Make models</button></div></div>
+              <label class="switch"><span><strong>Generation 4 Pokémon</strong><small>Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models and cries come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one's looks and cry.</small></span><input id="generation4Pokemon" type="checkbox"><i></i></label>
+              <div class="path-row"><div><strong>Battle Revolution assets</strong><span class="small-path" id="pbr-note"></span></div><div class="actions"><button class="subtle" id="choose-pbr-disc">Choose disc</button><button class="subtle" id="make-pbr-models">Make assets</button></div></div>
             </div>
           </section>
 
@@ -422,10 +428,10 @@
     </dialog>
 
     <dialog id="pbr-offer" class="launcher-modal pbr-offer" aria-labelledby="pbr-offer-title">
-      <div class="modal-head"><div><p class="eyebrow">GENERATION 4 POKÉMON</p><h1 id="pbr-offer-title">Give them their own models?</h1><p>From your own copy of Pokémon Battle Revolution.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
+      <div class="modal-head"><div><p class="eyebrow">GENERATION 4 POKÉMON</p><h1 id="pbr-offer-title">Give them their own models and cries?</h1><p>From your own copy of Pokémon Battle Revolution.</p></div><button class="modal-close" data-close-modal aria-label="Close">×</button></div>
       <div class="modal-body">
         <p id="pbr-offer-lead" class="pbr-offer-lead"></p>
-        <p class="pbr-offer-warning"><strong>Without it, they use stand-ins.</strong> Each Generation 4 Pokémon looks like a Pokémon from Colosseum, in the game and the Pokédex. You can add the disc later under Settings → Gameplay → Battle Revolution models.</p>
+        <p class="pbr-offer-warning"><strong>Without it, they use stand-ins.</strong> Each Generation 4 Pokémon looks and sounds like a Pokémon from Colosseum, in the game and the Pokédex. You can add the disc later under Settings → Gameplay → Battle Revolution assets.</p>
         <div class="actions pbr-offer-actions"><button id="pbr-offer-skip" class="subtle" data-close-modal>Use stand-ins</button><button id="pbr-offer-confirm" class="solid">Choose disc</button></div>
       </div>
     </dialog>
@@ -438,6 +444,7 @@
           <input id="party-name" class="tb-name" type="text" maxlength="24" spellcheck="false" autocomplete="off" aria-label="Party name">
         </div>
         <div class="tb-head-actions">
+          <label class="tb-generation" title="A Generation 4 party can have Pokémon and moves from Diamond, Pearl and Platinum too, and battles only under Pokémon Platinum's battle rules"><span>Generation</span><select id="party-generation"><option value="3">3</option><option value="4">4</option></select></label>
           <button id="party-import" class="subtle" title="Paste a team in Pokémon Showdown's text format">Import</button>
           <button id="party-export" class="subtle" title="Copy this team as Pokémon Showdown text">Export</button>
           <button id="party-editor-close" class="modal-close" aria-label="Close">×</button>
@@ -502,6 +509,7 @@
   <script src="room-poll.js"></script>
   <script src="team-sets.js"></script>
   <script src="gen3-learnsets.js"></script>
+  <script src="gen4-learnsets.js"></script>
   <script src="formats.js"></script>
   <script src="team-builder.js"></script>
   <script src="online-page.js"></script>

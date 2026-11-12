@@ -835,8 +835,8 @@ function refresh(data) {
 }
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
-const SELECTS = ['buttonPrompts', 'promptPad', 'battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
-const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'quickMoves', 'quickStatus', 'shinyShadow', 'shinyStarters', 'chooseStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+const SELECTS = ['buttonPrompts', 'promptPad', 'battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'fastForward', 'fastForwardSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
+const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerPacks', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'quickMoves', 'quickStatus', 'shinyShadow', 'shinyStarters', 'chooseStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 // The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
 // removed from the folder stays listed, as the game plays in English without it.
@@ -1127,47 +1127,55 @@ function settingsValue() {
   return value;
 }
 
-// Battle Revolution models: the disc chosen, and how many of the wanted Pokémon have theirs; while they're being made,
-// how far that has got (the progress bar's detail, as the Home page shows it).
-const PBR_LABEL = 'Make Battle Revolution models';
+// Battle Revolution assets (each Pokémon's models, icons and cry): the disc chosen, and how many of the wanted Pokémon
+// have theirs; while they're being made, how far that has got (the progress bar's detail, as the Home page shows it).
+const PBR_LABEL = 'Make Battle Revolution assets';
 function pbrProgress(active) {
   if (active?.label !== PBR_LABEL) return null;
   const detail = active.detail && active.detail !== 'Starting…' ? active.detail : 'Starting';
   return `${detail}${Number.isFinite(active.percent) ? ` (${active.percent}%)` : '…'}`;
 }
 
+// What the game makes from the disc: models and icons, and cries where it has them (pbr.cries)
+function pbrAssets(pbr, icons = false) { return pbr.cries ? (icons ? 'models, icons and cries' : 'models and cries') : (icons ? 'models and icons' : 'models'); }
+
 function renderPbr(data) {
   const pbr = data.pbr || {};
   $('pbr-note').textContent = pbrProgress(data.active)
     || (!pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
-      : !pbr.wanted ? 'Turn on Generation 4 Pokémon above, then make their models from your own Pokémon Battle Revolution disc. No Blender needed.'
-        : !pbr.disc ? `Choose your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS) and their models and icons are made from it. Until then, each has a Colosseum Pokémon standing in. ${pbr.made} of ${pbr.wanted} made.`
-          : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make models to make ${pbr.outdated === 1 ? 'it' : 'them'} again.`
-            : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
+      : !pbr.wanted ? `Turn on Generation 4 Pokémon above, then make their ${pbrAssets(pbr)} from your own Pokémon Battle Revolution disc. No Blender needed.`
+        : !pbr.disc ? `Choose your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS) and their ${pbrAssets(pbr, true)} are made from it. Until then, each has a Colosseum Pokémon standing in. ${pbr.made} of ${pbr.wanted} made.`
+          : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make assets to make ${pbr.outdated === 1 ? 'it' : 'them'} again.`
+            : pbr.noCry ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. ${pbr.noCry === 1 ? '1 Pokémon has' : `${pbr.noCry} Pokémon have`} a model but no cry of its own yet: press Make assets to add ${pbr.noCry === 1 ? 'it' : 'them'}.`
+              : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
   $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
   $('choose-pbr-disc').disabled = Boolean(data.active);
   renderPbrBanner(data);
 }
 
-// Above Play: models made before a converter fix that changed them (or some not made yet, as when making them
-// stopped), with a button that makes them, so a player doesn't keep the broken ones without knowing.
+// Above Play: models made before a converter fix that changed them, Pokémon whose models were made before the game made
+// cries (or some not made yet, as when making them stopped), with a button that makes them, so a player doesn't keep the
+// broken ones, or a stand-in's cry, without knowing.
 function renderPbrBanner(data) {
-  const pbr = data.pbr || {}, making = Boolean(pbrProgress(data.active)), missing = (pbr.wanted || 0) - (pbr.made || 0) - (pbr.outdated || 0);
+  const pbr = data.pbr || {}, making = Boolean(pbrProgress(data.active));
+  const missing = (pbr.wanted || 0) - (pbr.made || 0) - (pbr.outdated || 0) - (pbr.noCry || 0);
   // hidden while they're being made: the progress bar below shows that
-  const show = Boolean(pbr.supported && pbr.wanted && pbr.disc && !making && (pbr.outdated || (missing > 0 && pbr.made > 0)));
+  const show = Boolean(pbr.supported && pbr.wanted && pbr.disc && !making && (pbr.outdated || pbr.noCry || (missing > 0 && pbr.made > 0)));
   $('pbr-banner').hidden = !show;
   if (!show) return;
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-  $('pbr-banner-title').textContent = pbr.outdated ? 'Your Battle Revolution models need making again' : 'Some Battle Revolution models aren\'t made yet';
+  $('pbr-banner-title').textContent = pbr.outdated ? 'Your Battle Revolution assets need making again'
+    : !missing && pbr.noCry ? 'Your Generation 4 Pokémon can have their own cries' : 'Some Battle Revolution assets aren\'t made yet';
   $('pbr-banner-detail').textContent = (!pbr.discFound
     ? `Your Battle Revolution disc isn't where it was. Choose it again under Settings → Gameplay, then make them.`
     : pbr.outdated ? `A fix changed ${count(pbr.outdated, 'Generation 4 Pokémon\'s model', 'Generation 4 Pokémon\'s models')}. Until they're made again, they look as they did before the fix.`
-      : `${count(missing, 'Generation 4 Pokémon has', 'Generation 4 Pokémon have')} no model of its own yet.`);
-  $('pbr-banner-make').textContent = pbr.discFound ? 'Make models' : 'Open Settings';
+      : !missing && pbr.noCry ? `${count(pbr.noCry, 'Generation 4 Pokémon cries', 'Generation 4 Pokémon cry')} with a Colosseum Pokémon's voice. Battle Revolution's own is on your disc.`
+        : `${count(missing, 'Generation 4 Pokémon has', 'Generation 4 Pokémon have')} no model of its own yet.`);
+  $('pbr-banner-make').textContent = pbr.discFound ? 'Make assets' : 'Open Settings';
   $('pbr-banner-make').disabled = Boolean(data.active);
 }
 
-// Choosing the disc starts making the models it has for the Pokémon still without theirs, so it's one step.
+// Choosing the disc starts making the assets it has for the Pokémon still without theirs, so it's one step.
 async function choosePbrDisc() {
   const before = current?.pbr?.disc;
   await action('choosePbrDisc');
@@ -1175,16 +1183,16 @@ async function choosePbrDisc() {
   if (!current?.active && pbr.discFound && pbr.disc !== before && pbr.supported && pbr.made < pbr.wanted) action('makePbrModels');
 }
 
-// Turning on Generation 4 Pokémon asks for the Battle Revolution disc their models come from, and says what they look
-// like without it. Not asked when they all have models already, or when this game can't make them.
+// Turning on Generation 4 Pokémon asks for the Battle Revolution disc their models and cries come from, and says what
+// they look like without it. Not asked when they all have them already, or when this game can't make them.
 function offerPbrModels() {
   const pbr = current?.pbr || {};
   if (current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
-  const remake = pbr.made > 0 || pbr.outdated > 0;
+  const remake = pbr.made > 0 || pbr.outdated > 0 || pbr.noCry > 0;
   $('pbr-offer-lead').textContent = pbr.discFound
-    ? `Your Battle Revolution disc is chosen: ${pbr.disc}. Make ${remake ? 'the models still missing' : 'their models and icons'} from it now? It takes a few minutes.`
-    : 'Each one can have its own model and icons, as in Pokémon Battle Revolution, made from a file of your own Wii disc (RVZ, ISO or WBFS). Choose it and they\'re made in a few minutes. No Blender needed.';
-  $('pbr-offer-confirm').textContent = pbr.discFound ? 'Make models' : 'Choose disc';
+    ? `Your Battle Revolution disc is chosen: ${pbr.disc}. Make ${remake ? 'what\'s still missing' : `their ${pbrAssets(pbr, true)}`} from it now? It takes a few minutes.`
+    : `Each one can have its own ${pbr.cries ? 'model, icons and cry' : 'model and icons'}, as in Pokémon Battle Revolution, made from a file of your own Wii disc (RVZ, ISO or WBFS). Choose it and they're made in a few minutes. No Blender needed.`;
+  $('pbr-offer-confirm').textContent = pbr.discFound ? 'Make assets' : 'Choose disc';
   closeModal();
   $('pbr-offer').showModal();
 }
@@ -1203,7 +1211,13 @@ function renderRandomizer(data) {
   $('randomizer-gen4-note').hidden = !settings.randomizerGen4 || (gen4Pokemon && gen4Game);
   $('randomizer-gen4-note').textContent = !gen4Pokemon ? 'Gen 4 counts once you turn on Generation 4 Pokémon, under Later generations.'
     : 'Update your game to have Gen 4 Pokémon in a randomized run.';
+  // Pokémon packs' own Pokémon, which a run can have once the game can choose them
+  const packsGame = data.randomizerPacks !== false;
+  $('randomizerPacks').disabled = !packsGame;
+  $('randomizer-packs-note').textContent = !packsGame ? 'Update your game to have your Pokémon packs\' Pokémon in a randomized run.'
+    : 'Your Pokémon packs\' Pokémon can be chosen too, whichever generations are ticked. Keep the same packs for the whole run: adding or removing one changes what it chooses. Anyone you share the seed with needs them too.';
   $('randomizer-save-note').textContent = !ready ? 'Update your game to use the randomizer. This version of the game plays every save as normal.'
+    : run && (run.options & 64) ? `A randomized run with your Pokémon packs' Pokémon, seed ${run.seed}. Keep the packs it started with to play it as it was made; a New Game uses the settings above.`
     : run && (run.generations & 8) && !gen4Pokemon ? `A randomized run with Gen 4 Pokémon, seed ${run.seed}. Turn on Generation 4 Pokémon, under Later generations, to play it as it was made.`
     : run ? `A randomized run, seed ${run.seed}. It keeps this seed whatever is set here; a New Game uses the settings above.`
       : exists ? 'The normal game. It stays that way: settings here start with your next New Game.'
