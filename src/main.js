@@ -1215,6 +1215,7 @@ function jukeboxRender(id) {
 }
 
 async function play(installation = null, battle = null) {
+  broadcast('jukebox-stop');  // the Jukebox's music and the game would share the sound device
   const root = installation?.repo || requireRepo();
   // The player's choices, not the build's: an earlier install plays with them too.
   const settings = installation ? { ...config.settings, textures: installation.settings?.textures ?? config.settings.textures } : config.settings;

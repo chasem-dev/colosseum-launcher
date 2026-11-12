@@ -119,21 +119,10 @@
         </div>
       </section>
       <section id="page-jukebox" class="page sheet jukebox-page" aria-labelledby="jukebox-title" hidden>
-        <div class="modal-head"><div><h1 id="jukebox-title">Jukebox</h1><p id="jukebox-summary">The game's music, played from your disc.</p></div></div>
+        <div class="modal-head"><div><h1 id="jukebox-title">Jukebox</h1><p id="jukebox-summary">The game's music, played from your disc. It keeps playing while you use the rest of the launcher.</p></div></div>
         <div class="jukebox-body">
           <div id="jukebox-list" class="jukebox-list" aria-label="Songs"></div>
           <p id="jukebox-empty" class="helper" hidden>The list of songs isn't available yet.</p>
-        </div>
-        <div class="jukebox-bar">
-          <div class="jukebox-now"><strong id="jukebox-now">Nothing playing</strong><span id="jukebox-status" role="status"></span></div>
-          <div class="jukebox-controls">
-            <button id="jukebox-previous" class="subtle" aria-label="Previous song" title="Previous song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12M16 4.5v11l-8-5.5z"/></svg></button>
-            <button id="jukebox-toggle" class="solid" aria-label="Play" title="Play or pause">Play</button>
-            <button id="jukebox-stop" class="subtle" aria-label="Stop" title="Stop"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1"/></svg></button>
-            <button id="jukebox-next" class="subtle" aria-label="Next song" title="Next song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12M4 4.5v11l8-5.5z"/></svg></button>
-            <label class="jukebox-loop"><input id="jukebox-loop" type="checkbox"><span>Loop</span></label>
-            <label class="jukebox-volume"><span>Volume</span><input id="jukebox-volume" type="range" min="0" max="100" value="100" aria-label="Volume"></label>
-          </div>
         </div>
       </section>
       <section id="page-pokedex" class="page sheet pokedex-page" aria-labelledby="pokedex-title" hidden>
@@ -387,6 +376,18 @@
       </div>
       </section>
     </main>
+    <section id="jukebox-dock" class="jukebox-dock" aria-label="Music player" hidden>
+      <div class="jukebox-now"><strong id="jukebox-now">Nothing playing</strong><span id="jukebox-status" role="status"></span></div>
+      <div class="jukebox-controls">
+        <button id="jukebox-previous" class="subtle" aria-label="Previous song" title="Previous song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12M16 4.5v11l-8-5.5z"/></svg></button>
+        <button id="jukebox-toggle" class="solid" aria-label="Play" title="Play or pause">Play</button>
+        <button id="jukebox-stop" class="subtle" aria-label="Stop" title="Stop"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1"/></svg></button>
+        <button id="jukebox-next" class="subtle" aria-label="Next song" title="Next song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12M4 4.5v11l8-5.5z"/></svg></button>
+        <label class="jukebox-loop"><input id="jukebox-loop" type="checkbox"><span>Loop</span></label>
+        <label class="jukebox-volume"><span>Volume</span><input id="jukebox-volume" type="range" min="0" max="100" value="100" aria-label="Volume"></label>
+        <button id="jukebox-close" class="subtle jukebox-close" aria-label="Close the music player" title="Close the music player (stops the music)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+      </div>
+    </section>
     <section id="activity-log" class="activity-drawer" aria-label="Activity log" hidden>
       <div class="console-header"><svg class="console-symbol" viewBox="0 0 20 20" aria-hidden="true"><path d="m4 5 4 4-4 4m6 0h6"/></svg><strong>Activity log</strong><span id="activity-label" class="console-summary">Nothing running</span><div class="console-actions"><button id="copy-activity-log" class="console-button">Copy log</button><button id="save-activity-log" class="console-button">Save log</button><button id="stop" class="console-button console-stop" hidden>Stop task</button><button id="expand-activity-log" class="console-button console-expand" aria-label="Expand activity log" title="Expand activity log" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8V4h4m4 0h4v4m0 4v4h-4m-4 0H4v-4"/></svg></button><button id="close-activity-log" class="console-button console-close" aria-label="Hide activity log" title="Hide activity log"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></div></div>
       <div id="console-body" class="console-body">

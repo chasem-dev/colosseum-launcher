@@ -1,6 +1,8 @@
 // The Jukebox: the game's songs, listed to pick from. A song is rendered from the player's disc in the main process (src/jukebox-render.js,
 // in a worker, about a second or two) and played here with Web Audio; no game runs. A song with a loop point of its own repeats that
 // part while Loop is on, and otherwise plays through to its end and goes on to the next song.
+// The player (the bar under every page) shows once a song is picked and goes with you to the other pages, so the music can play
+// while you build a team; its X ends the music and puts it away, and so does starting the game.
 (() => {
   const $ = id => document.getElementById(id);
   const message = error => String(error?.message || error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -31,6 +33,7 @@
       button.classList.toggle('playing', button.dataset.id === state.playing && !state.paused);
       if (button.dataset.id === current) button.setAttribute('aria-current', 'true'); else button.removeAttribute('aria-current');
     }
+    $('jukebox-dock').hidden = !current;
     $('jukebox-empty').hidden = tracks === null || tracks.length > 0;
     const track = tracks?.find(each => each.id === current);
     $('jukebox-now').textContent = track ? track.name : 'Nothing playing';
@@ -164,18 +167,26 @@
   // A song with a loop point of its own repeats it only while Loop is on: turned off, it goes on to its end.
   $('jukebox-loop').addEventListener('change', event => { if (active?.loop) active.source.loop = event.target.checked; });
 
+  // Ends the music and puts the player away: lets go of the sound device and of the disc.
+  function close() {
+    token++;
+    busy = false;
+    silence();
+    songs.clear();
+    context?.close().catch(() => {});
+    context = gain = null;
+    current = null;
+    notice = '';
+    window.colo.jukeboxClose().catch(() => {});
+    render();
+  }
+
+  $('jukebox-close').addEventListener('click', close);
+  window.colo.onJukeboxStop(close);
+
   window.coloJukebox = {
     show() { load(); render(); },
-    // Leaving the page ends the music and lets go of the sound device and of the disc.
-    hide() {
-      token++;
-      busy = false;
-      silence();
-      songs.clear();
-      context?.close().catch(() => {});
-      context = gain = null;
-      window.colo.jukeboxClose().catch(() => {});
-      render();
-    },
+    // Leaving the page doesn't end the music: the player stays under whatever page is open.
+    hide() {},
   };
 })();
