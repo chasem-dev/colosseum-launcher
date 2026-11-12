@@ -25,9 +25,23 @@ const NAMES = {
   wind_atmos_loop: 'Wind (SFX)',
   tool_music: 'Battle Mode Menu',
   mt_battle: 'Mt. Battle',
-  battle7: 'Cipher Peon Battle (Colosseum Round 2)',
+  battle7: 'Cipher Peon Battle (Colosseum Round 2)',   // (also the Colosseum's second fighter of each set)
   battle6: 'Final Battle',
-  battle8: 'Team Snagem Battle (Colosseum Round 1)',
+  // the battle songs, from the game's own tables (which battle, floor or trainer kind plays each): battle5 is the Colosseum's first
+  // fighter of every set and the Team Snagem, hunter and rider trainer kinds; battle7 the second and the Cipher Peons; battle2 the third;
+  // battle9 the fourth; battle9plus the Cipher Admin; battle6 the Cipher Head and the Mt. Battle master; battle8 the ordinary trainers
+  // (rich boy, lady, athlete, teacher and the like), which is the rip's "Normal Battle"
+  battle8: 'Normal Battle',
+  battle5: 'Team Snagem Battle (Colosseum Round 1)',
+  battle2: 'Colosseum Round 3 Battle',
+  battle9: '4th Colosseum Battle',
+  battle9plus: 'Cipher Admin Battle',
+  // area songs, less sure: by length, the order the game's own sound test lists them in (which follows the rip's) and their names
+  darkside: 'Pyrite Town',
+  dungeon: 'Pyrite Building',
+  saint: 'Relic Forest',
+  darkside4: 'Mt. Battle Rest Room',
+  country: 'Realgam Tower',
   worldmap2: 'World Map',
   ev_shadow: "Cipher Syndicate's Theme",
   jyakira: "Nascour's Theme",

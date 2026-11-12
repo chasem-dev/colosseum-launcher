@@ -16,7 +16,7 @@ function table(rows) {
 test('a song is named from the song table\'s entry for its sound id\'s wave index', () => {
   const names = new Map([[0x019f0800, 'null_bgm_song'], [0x03080800, 'battle2_song'], [0x08070800, 'fanfare00_song']]);
   const list = songs.build({ sounds: table([[1, 0, 0], [24, 0, 2], [973, 0, 1]]), songs: [0x019f0800, 0x08070800, 0x03080800], names });
-  assert.deepEqual(list, [{ id: '1', sound: 1, name: 'Silence' }, { id: '24', sound: 24, name: 'Battle2' }, { id: '973', sound: 973, name: 'Colosseum Round Intro 1' }]);
+  assert.deepEqual(list, [{ id: '1', sound: 1, name: 'Silence' }, { id: '24', sound: 24, name: 'Colosseum Round 3 Battle' }, { id: '973', sound: 973, name: 'Colosseum Round Intro 1' }]);
 });
 
 test('sound effects, sound id 0, empty entries and unknown songs are left out, and a song is listed once', () => {
@@ -27,9 +27,9 @@ test('sound effects, sound id 0, empty entries and unknown songs are left out, a
 });
 
 test('a song\'s name reads as words', () => {
-  assert.equal(songs.title('darkside4_song'), 'Darkside4');
+  assert.equal(songs.title('gtsolo_song'), 'Gtsolo');
   assert.equal(songs.title('agb_fanfa1b_song'), 'Agb fanfa1b');   // words at underscores
-  assert.equal(songs.title('battle2_song'), 'Battle2');
+  assert.equal(songs.title('stand2_song'), 'Stand2');
   assert.equal(songs.title('title_song'), 'Title Screen');
   assert.equal(songs.title('title'), 'Title Screen');          // with or without "_song"
   assert.equal(songs.title('unknown_one'), 'Unknown one');
