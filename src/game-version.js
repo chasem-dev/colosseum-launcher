@@ -189,8 +189,18 @@ async function checkout(root, { git = 'git', run, capture, env, source = release
 // mods/ folders every version shares: the HD textures.
 const USER_FOLDERS = ['textures'];
 
+// Linking a folder fails this way on a drive without links: Windows reports
+// ERROR_INVALID_FUNCTION making a junction on exFAT or FAT32, which Node calls
+// EISDIR; Linux and macOS say EPERM or ENOTSUP on such a drive.
+const NO_LINKS = new Set(['EISDIR', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP']);
+
+// The new version links to the previous version's HD textures. On a drive that
+// can't make links (an exFAT or FAT32 SD card or USB drive) the folder moves into
+// the new version instead. Returns the folders moved, as { from, to }, so a
+// failed update can put them back (restoreUserFiles).
 function carryUserFiles(previous, next) {
-  if (previous === next) return;
+  const moved = [];
+  if (previous === next) return moved;
   for (const folder of USER_FOLDERS) {
     const origin = path.join(previous, 'mods', folder);
     const target = path.join(next, 'mods', folder);
@@ -204,9 +214,22 @@ function carryUserFiles(previous, next) {
       fs.unlinkSync(target);
     }
     fs.mkdirSync(path.dirname(target), { recursive: true });
+    const real = fs.realpathSync(origin);
     // A Windows directory junction requires no administrator/developer mode.
-    fs.symlinkSync(fs.realpathSync(origin), target, process.platform === 'win32' ? 'junction' : 'dir');
+    try { fs.symlinkSync(real, target, process.platform === 'win32' ? 'junction' : 'dir'); }
+    catch (error) {
+      if (!NO_LINKS.has(error.code) || fs.lstatSync(target, { throwIfNoEntry: false })) throw error;
+      fs.renameSync(real, target);
+      moved.push({ from: real, to: target });
+    }
   }
+  return moved;
+}
+
+// Put back the folders carryUserFiles moved, so the version still in use keeps them.
+function restoreUserFiles(moved) {
+  for (const { from, to } of [...moved].reverse())
+    if (fs.existsSync(to) && !fs.existsSync(from)) fs.renameSync(to, from);
 }
 
 // Links to an earlier version's packs keep its absolute path (Windows junctions
@@ -383,4 +406,4 @@ function recoverBuild(root) {
 }
 
 module.exports = { release, gitRevision, matchesSource, identity, installed, toolRoot, playsWithoutTools, isCurrent, snapshotPath,
-  checkout, carryUserFiles, relinkUserFolders, pruneSnapshots, pruneBuildLeftovers, buildSafely, recoverBuild };
+  checkout, carryUserFiles, restoreUserFiles, relinkUserFolders, pruneSnapshots, pruneBuildLeftovers, buildSafely, recoverBuild };

@@ -94,9 +94,36 @@ test('a new version shares the HD textures of the one before', t => {
   fs.mkdirSync(path.join(first, 'mods', 'textures'), { recursive: true });
   fs.writeFileSync(path.join(first, 'mods', 'textures', 'tex1_test.png'), 'texture');
   fs.mkdirSync(next);
-  game.carryUserFiles(first, next);
+  assert.deepEqual(game.carryUserFiles(first, next), []);
   assert.equal(fs.readFileSync(path.join(next, 'mods', 'textures', 'tex1_test.png'), 'utf8'), 'texture');
-  game.carryUserFiles(next, next);
+  assert.deepEqual(game.carryUserFiles(next, next), []);
+});
+
+test('on a drive without links the HD textures move to the new version, and back if the update fails', t => {
+  const home = folder(t);
+  const first = path.join(home, 'first'), next = path.join(home, 'next');
+  fs.mkdirSync(path.join(first, 'mods', 'textures'), { recursive: true });
+  fs.writeFileSync(path.join(first, 'mods', 'textures', 'tex1_test.png'), 'texture');
+  fs.mkdirSync(next);
+  // Windows making a junction on exFAT or FAT32: ERROR_INVALID_FUNCTION, which Node reports as EISDIR.
+  t.mock.method(fs, 'symlinkSync', () => { throw Object.assign(new Error('EISDIR: illegal operation on a directory, symlink'), { code: 'EISDIR' }); });
+  const moved = game.carryUserFiles(first, next);
+  assert.equal(moved.length, 1);
+  assert.equal(fs.readFileSync(path.join(next, 'mods', 'textures', 'tex1_test.png'), 'utf8'), 'texture');
+  assert.equal(fs.existsSync(path.join(first, 'mods', 'textures')), false);
+  game.restoreUserFiles(moved);
+  assert.equal(fs.readFileSync(path.join(first, 'mods', 'textures', 'tex1_test.png'), 'utf8'), 'texture');
+  assert.equal(fs.existsSync(path.join(next, 'mods', 'textures')), false);
+});
+
+test('a link that fails for another reason is reported, and nothing moves', t => {
+  const home = folder(t);
+  const first = path.join(home, 'first'), next = path.join(home, 'next');
+  fs.mkdirSync(path.join(first, 'mods', 'textures'), { recursive: true });
+  fs.mkdirSync(next);
+  t.mock.method(fs, 'symlinkSync', () => { throw Object.assign(new Error('ENOSPC: no space left on device, symlink'), { code: 'ENOSPC' }); });
+  assert.throws(() => game.carryUserFiles(first, next), { code: 'ENOSPC' });
+  assert.equal(fs.existsSync(path.join(first, 'mods', 'textures')), true);
 });
 
 test('a link left pointing at a removed version is replaced, not tripped over', t => {
