@@ -4,7 +4,10 @@ A Pokémon pack adds Pokémon of your own making to the game: new species, fakem
 one has its own name, stats, types, abilities and moves, and can have its own 3D model and sprites. Pack Pokémon show in the
 launcher's Pokédex as well.
 
-Packs only add Pokémon. Nothing in the game hands them out yet, apart from evolving one pack Pokémon into another.
+There are two ways to get a pack Pokémon in the game. On a New Game, answer No when the game asks whether to begin with
+Espeon and Umbreon, and pick it as a starter. Or turn on the randomizer with **Pokémon packs** on, and a randomized run can
+choose it as a starter, a Shadow Pokémon, a trainer's Pokémon or a gift. Nothing else in the game hands them out, apart from
+evolving one pack Pokémon into another.
 
 ## Where packs go
 
@@ -130,7 +133,14 @@ Pokémon of a pack you've removed stay in your save but don't appear in the game
 hidden the game may write over them. The original game, and other copies of it, don't have your pack's Pokémon either: a save
 carried there hides them the same way.
 
+If your whole party is from a pack you've removed, as it can be when both starters were, the save still loads, but you
+lose any battle at once, with no Pokémon to send out. Put the pack back and the party is there again.
+
 Online battles play without packs, as the other player's game wouldn't have your Pokémon. Pack Pokémon in your Story party
 stay home.
 
-The randomizer only chooses among the game's own Pokémon.
+The randomizer chooses pack Pokémon when **Pokémon packs** is on under Randomizer, in Settings → Gameplay, and you have
+at least one when the run begins. They can be chosen whichever generations are ticked, and **No legendaries** leaves out one
+based on a legendary Pokémon. Keep the same packs for the whole run: the run picks from the list of every
+Pokémon it may use, so adding or removing a pack changes what it chooses from then on. Someone you share the seed with
+needs the same packs to get the same run.

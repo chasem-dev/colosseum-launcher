@@ -8,8 +8,12 @@ const path = require('node:path');
 const { newestPlain } = require('./gci-save');
 
 // What can change, as the game's stamp holds it.
-const OPTIONS = { randomizerStarters: 1, randomizerShadow: 2, randomizerTrainers: 4, randomizerGifts: 8, randomizerSimilar: 16, randomizerNoLegendaries: 32 };
+const OPTIONS = { randomizerStarters: 1, randomizerShadow: 2, randomizerTrainers: 4, randomizerGifts: 8, randomizerSimilar: 16, randomizerNoLegendaries: 32,
+  randomizerPacks: 64 };
 const PARTS = 15;
+const PACKS = 64;   // Pokémon packs' own Pokémon too (src/pokemon-packs.js)
+// A pack's own Pokémon in the game's spoiler log: this much past its place in the species table, as it may share its base's number.
+const PACK_SPECIES = 0x10000;
 const GENERATIONS = { randomizerGen1: 1, randomizerGen2: 2, randomizerGen3: 4, randomizerGen4: 8 };
 const GAME_GENERATIONS = 7;   // the game's own: the first three
 const GEN4 = 8;
@@ -32,13 +36,14 @@ function normalizeSeed(input) {
 
 // The settings as they are kept: on, a seed once it's on, and at least one generation, as a run needs one. The fourth
 // counts only with Generation 4 Pokémon added (environmentValue), and is chosen to start with, as the first three are.
+// So are Pokémon packs' Pokémon, which count only when there are some.
 function normalize(input = {}) {
   const settings = { randomizer: Boolean(input.randomizer), randomizerSeed: normalizeSeed(input.randomizerSeed),
     randomizerStarters: input.randomizerStarters !== false, randomizerShadow: input.randomizerShadow !== false,
     randomizerTrainers: Boolean(input.randomizerTrainers), randomizerGifts: Boolean(input.randomizerGifts),
     randomizerSimilar: input.randomizerSimilar !== false, randomizerNoLegendaries: Boolean(input.randomizerNoLegendaries),
     randomizerGen1: input.randomizerGen1 !== false, randomizerGen2: input.randomizerGen2 !== false, randomizerGen3: input.randomizerGen3 !== false,
-    randomizerGen4: input.randomizerGen4 !== false };
+    randomizerGen4: input.randomizerGen4 !== false, randomizerPacks: input.randomizerPacks !== false };
   if (!settings.randomizerGen1 && !settings.randomizerGen2 && !settings.randomizerGen3 && !settings.randomizerGen4)
     settings.randomizerGen1 = settings.randomizerGen2 = settings.randomizerGen3 = settings.randomizerGen4 = true;
   if (settings.randomizer && !settings.randomizerSeed) settings.randomizerSeed = newSeed();
@@ -56,9 +61,10 @@ const hasGen4 = (settings, laterGenerations) => Boolean(settings.randomizerGen4 
   && Array.isArray(settings.generationPokemon) && settings.generationPokemon.includes(4));
 
 // COLO_RANDOMIZER for these settings, or null when a new save should be the normal game. A run of only the fourth
-// generation without its Pokémon is a run of the game's own three.
-function environmentValue(settings, { laterGenerations = false } = {}) {
-  const options = flags(settings, OPTIONS);
+// generation without its Pokémon is a run of the game's own three. packPokemon: the player has Pokémon packs' Pokémon and
+// the game can choose them. Without them the run isn't one with packs, so it stays as it is when a pack is added later.
+function environmentValue(settings, { laterGenerations = false, packPokemon = false } = {}) {
+  const options = flags(settings, OPTIONS) & (packPokemon ? ~0 : ~PACKS);
   if (!settings.randomizer || !settings.randomizerSeed || !(options & PARTS)) return null;
   let generations = flags(settings, GENERATIONS) & (hasGen4(settings, laterGenerations) ? GAME_GENERATIONS | GEN4 : GAME_GENERATIONS);
   if (!generations) generations = GAME_GENERATIONS;
@@ -98,9 +104,12 @@ function createSaveReader() {
 }
 
 // The game's spoiler log (what host/randomizer.c writes) as a player reads it. Teams' rows are
-// left out: thousands of lines, and each trainer's turn to surprise.
-function spoilerText(raw, species) {
-  const nameOf = national => species.find(entry => entry.national === national)?.name || `#${national}`;
+// left out: thousands of lines, and each trainer's turn to surprise. species are named by their National Pokédex
+// numbers, and packs (Pokémon packs' own, { packId, name }) by their places in the species table.
+function spoilerText(raw, species, packs = []) {
+  const nameOf = number => number >= PACK_SPECIES
+    ? packs.find(entry => entry.packId === number - PACK_SPECIES)?.name || 'a Pokémon of a pack that isn\'t here now'
+    : species.find(entry => entry.national === number)?.name || `#${number}`;
   const lines = String(raw).trim().split('\n'), [, seed] = (lines[0] || '').split(' ');
   const out = [`Pokémon Colosseum randomizer: seed ${seed}`, ''];
   const section = (title, kind, describe) => {
@@ -116,4 +125,4 @@ function spoilerText(raw, species) {
 
 function spoilerSeed(raw) { return (String(raw).match(/^seed ([0-9A-F]{8})/) || [])[1] || null; }
 
-module.exports = { OPTIONS, GENERATIONS, SPOILER_FILE, hasGen4, newSeed, normalizeSeed, normalize, environmentValue, runOf, readSave, createSaveReader, spoilerText, spoilerSeed };
+module.exports = { OPTIONS, GENERATIONS, PACKS, SPOILER_FILE, hasGen4, newSeed, normalizeSeed, normalize, environmentValue, runOf, readSave, createSaveReader, spoilerText, spoilerSeed };

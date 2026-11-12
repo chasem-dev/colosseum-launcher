@@ -126,7 +126,7 @@ The **Pokédex** tab shows every Pokémon on your disc, read from the disc itsel
 
 ### Pokémon packs
 
-A Pokémon pack adds Pokémon of your own making to the game: new species, fakemon, or forms of the game's own, each with its own name, stats, types, abilities, moves and evolutions, and its own 3D model and sprites if you like. Press **Open Pokémon packs folder** in the Pokédex: each pack is a folder there, and each Pokémon a folder in it with a `pokemon.json`. Pack Pokémon show in the Pokédex after the ones they're based on, and the game has room for 25 of them. [docs/pokemon-packs.md](docs/pokemon-packs.md) is the guide to making one.
+A Pokémon pack adds Pokémon of your own making to the game: new species, fakemon, or forms of the game's own, each with its own name, stats, types, abilities, moves and evolutions, and its own 3D model and sprites if you like. Press **Open Pokémon packs folder** in the Pokédex: each pack is a folder there, and each Pokémon a folder in it with a `pokemon.json`. Pack Pokémon show in the Pokédex after the ones they're based on. To play with one, pick it as a starter on a **New Game**, or let the randomizer choose it. [docs/pokemon-packs.md](docs/pokemon-packs.md) is the guide to making one.
 
 ### Later generations
 
@@ -139,7 +139,7 @@ Their data is [Pokémon Showdown's](https://github.com/smogon/pokemon-showdown) 
 
 ### Randomizer
 
-Under **Settings → Gameplay**, the randomizer swaps the game's Pokémon for others, chosen by a seed: your starters, Shadow Pokémon, trainers' Pokémon and gifts, each on its own switch. You can limit it to the generations you like, keep Pokémon about as strong as the ones they replace, and leave legendaries out.
+Under **Settings → Gameplay**, the randomizer swaps the game's Pokémon for others, chosen by a seed: your starters, Shadow Pokémon, trainers' Pokémon and gifts, each on its own switch. You can limit it to the generations you like, let it choose the Pokémon of your Pokémon packs too, keep Pokémon about as strong as the ones they replace, and leave legendaries out.
 
 It starts with your next **New Game**, and the seed is kept inside that save. Fights stay the same when you lose and try again, and the run goes with the save through backups and imports. An existing save is never changed, and a run keeps its seed whatever the settings say later. Share a seed and the same choices to play the same run as a friend.
 
