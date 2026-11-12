@@ -1143,3 +1143,4 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .jukebox-disc.spinning .disc-spin { animation-play-state: running; }
 @keyframes jukebox-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .disc-spin, .jukebox-track.playing .disc-spin { animation: none; } }
+.jukebox-track-name { flex: 1; text-align: left; }
