@@ -9,6 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const release = require('./game-release.json');
+const colosseumRelease = release;
 const { retrying, GIT_PERMANENT } = require('./retry');
 
 // Where an older port's renderer comes from. A release of such a port names these too (game-release.json).
@@ -18,14 +19,15 @@ const SHA = /^[a-f0-9]{40}$/;
 const REF = /^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$/;
 const REPOSITORY = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[A-Za-z0-9.-]+:)[^\s]{1,400}$/;
 // A row with only a branch, tag or commit means it is on this release's repository (the fields' placeholders).
-const DEFAULT_REPOSITORY = { game: release.repository, decomp: release.decompRepository };
+// `pin` is the release of the game the source is for (games.js): Colosseum's game-release.json, or XD's.
+const defaultRepository = (what, pin) => what === 'game' ? pin.repository : pin.decompRepository;
 
-function normalizePart(part, what) {
+function normalizePart(part, what, pin = release) {
   if (!part) return null;
   const repository = String(part.repository || '').trim();
   const ref = String(part.ref || '').trim();
   if (!repository && !ref) return null;
-  if (!repository) return normalizePart({ repository: DEFAULT_REPOSITORY[what], ref }, what);
+  if (!repository) return normalizePart({ repository: defaultRepository(what, pin), ref }, what, pin);
   if (!REPOSITORY.test(repository) && !(path.isAbsolute(repository) && !repository.startsWith('-')))
     throw new Error(`Enter the ${what} repository as an https:// or git@ address, or a local folder.`);
   if (!REF.test(ref) || ref.includes('..') || ref.endsWith('/') || ref.endsWith('.lock'))
@@ -34,10 +36,10 @@ function normalizePart(part, what) {
 }
 
 // Settings input -> { port, decomp } (each null for this release's), or null for no override.
-function normalizeOverride(input) {
+function normalizeOverride(input, pin = release) {
   if (!input) return null;
-  const port = normalizePart(input.port, 'game');
-  const decomp = normalizePart(input.decomp, 'decomp');
+  const port = normalizePart(input.port, 'game', pin);
+  const decomp = normalizePart(input.decomp, 'decomp', pin);
   return port || decomp ? { port, decomp } : null;
 }
 
@@ -99,9 +101,11 @@ function rendererHeaders(repository, commit, tools) {
   });
 }
 
-// An override -> a source with this release's fields (see game-version.js).
-async function resolve(override, { git = 'git', capture, env, wait }) {
+// An override -> a source with this release's fields (see game-version.js). `release` is the game's pin: a game other
+// than Colosseum keeps its pin's decomp unless one is chosen, as the port's CI script pins only Colosseum's.
+async function resolve(override, { git = 'git', capture, env, wait, release = colosseumRelease }) {
   if (!override) return release;
+  const otherGame = Boolean(release.game);
   // A private or mistyped repository must fail, not wait for a password nobody can type.
   const tools = { git, capture, env: { ...(env || process.env), GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' } };
   // Asking the repository, tried again when the connection drops, not when it isn't there.
@@ -109,11 +113,11 @@ async function resolve(override, { git = 'git', capture, env, wait }) {
     { wait, permanent: error => GIT_PERMANENT.test(error.message) });
   const port = override.port ? { repository: override.port.repository, ...await resolveRef(override.port, tools) }
     : { repository: release.repository, branch: release.branch, commit: release.commit };
-  const pins = override.port ? await pinsAt(port.repository, port.commit, tools) : { decomp: release.decomp, renderer: release.renderer?.commit };
+  const pins = override.port && !otherGame ? await pinsAt(port.repository, port.commit, tools) : { decomp: release.decomp, renderer: release.renderer?.commit };
   const decomp = override.decomp ? (await resolveRef(override.decomp, tools)).commit : pins.decomp;
   const renderer = !pins.renderer ? null : pins.renderer === release.renderer?.commit ? release.renderer
     : { ...OLDER_RENDERER, commit: pins.renderer, decomp: await rendererHeaders(OLDER_RENDERER.repository, pins.renderer, tools) };
-  return { custom: true, version: label(port.commit, override.decomp ? decomp : null), repository: port.repository, branch: port.branch,
+  return { ...(otherGame && { game: release.game }), custom: true, version: label(port.commit, override.decomp ? decomp : null), repository: port.repository, branch: port.branch,
     commit: port.commit, portPatch: release.portPatch, decompRepository: override.decomp?.repository || release.decompRepository, decomp,
     ...(renderer && { renderer }), override };
 }

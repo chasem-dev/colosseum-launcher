@@ -7,7 +7,13 @@ let wizardStep = null;
 // The failure of a game `--play` started, shown once when the launcher opens instead.
 let directPlayShown = null;
 let setupPending = false;
-const GAME_LABEL = 'Play Pokémon Colosseum';
+// The activity while a game runs: "Play Pokémon Colosseum", or "Play" and the other game's name (main.js playLabel).
+const isGameLabel = label => typeof label === 'string' && label.startsWith('Play Pokémon ');
+// The game chosen on the Play page (games.js summary), and whether it has one of the launcher's features. A state
+// without one is Colosseum's, with everything.
+const COLOSSEUM = { id: 'colosseum', name: 'Pokémon Colosseum', shortName: 'Colosseum', discId: 'GC6E01', features: null };
+const chosenGame = data => data?.currentGame || COLOSSEUM;
+const gameHas = (data, feature) => !chosenGame(data).features || chosenGame(data).features[feature] !== false;
 const activityLog = window.coloActivityLog.createActivityLog();
 let logRenderPending = false;
 let consoleOpen = false, consoleExpanded = false, consoleFollowing = true;
@@ -544,7 +550,7 @@ function badge(id, label, good = false, warn = false) {
 
 function taskName(label) {
   if (!label) return 'Nothing running';
-  if (label === GAME_LABEL) return 'Game running';
+  if (isGameLabel(label)) return 'Game running';
   if (label.startsWith('Build ')) return 'Setting up your game';
   if (label.startsWith('Download port') || label.startsWith('Download decomp') || label.startsWith('Download renderer')) return 'Downloading setup files';
   if (label.startsWith('Download build') || label.startsWith('Prepare build') ||
@@ -581,7 +587,7 @@ function showWizardStep(data) {
   const downloadTextures = ready && data.binaryReady && needsTextureDownload(data);
   $('page-home').classList.toggle('ready-mode', ready);
   $('setup-flow').hidden = ready;
-  $('home-title').textContent = ready ? 'Pokémon Colosseum' : 'Set up your game';
+  $('home-title').textContent = ready ? chosenGame(data).name : 'Set up your game';
   $('home-description').textContent = ready
     ? downloadTextures ? 'Set up HD visuals to finish setup.'
       : !data.binaryReady ? `This version of the game is not set up yet. Prepare & play gets it ready and starts it, or ▾ Prepare only gets it ready for later.`
@@ -669,13 +675,13 @@ function renderActivity(active) {
   if (active && !consoleWasActive) consoleFailed = false;
   consoleWasActive = Boolean(active);
   renderConsoleState(active);
-  const working = Boolean(active) && active.label !== GAME_LABEL;
+  const working = Boolean(active) && !isGameLabel(active.label);
   $('task-progress').hidden = !working;
   $('status-progress').hidden = !working || !Number.isFinite(active.percent);
   if (!$('status-progress').hidden) $('status-progress-fill').style.width = `${active.percent}%`;
   $('activity-label').textContent = taskName(active?.label);
   $('stop').hidden = !active?.canStop;
-  $('stop').textContent = active?.label === GAME_LABEL ? 'Stop game'
+  $('stop').textContent = isGameLabel(active?.label) ? 'Stop game'
     : active?.label.startsWith('Build ') ? 'Stop build' : 'Stop task';
   $('view-build-log').textContent = active?.label.startsWith('Build ') ? 'View build log' : 'View activity';
   const pbrNote = pbrProgress(active);
@@ -707,10 +713,36 @@ function renderConsoleState(active) {
   }
 }
 
+// The game picker, and what the chosen game has: its disc, and the tabs and settings of features it doesn't have hidden.
+function renderGame(data) {
+  const chosen = chosenGame(data);
+  for (const id of ['colosseum', 'xd']) {
+    $(`game-${id}`).setAttribute('aria-pressed', String(chosen.id === id));
+    $(`game-${id}`).disabled = Boolean(data.active) || setupPending;
+  }
+  $('setup-disc-description').textContent = `Select a file from your own North American ${chosen.name} disc (${chosen.discId}). Use an .iso or .gcm file.`;
+  for (const node of document.querySelectorAll('[data-feature]')) node.classList.toggle('feature-off', !gameHas(data, node.dataset.feature));
+  if (!gameHas(data, 'gbaLink') && settingsTab === 'gba') settingsTab = 'gameplay';
+  if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online' }[page] || '')) showPage('play');
+}
+
+async function chooseGame(id) {
+  if (chosenGame(current).id === id) return;
+  setMessage('');
+  try {
+    const result = await window.colo.selectGame(id);
+    wizardStep = null;
+    if (result?.config) refresh(result);
+    await sync();
+  } catch (error) { showError(error); }
+}
+for (const id of ['colosseum', 'xd']) $(`game-${id}`).addEventListener('click', () => chooseGame(id));
+
 function refresh(data) {
   if (Number.isFinite(data.logResetSequence)) resetLog(data.logResetSequence);
   current = data;
   const { config, platform } = data;
+  renderGame(data);
   $('platform').textContent = platform.name;
   $('repo-path').textContent = config.repo;
   $('repo-path').title = config.repo;
@@ -870,12 +902,19 @@ async function loadUpdateChannels() {
 }
 
 const sourceFields = { port: ['source-port-repository', 'source-port-ref'], decomp: ['source-decomp-repository', 'source-decomp-ref'] };
-let sourceShown = false;
+let sourceShown = null;
 function renderGameSource(data) {
   const chosen = data.gameSource;
-  // Fill the fields from the saved choice once, so typing is never overwritten.
-  if (!sourceShown) {
-    sourceShown = true;
+  // The chosen game's release repositories, for the rows left empty.
+  const release = data.currentGame?.release;
+  if (release) {
+    $('source-port-repository').placeholder = release.repository;
+    $('source-port-ref').placeholder = release.branch || 'master';
+    $('source-decomp-repository').placeholder = release.decompRepository;
+  }
+  // Fill the fields from the saved choice once for each game, so typing is never overwritten.
+  if (sourceShown !== chosenGame(data).id) {
+    sourceShown = chosenGame(data).id;
     for (const [part, [repository, ref]] of Object.entries(sourceFields)) {
       $(repository).value = chosen?.override[part]?.repository || '';
       $(ref).value = chosen?.override[part]?.ref || '';
@@ -1727,7 +1766,7 @@ window.colo.onLogReset(resetLog);
 window.colo.onActivity(value => {
   const changed = Boolean(value) !== Boolean(current?.active);
   // Update & play builds and then starts the game in one task: reread the versions once the new game boots.
-  const gameStarted = value?.label === GAME_LABEL && current?.active?.label !== value.label;
+  const gameStarted = isGameLabel(value?.label) && current?.active?.label !== value.label;
   if (current) current.active = value;
   renderActivity(value);
   // Lock the settings now: the next state (sync) can take a while to arrive.
@@ -1817,7 +1856,7 @@ window.coloGamepadNav.start({
   regions: '.switch, .field',
   defaultFocus: () => [page === 'settings' ? $(`tab-${settingsTab}`) : page === 'play' ? $('play') : $(pages[page].nav), $('play'), $('settings-cog')],
   // The game reads the same controller, and Controls waits for a button to bind.
-  paused: () => current?.active?.label === GAME_LABEL || Boolean(capture),
+  paused: () => isGameLabel(current?.active?.label) || Boolean(capture),
   actions: {
     back: gamepadBack,
     menu: () => openDialog() ? closeModal() : showPage(page === 'settings' ? 'play' : 'settings'),

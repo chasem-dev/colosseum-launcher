@@ -11,6 +11,7 @@ const languagePacks = require('./language-packs');
 const { normalizeChannel } = require('./update-channel');
 const { prependWindowsPath } = require('./windows-path');
 const { Disc, describe } = require('./disc');
+const games = require('./games');
 
 const PORT_URL = 'https://git.softwareauralabs.com/chase/pokemon-colosseum.git';
 // The HD texture pack: the port's own release, unpacked into mods/textures/colo-upscale-4x.
@@ -32,16 +33,18 @@ function platformInfo(platform = process.platform, arch = gameArch()) {
   throw new Error(`This port does not support ${platform}.`);
 }
 
-// What the game checkout holds beside the port: the decomp it compiles and, for an older port, the renderer's sources.
-function dependencyPaths(root) {
-  return { decomp: path.join(root, 'deps', 'pkmn-colosseum'), renderer: path.join(root, 'deps', 'sms-pc-port') };
+// What the game checkout holds beside the port: the decomp it compiles (each game's own, games.js) and, for an older
+// port, the renderer's sources.
+function dependencyPaths(root, game = games.DEFAULT) {
+  return { decomp: path.join(root, 'deps', games.get(game).decompFolder), renderer: path.join(root, 'deps', 'sms-pc-port') };
 }
 
 // The Windows build makes the game's .exe icon (Espeon and Umbreon, from the memory card icon) out of
 // main.dol where the decomp keeps the disc's files, which a launcher checkout doesn't have: copied
 // there from the player's disc. The folder is ignored by the decomp's git. Returns where it is.
-function placeMainDol(root, disc) {
-  const target = path.join(dependencyPaths(root).decomp, 'orig', 'GC6E01', 'sys', 'main.dol');
+// XD's build needs it on every system: its decomp's own build extracts the game's fonts and tables from it.
+function placeMainDol(root, disc, game = games.DEFAULT) {
+  const target = path.join(dependencyPaths(root, game).decomp, 'orig', games.get(game).discId, 'sys', 'main.dol');
   const image = new Disc(disc);
   try {
     const dol = image.dol();
@@ -53,14 +56,14 @@ function placeMainDol(root, disc) {
   return target;
 }
 
-function isPort(root) {
-  return Boolean(root && ['build.sh', 'run.sh', path.join('tools', 'befix.py'), path.join('deps', 'pkmn-colosseum', 'configure.py')]
+function isPort(root, game = games.DEFAULT) {
+  return Boolean(root && ['build.sh', 'run.sh', path.join('tools', 'befix.py'), path.join('deps', games.get(game).decompFolder, 'configure.py')]
     .every(file => fs.existsSync(path.join(root, file))));
 }
 
-const OWN_DISC = 'Choose a copy of your own North American Pokémon Colosseum disc (GC6E01) as an ISO or GCM file.';
+const ownDisc = game => `Choose a copy of your own North American ${game.name} disc (${game.discId}) as an ISO or GCM file.`;
 const CONVERT = 'In Dolphin, right-click the game, choose Convert File, set the format to ISO, and choose the .iso it makes.';
-const OTHER_FORMATS = {
+const otherFormats = OWN_DISC => ({
   ciso: `This is a CISO file, a compressed format the game can't read. ${CONVERT}`,
   'damaged-ciso': `This is a CISO file, a compressed format the game can't read. ${CONVERT}`,
   rvz: `This is an RVZ file, a compressed format the game can't read. ${CONVERT}`,
@@ -72,14 +75,16 @@ const OTHER_FORMATS = {
   wbfs: `This is a Wii disc file, not a GameCube one. ${OWN_DISC}`,
   wii: `This is a Wii disc file, not a GameCube one. ${OWN_DISC}`,
   unknown: `This isn't a GameCube disc file. ${OWN_DISC}`
-};
-const REGIONS = { GC6P01: 'European', GC6J01: 'Japanese' };
+});
 const megabytes = bytes => `${Math.round(bytes / 1048576).toLocaleString('en-US')} MB`;
 
 // The player's disc, identified by its contents: the original North American
 // release, holding everything the game reads. Other files get a reason that
-// names what they are and what to do instead.
-function validateRom(file) {
+// names what they are and what to do instead. `game` is the game it's for
+// (games.js); a disc of another game here says so, and names that game in the
+// error's otherGame when it's the release that game plays.
+function validateRom(file, gameId = games.DEFAULT) {
+  const game = games.get(gameId), OWN_DISC = ownDisc(game), OTHER_FORMATS = otherFormats(OWN_DISC);
   if (!file || typeof file !== 'string') throw new Error('Choose your own game disc file first.');
   const absolute = path.resolve(file);
   let stat;
@@ -91,12 +96,20 @@ function validateRom(file) {
   if (!stat.isFile()) throw new Error('Choose a game disc file, not a folder.');
   const disc = describe(absolute);
   if (OTHER_FORMATS[disc.format]) throw new Error(OTHER_FORMATS[disc.format]);
-  if (REGIONS[disc.gameId])
-    throw new Error(`This is the ${REGIONS[disc.gameId]} release of Pokémon Colosseum (${disc.gameId}). ${OWN_DISC}`);
-  if (disc.gameId !== 'GC6E01')
-    throw new Error(`This is ${disc.title ? `"${disc.title}"` : 'another game'} (${disc.gameId}), not Pokémon Colosseum. ${OWN_DISC}`);
-  if (disc.revision !== 0)
-    throw new Error(`This is revision ${disc.revision} of Pokémon Colosseum; the game needs the original release (GC6E01, revision 0). ${OWN_DISC}`);
+  if (game.regions[disc.gameId])
+    throw new Error(`This is the ${game.regions[disc.gameId]} release of ${game.name} (${disc.gameId}). ${OWN_DISC}`);
+  const known = disc.gameId !== game.discId && games.identifyDisc(disc.gameId);
+  if (known) {
+    const error = new Error(known.region
+      ? `This is the ${known.region} release of ${known.game.name} (${disc.gameId}), not ${game.name}. ${OWN_DISC}`
+      : `This is ${known.game.name} (${disc.gameId}), not ${game.name}. Choose ${known.game.shortName} at the top of the Play page to play it. ${OWN_DISC}`);
+    if (!known.region) error.otherGame = known.game.id;
+    throw error;
+  }
+  if (disc.gameId !== game.discId)
+    throw new Error(`This is ${disc.title ? `"${disc.title}"` : 'another game'} (${disc.gameId}), not ${game.name}. ${OWN_DISC}`);
+  if (disc.revision !== game.revision)
+    throw new Error(`This is revision ${disc.revision} of ${game.name}; the game needs the original release (${game.discId}, revision ${game.revision}). ${OWN_DISC}`);
   const again = 'It may not have finished copying. Copy it from your disc again, and choose the new file.';
   if (disc.needed === null) throw new Error(`This game disc file is incomplete or damaged. ${again}`);
   if (disc.size < disc.needed)
@@ -279,9 +292,25 @@ function texturePackFolders(settings, root, customTextures) {
   return folders;
 }
 
+// What each of the launcher's features (games.js) sets for the game: a game without the feature gets none of them.
+const FEATURE_ENVIRONMENT = {
+  widescreen: ['COLO_WIDESCREEN', 'COLO_WIDESCREEN_HUD'],
+  hdTextures: ['SMS_TEXTURE_PACKS', 'SMS_TEXTURE_PACK_PRELOAD', 'SMS_TEXTURE_PACK_MB'],
+  skipMovies: ['COLO_SKIP_MOVIES'],
+  fastForward: ['COLO_FAST_FORWARD', 'COLO_FAST_FORWARD_SPEED'],
+  randomizer: ['COLO_RANDOMIZER'],
+  hdModels: ['COLO_HD_MODELS'],
+  shiny: ['COLO_SHINY_SHADOW', 'COLO_SHINY_STARTERS'],
+  starters: ['COLO_CHOOSE_STARTERS'],
+  battleSpeed: ['COLO_BATTLE_SPEED'],
+  quickMoves: ['COLO_QUICK_MOVES', 'COLO_FAST_STATUS', 'SMS_BUTTON_PROMPTS', 'SMS_BUTTON_PROMPT_PAD'],
+  hdText: ['COLO_HD_TEXT']
+};
+
 // What the game reads when it starts, as run.sh and run.cmd set it up. `customTextures` is the custom
-// textures folder, for playing (texturePackFolders).
-function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false, packPokemon = false } = {}) {
+// textures folder, for playing (texturePackFolders). `game` is which game (games.js): its renderer, display
+// and input settings are every game's, the rest only where the game has that feature.
+function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false, packPokemon = false, game = games.DEFAULT } = {}) {
   if (!root) throw new Error('The port folder is required to configure texture packs.');
   const env = {
     ...process.env,
@@ -339,11 +368,17 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   if (/^\d+x\d+$/.test(settings.exclusiveResolution || '')) env.SMS_FULLSCREEN_MODE = settings.exclusiveResolution;
   if (settings.display === 'primary') env.SMS_DISPLAY = '0';
   else if (/^monitor\d+$/.test(settings.display || '')) env.SMS_DISPLAY = String(Number(settings.display.slice(7)) - 1);
+  for (const [feature, keys] of Object.entries(FEATURE_ENVIRONMENT))
+    if (!games.supports(game, feature)) for (const key of keys) delete env[key];
+  // No HD pack, and no textures from a folder of the checkout's, for a game without them
+  if (!games.supports(game, 'hdTextures')) env.SMS_TEXTURE_PACKS = '0';
   return env;
 }
 
-function binaryPath(root, platform = process.platform) {
-  return path.join(root, 'build', platform === 'win32' ? 'colosseum.exe' : 'colosseum');
+// Each game's executable (games.js): build/colosseum, or build/xd; .exe on Windows.
+function binaryPath(root, platform = process.platform, game = games.DEFAULT) {
+  const name = games.get(game).executable;
+  return path.join(root, 'build', platform === 'win32' ? `${name}.exe` : name);
 }
 
 // MinGW's compiler can't open a path of 260 characters or more. The deepest file a Windows build writes
@@ -403,10 +438,10 @@ function pathCharacterProblem(root, { platform = process.platform, portable = fa
       `${characters.length === 1 ? 'it' : 'them'} as part of a command. ${fix}` };
 }
 
-function playableInstall(saved, platform = process.platform) {
+function playableInstall(saved, platform = process.platform, game = games.DEFAULT) {
   if (!saved.repo || !saved.settings) return null;
   const settings = normalizeSettings(saved.settings, platform);
-  if (!fs.existsSync(binaryPath(saved.repo, platform))) return null;
+  if (!fs.existsSync(binaryPath(saved.repo, platform, game))) return null;
   return { repo: saved.repo, settings, rom: saved.rom, saveDirectory: saved.saveDirectory || null };
 }
 
@@ -434,8 +469,19 @@ function msysBash(environment) {
   return { msys, bash };
 }
 
-// build-colosseum.sh: the decomp's build file once, then the port's build.sh with its dependencies named.
-function buildCommand(root, platform = process.platform, environment = process.env) {
+// The build's environment for a game: COLO_GAME=xd for XD (games.js), and none for Colosseum, whose build is the
+// port's default.
+function gameBuildEnvironment(environment, game = games.DEFAULT) {
+  const { buildEnv } = games.get(game);
+  if (!Object.keys(buildEnv).length && !('COLO_GAME' in environment)) return environment;
+  const { COLO_GAME: _unused, ...rest } = environment;
+  return { ...rest, ...buildEnv };
+}
+
+// build-colosseum.sh: the decomp's build file once, then the port's build.sh with its dependencies named. It builds
+// the game COLO_GAME names, from that game's decomp in deps/.
+function buildCommand(root, platform = process.platform, base = process.env, game = games.DEFAULT) {
+  const environment = gameBuildEnvironment(base, game);
   const script = launcherScript('build-colosseum.sh');
   if (platform !== 'win32') return { command: '/bin/sh', args: [script, root], cwd: root, env: environment };
   const { msys, bash } = msysBash(environment);
@@ -526,8 +572,8 @@ function withSystemLibdrmAmdgpu(environment, library) {
 
 // The game itself, started directly: MSYS bash translates many native exception statuses to 127, which
 // hides the cause of a crash. It reads bindings.txt and mods/ from its working folder, the game folder.
-function gameRunCommand(root, disc, platform = process.platform, environment = process.env, libdrmAmdgpu = undefined) {
-  const binary = binaryPath(root, platform);
+function gameRunCommand(root, disc, platform = process.platform, environment = process.env, libdrmAmdgpu = undefined, game = games.DEFAULT) {
+  const binary = binaryPath(root, platform, game);
   if (platform === 'linux') {
     const library = libdrmAmdgpu === undefined ? systemLibdrmAmdgpu() : libdrmAmdgpu;
     return { command: binary, args: [disc], cwd: root, env: withSystemLibdrmAmdgpu(environment, library) };
@@ -544,4 +590,4 @@ function gameRuntimeFolders(environment = process.env) {
 module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal, turnOnQuickBattles,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
-  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, pbrMakesCries, playsPackCries, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
+  gameBuildEnvironment, buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, pbrMakesCries, playsPackCries, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };

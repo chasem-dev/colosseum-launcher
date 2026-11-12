@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const port = require('../src/port');
+const games = require('../src/games');
 
 function state() {
   return {
@@ -21,7 +22,7 @@ function state() {
 function host(platform) { return { linux: 'linux', macos: 'darwin', windows: 'win32' }[platform.id]; }
 
 async function renderer(data = state(), copyError = null, notes = { releases: [], unseen: [], current: '0.1.39' }) {
-  const changelogSeen = [], calls = [], elements = new Map(), listeners = {}, gamepad = {};
+  const changelogSeen = [], calls = [], elements = new Map(), listeners = {}, gamepad = {}, featured = [];
   let logCallback, resetCallback, activityCallback;
   const text = node => typeof node === 'string' ? node : node.textContent + node.children.map(text).join(' ');
   function element(classes = '') {
@@ -47,6 +48,8 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
     const node = element(match[0].match(/class="([^"]+)"/)?.[1]);
     node.hidden = /\bhidden\b/.test(match[0]);
     node.id = match[1];
+    const feature = match[0].match(/data-feature="([^"]+)"/)?.[1];
+    if (feature) { node.dataset = { feature }; featured.push(node); }
     elements.set(match[1], node);
   }
   const colo = {
@@ -65,6 +68,7 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
     updateAndPlay: async () => { calls.push('updateAndPlay'); },
     updateChannels: async () => [{ id: 'stable', label: 'Stable' }, { id: 'beta', label: 'Beta' }],
     setGameSource: async value => { calls.push(['setGameSource', value]); return data; },
+    selectGame: async id => { calls.push(['selectGame', id]); data.currentGame = games.summary(id); return data; },
     prepareGame: async () => {
       calls.push('prepareGame'); Object.assign(data, { binaryReady: true, hdVisualsReady: true }); data.game = { ...data.game, needsUpdate: false, installedVersion: data.game.availableVersion };
     },
@@ -79,7 +83,8 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
     getElementById(id) { assert.ok(elements.has(id), `Missing HTML element ${id}`); return elements.get(id); },
     querySelectorAll(selector) {
       const modals = ['mac-tools-help', 'path-too-long', 'pbr-offer'].map(id => elements.get(id));
-      return selector === '.launcher-modal' ? modals : selector === '.launcher-modal[open]' ? modals.filter(modal => modal.open) : [];
+      return selector === '.launcher-modal' ? modals : selector === '.launcher-modal[open]' ? modals.filter(modal => modal.open)
+        : selector === '[data-feature]' ? featured : [];
     }, createElement: () => element()
   } });
   vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../src/renderer.js'), 'utf8'), context);
@@ -684,4 +689,24 @@ test('the window button maximizes and restores the launcher, and F11 switches fu
   assert.ok(ui.calls.includes('toggleFullScreen'));
   assert.equal(button['data-state'], 'fullscreen');
   assert.equal(button['aria-label'], 'Exit full screen');
+});
+
+test('choosing XD on the Play page names it, asks for its disc, and hides what only Colosseum has', async () => {
+  const data = { ...state(), currentGame: games.summary('colosseum'), game: { ...state().game, needsUpdate: false } };
+  const ui = await renderer(data);
+  const off = id => ui.elements.get(id).classList.contains('feature-off');
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon Colosseum');
+  assert.equal(ui.elements.get('game-colosseum')['aria-pressed'], 'true');
+  assert.deepEqual(['nav-pokedex', 'nav-jukebox', 'nav-online', 'tab-gba', 'promptPad-field'].filter(off), []);
+  await ui.click('game-xd');
+  assert.deepEqual(ui.calls.filter(call => call[0] === 'selectGame'), [['selectGame', 'xd']]);
+  assert.equal(ui.elements.get('game-xd')['aria-pressed'], 'true');
+  assert.equal(ui.elements.get('game-colosseum')['aria-pressed'], 'false');
+  assert.equal(ui.elements.get('home-title').textContent, 'Pokémon XD: Gale of Darkness');
+  assert.match(ui.elements.get('setup-disc-description').textContent, /North American Pokémon XD: Gale of Darkness disc \(GXXE01\)/);
+  assert.deepEqual(['nav-pokedex', 'nav-jukebox', 'nav-online', 'tab-gba', 'promptPad-field', 'dolphin-save-drop', 'texture-info'].filter(id => !off(id)), []);
+  // the renderer's, display and input settings stay
+  assert.equal(off('renderer-field'), false);
+  await ui.click('game-colosseum');
+  assert.equal(off('nav-online'), false);
 });
