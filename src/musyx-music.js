@@ -5,7 +5,9 @@
 // program picks an instrument by id (a macro, a keymap or a layer of the music project); a macro is a short script
 // that starts a sample, sets its envelope and waits for the note to end. This follows MusyX 2.0's sequencer (seq.c)
 // and macro interpreter (synthmacros.c) in the open reconstruction at github.com/AxioDL/musyx, for the commands the
-// game's music uses. What it leaves out: reverb and chorus, the filter, portamento, voice stealing.
+// game's music uses: envelopes (also from channel controllers), volume programs, pitch bend, vibrato, the sustain pedal,
+// volume, pan and expression automation, song loops, and the game's reverb. What it leaves out: chorus, the filter,
+// portamento, key groups and voice stealing.
 const fsys = require('./fsys');
 const { decodeAdpcm } = require('./pokemon-cries');
 
