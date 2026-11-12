@@ -32,9 +32,9 @@ const GAMES = {
     // the decomp's own build extracts XD's fonts and tables from main.dol before the port's build reads them
     needsMainDol: true,
     // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its
-    // 2D stays 4:3, centred); its save goes to and from Dolphin as a .gci (gci-save.js); it prints its [presence] lines (host/xd/presence.c); the rest hook
+    // 2D stays 4:3, centred); its save goes to and from Dolphin as a .gci (gci-save.js); it prints its [presence] lines (host/xd/presence.c); its text goes through HD text (host/hdtext.c); the rest hook
     // Colosseum's functions
-    features: ['widescreen', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence']
+    features: ['widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence']
   }
 };
 
