@@ -2309,7 +2309,7 @@ function registerHandlers() {
       files = chosen.filePaths;
     }
     if (!Array.isArray(files) || !files.length) throw new Error('Choose a Dolphin .gci save file.');
-    const { file, converted, skipped } = gciSave.readGciFiles(files);
+    const { file, converted, skipped } = gciSave.readGciFilesFor(files, config.game);
     const directory = currentSaveDirectory();
     const existing = fs.existsSync(path.join(directory, `${converted.name}.dat`));
     const party = converted.party.length ? `\nParty: ${converted.party.join(', ')}` : '';
@@ -2319,7 +2319,7 @@ function registerHandlers() {
       type: existing || warning ? 'warning' : 'question',
       buttons: ['Cancel', 'Import save'], defaultId: 0, cancelId: 0,
       message: existing ? `Replace your ${converted.title} save with this Dolphin save?` : `Import this ${converted.title} save from Dolphin?`,
-      detail: `${path.basename(file)}\nTrainer: ${converted.trainer}${party}${skippedNote}\n\nDestination: ${directory}\n\nYour current memory card will be backed up first. The original .gci file is kept.${warning}`
+      detail: `${path.basename(file)}${converted.trainer ? `\nTrainer: ${converted.trainer}` : ''}${party}${skippedNote}\n\nDestination: ${directory}\n\nYour current memory card will be backed up first. The original .gci file is kept.${warning}`
     });
     if (answer.response !== 1) return { cancelled: true };
     const result = gciSave.importGci(converted, directory);
@@ -2328,9 +2328,9 @@ function registerHandlers() {
   }));
   ipcMain.handle('export-gci-save', () => exclusive('Export save', async () => {
     requireFeature('gciSaves', 'Dolphin saves');
-    const save = gciSave.readCardSave(currentSaveDirectory());
+    const save = gciSave.readCardSaveFor(currentSaveDirectory(), config.game);
     const chosen = await dialog.showSaveDialog(window, { title: 'Export save',
-      defaultPath: path.join(app.getPath('downloads'), gciSave.EXPORT_NAME),
+      defaultPath: path.join(app.getPath('downloads'), gciSave.exportName(config.game)),
       filters: [{ name: 'Dolphin save', extensions: ['gci'] }] });
     if (chosen.canceled || !chosen.filePath) return { cancelled: true };
     const file = gciSave.writeGci(save.gci, chosen.filePath);

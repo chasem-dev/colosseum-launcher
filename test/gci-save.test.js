@@ -359,3 +359,55 @@ test('a failed export keeps the file it would have replaced and leaves nothing b
   assert.equal(fs.readFileSync(file, 'utf8'), 'older export');
   assert.deepEqual(fs.readdirSync(dir), [EXPORT_NAME]);
 });
+
+test('an XD save goes to a .gci and back as it is, with its directory entry from the card .stat', t => {
+  const gci = require('../src/gci-save');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xd-gci-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const card = path.join(dir, 'card');
+  fs.mkdirSync(card);
+  const data = crypto.randomBytes(43 * BLOCK);
+  const stat = Buffer.alloc(0x6c);
+  stat.write('PokemonXD', 0, 'latin1');
+  stat.writeUInt32BE(data.length, 0x20);
+  stat.write('GXXE01', 0x28, 'latin1');
+  stat[0x2e] = 2;
+  stat.writeUInt32BE(0x40, 0x30);
+  stat.writeUInt16BE(0x5555, 0x34);
+  stat.writeUInt16BE(0x5555, 0x36);
+  fs.writeFileSync(path.join(card, 'PokemonXD.dat'), data);
+  fs.writeFileSync(path.join(card, 'PokemonXD.stat'), stat);
+
+  const save = gci.readCardSaveFor(card, 'xd');
+  assert.equal(save.gci.length, 0x40 + data.length);
+  assert.equal(save.gci.toString('latin1', 0, 6), 'GXXE01');
+  assert.equal(save.gci.toString('latin1', 8, 17), 'PokemonXD');
+  assert.equal(save.gci.readUInt16BE(0x38), 43);
+  assert.equal(save.gci.readUInt32BE(0x2c), 0x40, 'icon address from the .stat');
+  assert.equal(gci.exportName('xd'), '01-GXXE-PokemonXD.gci');
+
+  const file = gci.writeGci(save.gci, path.join(dir, gci.exportName('xd')));
+  const { converted } = gci.readGciFilesFor([file], 'xd');
+  assert.ok(converted.data.equals(data));
+  assert.ok(converted.stat.subarray(0, 0x24).equals(stat.subarray(0, 0x24)));
+  assert.ok(converted.stat.subarray(0x28, 0x3c).equals(stat.subarray(0x28, 0x3c)));
+  assert.throws(() => gci.readGciFilesFor([file], 'colosseum'), /not a Pokémon Colosseum save/);
+
+  const target = path.join(dir, 'imported');
+  const result = gci.importGci(converted, target, path.join(dir, 'backups'));
+  assert.equal(result.name, 'PokemonXD');
+  assert.ok(fs.readFileSync(path.join(target, 'PokemonXD.dat')).equals(data));
+});
+
+test('a Colosseum .gci given for XD says it is not an XD save', t => {
+  const gci = require('../src/gci-save');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xd-gci-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const bytes = Buffer.alloc(0x40 + 48 * BLOCK);
+  bytes.write('GC6E01', 0, 'latin1');
+  bytes.write('pokemon_colosseum', 8, 'latin1');
+  bytes.writeUInt16BE(48, 0x38);
+  const file = path.join(dir, '01-GC6E-pokemon_colosseum.gci');
+  fs.writeFileSync(file, bytes);
+  assert.throws(() => gci.readGciFilesFor([file], 'xd'), /not a Pokémon XD: Gale of Darkness save/);
+});

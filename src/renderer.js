@@ -721,6 +721,9 @@ function renderGame(data) {
     $(`game-${id}`).disabled = Boolean(data.active) || setupPending;
   }
   $('setup-disc-description').textContent = `Select a file from your own North American ${chosen.name} disc (${chosen.discId}). Use an .iso or .gcm file.`;
+  // Dolphin's name for the game's save (gci-save.js exportName)
+  const gciName = chosen.id === 'xd' ? '01-GXXE-PokemonXD.gci' : '01-GC6E-pokemon_colosseum.gci';
+  $('dolphin-import-help').textContent = `Drop your North American ${chosen.name} .gci save here, or the folder it is in, or choose it. Dolphin names it ${gciName}. Your current saves are backed up before importing.`;
   for (const node of document.querySelectorAll('[data-feature]')) node.classList.toggle('feature-off', !gameHas(data, node.dataset.feature));
   if (!gameHas(data, 'gbaLink') && settingsTab === 'gba') settingsTab = 'gameplay';
   if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online' }[page] || '')) showPage('play');
@@ -1696,7 +1699,7 @@ async function importDolphinSave(files) {
     if (result.cancelled) resultText.textContent = 'Import cancelled.';
     else {
       const skipped = result.skipped.length ? ` Skipped ${result.skipped.map(save => `${save.file} (${save.reason})`).join(', ')}.` : '';
-      resultText.textContent = `Imported ${result.trainer}'s save from ${result.file}. Start the game to play it.${skipped}`;
+      resultText.textContent = `Imported ${result.trainer ? `${result.trainer}'s save` : 'the save'} from ${result.file}. Start the game to play it.${skipped}`;
     }
   } catch (error) { resultText.textContent = errorText(error); }
   await sync();
@@ -1713,7 +1716,7 @@ $('export-gci-save').addEventListener('click', async () => {
       const randomized = result.randomized ? ' This is a randomizer run: your team comes with it, but Dolphin plays the rest as the normal game.' : '';
       const n = result.extraBoxPokemon;
       const boxes = n ? ` Dolphin's game has 3 PC boxes, so ${n === 1 ? 'the Pokémon' : `the ${n} Pokémon`} in boxes 4 to 10 ${n === 1 ? 'is' : 'are'} not in this file.` : '';
-      resultText.textContent = `Exported ${result.trainer}'s save to ${result.file}.${warning}${randomized}${boxes}`;
+      resultText.textContent = `Exported ${result.trainer ? `${result.trainer}'s save` : 'the save'} to ${result.file}.${warning}${randomized}${boxes}`;
     }
   } catch (error) { resultText.textContent = errorText(error); }
   await sync();
