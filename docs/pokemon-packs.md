@@ -23,6 +23,7 @@ mods/pokemon/
       body-shiny.png     optional: its shiny body sprite
       face.png           optional: its face icon
       face-shiny.png     optional: its shiny face icon
+      cry.wav            optional: its cry
     eclipse/
       pokemon.json
 ```
@@ -80,7 +81,7 @@ without a model, a cry or sprites of its own looks and sounds like its base.
 | `growthRate` | `mediumFast`, `erratic`, `fluctuating`, `mediumSlow`, `fast` or `slow`. |
 | `gender` | How many in 100 are female (0 to 100), or `"genderless"`. |
 | `height`, `weight` | In metres and kilograms. |
-| `cry` | Another Pokémon whose cry it uses. |
+| `cry` | Another Pokémon whose cry it uses, when it has no `cry.wav` of its own. |
 | `moves` | The moves it learns by level, up to 20, as `[level, "Move"]`, the move by name or number. Replaces its base's list. |
 | `tms` | The TMs and HMs it can learn, such as `"TM06"` or `"HM01"`. Replaces its base's. |
 | `tmMoves` | Moves it can learn from a TM or HM in any game, by name or number: it can learn those this game's TMs and HMs teach, and the rest are let go. Replaces its base's, unless `tms` is there too. |
@@ -111,6 +112,13 @@ PNG images. Any size works, and each is scaled to the game's size:
 
 Transparent pixels stay transparent. A shiny Pokémon uses `body-shiny.png` and `face-shiny.png`, or the normal ones when there
 aren't any.
+
+## Cry
+
+`cry.wav` is its own cry, which the game plays wherever it plays a Pokémon's cry: when it's sent out, when it faints, in its
+summary. A WAV file of 16-bit or 8-bit PCM, mono or stereo (stereo is mixed to mono), at 8,000 to 48,000 Hz, and no longer than
+4 seconds. It plays at its own rate, as loud as it is in the file, with the game's volume and echo as its base's cry has them.
+The Pokédex's Cry button plays it too. Without one, it has its base's cry, or the one `cry` names.
 
 ## Saves
 
