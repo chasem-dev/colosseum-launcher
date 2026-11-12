@@ -40,8 +40,8 @@ const NAMES = {
   darkside: 'Pyrite Town',
   dungeon: 'Pyrite Building',
   saint: 'Relic Forest',
-  darkside4: 'Mt. Battle Rest Room',
   country: 'Realgam Tower',
+  gtsolo: 'Mt. Battle Rest Room',   // heard and confirmed by the person who tried it, not matched by length (80.7 s predicted, 86 s in the rip)
   worldmap2: 'World Map',
   ev_shadow: "Cipher Syndicate's Theme",
   jyakira: "Nascour's Theme",
@@ -60,6 +60,9 @@ const NAMES = {
   agb_shinka: 'Pokémon is Evolving',
   agb_me_shinka: 'Evolution Jingle',
   level_up: 'Level Up',
+  agb_me_asa: 'Heal Pokémon',   // heard and confirmed by the person who tried it
+  agb_fanfa1b: 'Get Item',   // heard and confirmed by the person who tried it
+  agb_fanfa5: 'Congratulations (Evolution Success)',   // heard and confirmed by the person who tried it
   me_win: 'Win Battle',
   me_snatch: 'Snatch Shadow Pokémon',
   me_relive: 'Shadow Pokémon is Purified',

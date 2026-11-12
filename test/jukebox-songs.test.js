@@ -27,8 +27,8 @@ test('sound effects, sound id 0, empty entries and unknown songs are left out, a
 });
 
 test('a song\'s name reads as words', () => {
-  assert.equal(songs.title('gtsolo_song'), 'Gtsolo');
-  assert.equal(songs.title('agb_fanfa1b_song'), 'Agb fanfa1b');   // words at underscores
+  assert.equal(songs.title('darkside4_song'), 'Darkside4');
+  assert.equal(songs.title('me_welcome_song'), 'Me welcome');   // words at underscores
   assert.equal(songs.title('stand2_song'), 'Stand2');
   assert.equal(songs.title('title_song'), 'Title Screen');
   assert.equal(songs.title('title'), 'Title Screen');          // with or without "_song"
