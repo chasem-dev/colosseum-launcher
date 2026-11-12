@@ -151,10 +151,10 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     // A battle's animations skipped, or else played at battleSpeed: 1 is as on the disc.
     skipBattleAnimations: input.battleSpeed === 'skip' || Boolean(input.skipBattleAnimations),
     battleSpeed: battleSpeedSetting(input.battleSpeed),
-    // In battle, Z (R1 or RB on other controllers) opens the moves and A, B, X or Y uses one at once; off unless chosen.
-    quickMoves: Boolean(input.quickMoves),
-    // Status conditions and stat changes show over the move that caused them, and the battle moves on; off unless chosen.
-    quickStatus: Boolean(input.quickStatus),
+    // In battle, Z (R1 or RB on other controllers) opens the moves and A, B, X or Y uses one at once; on unless turned off.
+    quickMoves: input.quickMoves !== false,
+    // Status conditions and stat changes show over the move that caused them, and the battle moves on; on unless turned off.
+    quickStatus: input.quickStatus !== false,
     // How Quick moves shows each move's button (src/prompts.js): as the controller or keyboard in use (auto), or one style.
     buttonPrompts: prompts.normalizeStyle(input.buttonPrompts),
     promptPad: prompts.normalizePad(input.promptPad),
@@ -227,6 +227,12 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
 // Settings shows: a player who goes back to Vulkan afterwards stays there.
 function moveToMetal(settings, moved, platform = process.platform, arch = gameArch()) {
   return platformInfo(platform, arch).renderers[0] === 'metal' && !moved && settings.renderer === 'vulkan' ? { ...settings, renderer: 'metal' } : settings;
+}
+
+// Quick moves and Quick status effects were off by default at first, so every saved config says false.
+// They turn on once when they became defaults; after that the player's choice stays.
+function turnOnQuickBattles(settings, done) {
+  return done ? settings : { ...settings, quickMoves: true, quickStatus: true };
 }
 
 function texturePackDirectory(root) { return path.join(root, 'mods', 'textures'); }
@@ -530,7 +536,7 @@ function gameRuntimeFolders(environment = process.env) {
   return [path.join(environment.MSYS2_ROOT || 'C:\\msys64', 'mingw64', 'bin')];
 }
 
-module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal,
+module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal, turnOnQuickBattles,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
   buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };

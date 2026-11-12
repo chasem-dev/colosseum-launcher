@@ -209,7 +209,9 @@ function loadConfig() {
     rom: typeof saved.rom === 'string' ? saved.rom : '',
     // The player's Pokémon Battle Revolution disc file, for its models (makePbrModels)
     pbrDisc: typeof saved.pbrDisc === 'string' ? saved.pbrDisc : '',
-    settings: port.moveToMetal(port.normalizeSettings(saved.settings || {}), saved.movedToMetal),
+    settings: port.turnOnQuickBattles(port.moveToMetal(port.normalizeSettings(saved.settings || {}), saved.movedToMetal), saved.quickBattlesOn),
+    // Quick moves and Quick status effects have turned on once for a config saved while they were off by default.
+    quickBattlesOn: true,
     // Only once Metal is on offer: a Mac still on a Rosetta game moves when its game turns native.
     movedToMetal: Boolean(saved.movedToMetal) || port.platformInfo().renderers[0] === 'metal',
     installRoot: typeof saved.installRoot === 'string' ? saved.installRoot : null,
