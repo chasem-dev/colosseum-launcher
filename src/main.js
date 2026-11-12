@@ -1392,7 +1392,9 @@ let onPresence = null;        // the running game's handler for its [presence] l
 function showPresence() {
   if (!presenceSession || !discordPresence) return;
   const { startedAt, game: latest, online: isOnline } = presenceSession;
-  discordPresence.set(presence.activity(latest, { startedAt, online: isOnline ? { opponent: battle?.opponent || null } : null }));
+  const game = activeGame();
+  discordPresence.set(presence.activity(latest, { startedAt, online: isOnline ? { opponent: battle?.opponent || null } : null,
+    gameName: game.name, areaImages: game.id === 'colosseum' }));
 }
 
 function startPresence(startedAt, isOnline) {
