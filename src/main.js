@@ -866,7 +866,7 @@ async function build(forceFresh = false) {
   // A fresh build's folder is longer than the one ensureBuildTools checked.
   requireBuildablePath(root);
   if (!hdVisualsReady(root, settings)) await installTextures(root);
-  // XD's build reads its fonts and tables out of main.dol, so it needs it on every system.
+  // A game whose build reads main.dol needs it on every system (games.js needsMainDol; neither does now).
   if (chosen.needsMainDol) {
     try { port.placeMainDol(root, rom, chosen.id); }
     catch (error) { throw new Error(`Could not copy main.dol from your ${chosen.name} disc, which the build needs: ${error.message}`); }

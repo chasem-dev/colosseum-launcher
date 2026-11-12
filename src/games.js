@@ -29,8 +29,8 @@ const GAMES = {
     executable: 'xd', decompFolder: 'pkmn-xd',
     checkoutFolder: 'game-xd', locationFolder: 'XD Game',
     release: require('./xd-release.json'), buildEnv: { COLO_GAME: 'xd' },
-    // the decomp's own build extracts XD's fonts and tables from main.dol before the port's build reads them
-    needsMainDol: true,
+    // XD's port builds without the game's files too (its extracted data is only ever read from the disc's DOL)
+    needsMainDol: false,
     // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its
     // 2D stays 4:3, centred); its save goes to and from Dolphin as a .gci (gci-save.js); it prints its [presence] lines (host/xd/presence.c); its text goes through HD text (host/hdtext.c); the rest hook
     // Colosseum's functions

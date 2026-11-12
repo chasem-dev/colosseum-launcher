@@ -37,7 +37,7 @@ test('the registry has Colosseum, the default, with every feature, and XD with f
   assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['widescreen', 'hdText', 'discordPresence', 'fastForward', 'skipMovies', 'gciSaves']);
   const { name, discId, executable, decompFolder, buildEnv, needsMainDol } = games.get('xd');
   assert.deepEqual({ name, discId, executable, decompFolder, buildEnv, needsMainDol },
-    { name: 'Pokémon XD: Gale of Darkness', discId: 'GXXE01', executable: 'xd', decompFolder: 'pkmn-xd', buildEnv: { COLO_GAME: 'xd' }, needsMainDol: true });
+    { name: 'Pokémon XD: Gale of Darkness', discId: 'GXXE01', executable: 'xd', decompFolder: 'pkmn-xd', buildEnv: { COLO_GAME: 'xd' }, needsMainDol: false });
   assert.deepEqual(games.get('colosseum').buildEnv, {});
   assert.equal(games.ofSource(game.release).id, 'colosseum');
   assert.equal(games.ofSource(xdRelease).id, 'xd');
