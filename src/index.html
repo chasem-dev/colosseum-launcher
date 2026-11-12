@@ -396,7 +396,7 @@
     </main>
     <section id="jukebox-dock" class="jukebox-dock" aria-label="Music player" hidden>
       <div class="jukebox-progress"><span id="jukebox-time" class="jukebox-clock">0:00</span><input id="jukebox-seek" type="range" min="0" max="1000" value="0" aria-label="Position in the song" disabled><span id="jukebox-length" class="jukebox-clock">0:00</span></div>
-      <div class="jukebox-now"><strong id="jukebox-now">Nothing playing</strong><span id="jukebox-status" role="status"></span></div>
+      <div class="jukebox-title"><span id="jukebox-disc" class="jukebox-disc" aria-hidden="true"></span><div class="jukebox-now"><strong id="jukebox-now">Nothing playing</strong><span id="jukebox-status" role="status"></span></div></div>
       <div class="jukebox-controls">
         <button id="jukebox-previous" class="subtle" aria-label="Previous song" title="Previous song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12M16 4.5v11l-8-5.5z"/></svg></button>
         <button id="jukebox-toggle" class="solid" aria-label="Play" title="Play or pause">Play</button>
@@ -527,6 +527,7 @@
   <script src="formats.js"></script>
   <script src="team-builder.js"></script>
   <script src="online-page.js"></script>
+  <script src="jukebox-cover.js"></script>
   <script src="jukebox-page.js"></script>
 </body>
 </html>

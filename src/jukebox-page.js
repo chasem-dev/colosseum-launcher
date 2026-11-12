@@ -37,6 +37,11 @@
         button.type = 'button';
         button.className = 'jukebox-track';
         button.dataset.id = track.id;
+        const chip = document.createElement('span');
+        chip.className = 'jukebox-chip';
+        chip.setAttribute('aria-hidden', 'true');
+        chip.innerHTML = window.coloJukeboxCover.disc(track);
+        button.append(chip);
         const name = document.createElement('span');
         name.className = 'jukebox-track-name';
         name.textContent = track.name;
@@ -63,6 +68,10 @@
     $('jukebox-empty').hidden = tracks === null || tracks.length > 0;
     const track = tracks?.find(each => each.id === current);
     $('jukebox-now').textContent = track ? track.name : 'Nothing playing';
+    // the player's disc is drawn again only for another song, so that its turning is not started over by every update
+    const disc = $('jukebox-disc');
+    if (disc.dataset.id !== (track?.id ?? '')) { disc.innerHTML = track ? window.coloJukeboxCover.disc(track) : ''; disc.dataset.id = track?.id ?? ''; }
+    disc.classList.toggle('spinning', Boolean(state.playing) && !state.paused);
     $('jukebox-status').textContent = notice || (busy ? 'Preparing the song…' : state.playing ? (state.paused ? 'Paused' : 'Playing') : current ? 'Ready' : '');
     const playing = Boolean(state.playing) && !state.paused;
     $('jukebox-toggle').textContent = playing ? 'Pause' : state.paused ? 'Resume' : 'Play';
