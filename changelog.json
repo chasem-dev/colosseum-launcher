@@ -14,7 +14,8 @@
       "Online: your Story party works in Pokémon XD too. Choose XD on the Play page, and the Online page offers the party from your XD save, each Pokémon with its moves, nature, IVs, EVs, held item and nickname; Shadow Pokémon stay home until they're purified.",
       "Game Boy Advance: link your Ruby, Sapphire, Emerald, FireRed or LeafGreen save to Pokémon XD too, and trade at the Trade Center in a Pokémon Center's basement. Set it up under Settings → Game Boy Advance, on socket 2.",
       "Pokémon XD: the Pokédex and the Jukebox work in XD too, read from your XD disc. The Pokédex shows XD's own models, sprites and cries, and says how XD gives each Pokémon: your Eevee, a trade or Mt. Battle reward, a Shadow Pokémon to snag, a Poké Spot, or an evolution. The Jukebox plays the songs of XD's own sound test, looping as the game does.",
-      "Pokémon XD: HD textures work in XD too: every texture on XD's disc, upscaled 4× the way Colosseum's are, from Pokémon, trainers' faces and menus to every town. With HD textures on under Settings → Graphics, XD downloads them the next time you play it: about 3.8 GB, in two parts."
+      "Pokémon XD: HD textures work in XD too: every texture on XD's disc, upscaled 4× the way Colosseum's are, from Pokémon, trainers' faces and menus to every town. With HD textures on under Settings → Graphics, XD downloads them the next time you play it: about 3.8 GB, in two parts.",
+      "Online: Beta now builds Colosseum and Pokémon XD from the same newest game, so players of either game can join a room for both games."
     ],
     "game": [
       "Frame rate: Pokémon XD's overworld and battles run at 60 fps too, where they used to stay at 30, at the original game's speed. Choose 30 or 60 fps under Frame rate in Settings.",
@@ -23,7 +24,8 @@
       "Pokémon XD: fixed your character stuttering while walking or running at 60 fps.",
       "Online: in a room for both games, Colosseum makes every Pokémon by the same list of Pokémon, moves and held items as XD does, so both games battle with the same Pokémon.",
       "Online battles now check the battle itself at every turn, so two games that drift apart end the battle instead of playing on with different HP.",
-      "Pokémon XD: fixed battles between two of the game's trainers never ending, such as ZOOK and ARDOS at Gateon Port, where neither ever chose a move."
+      "Pokémon XD: fixed battles between two of the game's trainers never ending, such as ZOOK and ARDOS at Gateon Port, where neither ever chose a move.",
+      "Pokémon XD: fixed walls and furniture in the HQ lab popping in and the room looking squeezed at the 16:10 screen format."
     ]
   },
   "releases": [
