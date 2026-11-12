@@ -19,6 +19,8 @@
     "game": [
       "Frame rate: Pokémon XD's overworld and battles run at 60 fps too, where they used to stay at 30, at the original game's speed. Choose 30 or 60 fps under Frame rate in Settings.",
       "Pokémon XD: press A to skip The Pokémon Company and Genius Sonority logos and the opening movie, as in Colosseum, and in widescreen the two logos fill the screen with their background colour instead of black bars.",
+      "Pokémon XD: HD text draws XD's text sharp from the Inter typeface, as it does Colosseum's, where it used to only smooth the original letters. It's on by default; choose Text under Gameplay to change it.",
+      "Pokémon XD: fixed your character stuttering while walking or running at 60 fps.",
       "Online: in a room for both games, Colosseum makes every Pokémon by the same list of Pokémon, moves and held items as XD does, so both games battle with the same Pokémon.",
       "Online battles now check the battle itself at every turn, so two games that drift apart end the battle instead of playing on with different HP.",
       "Pokémon XD: fixed battles between two of the game's trainers never ending, such as ZOOK and ARDOS at Gateon Port, where neither ever chose a move."
