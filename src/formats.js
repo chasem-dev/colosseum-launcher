@@ -51,10 +51,12 @@
   const MYTHICAL = [151, 251, 409, 410, 515, 516, 517, 518, 519];
   // birds, beasts, Regis, Latias, Latios; the lake trio, Heatran, Regigigas, Cresselia
   const LEGENDARY = [144, 145, 146, 243, 244, 245, 401, 402, 403, 407, 408, 506, 507, 508, 511, 512, 514];
-  // The fourth generation's Pokémon and moves, by the game's numbers (Colosseum's own moves 355 to 357 come before).
-  const LATER_SPECIES = [413, 519], LATER_MOVES = [358, 470];
+  // The fourth generation's Pokémon, moves and held items, by the game's numbers (Colosseum's own moves 355 to 357 come
+  // before; its items past the game's own, and the Enigma Berry, whose row Colosseum leaves blank).
+  const LATER_SPECIES = [413, 519], LATER_MOVES = [358, 470], LATER_ITEMS = [0x224, 0x289], ENIGMA_BERRY = 175;
   const laterSpecies = id => id >= LATER_SPECIES[0] && id <= LATER_SPECIES[1];
   const laterMove = id => id >= LATER_MOVES[0] && id <= LATER_MOVES[1];
+  const laterItem = id => id === ENIGMA_BERRY || (id >= LATER_ITEMS[0] && id <= LATER_ITEMS[1]);
   // Smogon's third-generation Ubers (Showdown's data/mods/gen3/formats-data.ts)
   const UBERS = [150, 151, 249, 250, 404, 405, 406, 407, 408, 410, 202, 360];   // ... Latias, Latios, Deoxys, Wobbuffet, Wynaut
   const POOL_BANS = { any: [], restricted: [...RESTRICTED, ...MYTHICAL], legends: [...RESTRICTED, ...MYTHICAL, ...LEGENDARY], ou: UBERS };
@@ -249,7 +251,7 @@
     const list = (Array.isArray(party) ? party : []).filter(Boolean);
     if (list.length < rules.size) out.push(`This room plays ${rules.size} Pokémon each: your party has ${list.length}.`);
     const team = list.map((id, slot) => member(id, Array.isArray(members) ? members[slot] : null));
-    out.push(...generationProblems(rules, team, species, moveName));
+    out.push(...generationProblems(rules, team, species, moveName, itemName));
     if (rules.format === 'casual') return out;
     const banned = POOL_BANS[rules.pool];
     for (const each of team) if (has(banned, each.species)) out.push(`${species(each.species)} isn't allowed (${POOL_TEXT[rules.pool]}).`);
@@ -282,9 +284,10 @@
   }
 
   // The items a Pokémon can hold: the third generation's balls, items and berries, as the game's item table has them
-  // (not its TMs or key items, nor the empty rows between). [first, last] by the game's numbers.
+  // (not its TMs or key items, nor the empty rows between), [first, last] by the game's numbers; and the fourth
+  // generation's (laterItem), which generationProblems refuses where the rules don't have them.
   const HOLDABLE = [[1, 51], [63, 71], [73, 81], [83, 86], [93, 98], [103, 104], [106, 111], [133, 174], [179, 225], [254, 258]];
-  const holdable = item => HOLDABLE.some(([first, last]) => item >= first && item <= last);
+  const holdable = item => HOLDABLE.some(([first, last]) => item >= first && item <= last) || laterItem(item);
   const LAST_MOVE = 0x162, BALLS = 12, EV_MOST = 255, EV_TOTAL = 510, IV_MOST = 31, PP_UPS = 3;
   const GENERATION_WORDS = { 3: 'third', 4: 'fourth' };
 
@@ -319,14 +322,15 @@
     return out;
   }
 
-  // The fourth generation's Pokémon and moves where the rules can't have them: under Colosseum's battle rules (the game
-  // has them only under Platinum's), and in Gen 3 OU.
-  function generationProblems(rules, team, species, moveName) {
+  // The fourth generation's Pokémon, moves and held items where the rules can't have them: under Colosseum's battle
+  // rules (the game has them only under Platinum's), and in Gen 3 OU.
+  function generationProblems(rules, team, species, moveName, itemName = id => `item #${id}`) {
     const out = [], why = rules.battleRules < 4 ? 'which play only under Pokémon Platinum\'s battle rules' : rules.format === 'gen3ou' ? 'which Gen 3 OU doesn\'t have' : null;
     if (!why) return out;
     for (const each of team) {
       if (laterSpecies(each.species)) out.push(`${species(each.species)} is a Generation 4 Pokémon, ${why}.`);
       for (const move of each.moves.filter(laterMove)) out.push(`${species(each.species)} knows ${moveName(move)}, a Generation 4 move, ${why}.`);
+      if (laterItem(each.item)) out.push(`${species(each.species)} holds ${itemName(each.item)}, a Generation 4 item, ${why}.`);
     }
     return out;
   }
@@ -370,7 +374,7 @@
   const toWin = games => Math.floor(bestOf(games) / 2) + 1;
 
   const api = { LEVELS, BEST_OF, SIZES, POOLS, SLEEP, TURN_TIMES, BATTLE_TIMES, TIMER_RANGE, TIMERS, BATTLE_RULES, FORMATS, FORMAT_IDS, SETTINGS,
-    VARIANTS, RESTRICTED, MYTHICAL, LEGENDARY, UBERS, LATER_SPECIES, LATER_MOVES, laterSpecies, laterMove, normalize, withoutTimers, bestOf, changes, describe, rulesText, rulesLine, member,
+    VARIANTS, RESTRICTED, MYTHICAL, LEGENDARY, UBERS, LATER_SPECIES, LATER_MOVES, LATER_ITEMS, laterSpecies, laterMove, laterItem, normalize, withoutTimers, bestOf, changes, describe, rulesText, rulesLine, member,
     problems, validPick, toWin };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.coloFormats = api;

@@ -210,11 +210,52 @@ test('a Generation 4 party can have that generation\'s Pokémon and moves, a Gen
   assert.deepEqual(third.problems, ['Garchomp: a Generation 4 Pokémon, which only a Generation 4 party can have.']);
 });
 
+test('Generation 4 held items: only a Generation 4 party holds one, and Showdown\'s text names them', () => {
+  assert.equal(T.itemGeneration(0x251), 4);    // Life Orb
+  assert.equal(T.itemGeneration(175), 4);      // Enigma Berry, blank in Colosseum
+  assert.equal(T.itemGeneration(200), 3);      // Leftovers
+  assert.equal(T.itemGeneration(0), 3);
+  const dex = { species: [{ id: 471, name: 'Garchomp' }, { id: 143, name: 'Snorlax' }], moves: [{ id: 89, name: 'Earthquake' }],
+    items: [{ id: 200, name: 'Leftovers' }, { id: 0x251, name: 'Life Orb' }, { id: 0x22b, name: 'Choice Scarf' }], balls: [], abilities: () => [], gender: () => 127 };
+  const text = 'Garchomp @ Choice Scarf\n- Earthquake\n\nSnorlax @ Life Orb\n- Earthquake\n\nSnorlax @ Leftovers\n- Earthquake';
+  const fourth = T.parseShowdown(text, dex, 4);
+  assert.deepEqual(fourth.sets.map(set => [set.species, set.item]), [[471, 0x22b], [143, 0x251], [143, 200]]);
+  assert.deepEqual(fourth.problems, []);
+  assert.ok(T.formatShowdown(fourth.sets, dex, 50).includes('Snorlax @ Life Orb'));
+  const third = T.parseShowdown(text, dex);
+  assert.deepEqual(third.sets.map(set => [set.species, set.item]), [[143, 0], [143, 200]]);
+  assert.deepEqual(third.problems, ['Garchomp: a Generation 4 Pokémon, which only a Generation 4 party can have.',
+    'Snorlax: Life Orb is a Generation 4 item, which only a Generation 4 party can hold.']);
+});
+
+test('a Generation 4 party is offered the disc\'s items and the generation\'s own, from the game\'s numbers', () => {
+  const { laterItems } = require('../src/battle-data'), file = require('../src/generations/gen4-items.json');
+  const items = laterItems([{ id: 200, name: 'Leftovers', doc: 'Held', berry: false }, { id: 175, name: 'Enigma Berry', doc: 'Disc', berry: true }]);
+  assert.deepEqual(items.map(item => item.name), [...items.map(item => item.name)].sort((a, b) => a.localeCompare(b)));
+  assert.equal(items.filter(item => item.id === 175).length, 1);                  // the disc's, where it has one
+  assert.equal(items.find(item => item.id === 175).doc, 'Disc');
+  assert.deepEqual(items.find(item => item.name === 'Life Orb'), { id: 0x251, name: 'Life Orb', berry: false, generation: 4,
+    doc: 'An item to be held by a Pokémon. It boosts the power of moves, but at the cost of some HP on each hit.' });
+  assert.equal(items.find(item => item.name === 'Occa Berry').berry, true);
+  for (const item of file.items) {
+    assert.equal(T.itemGeneration(item.id), 4, item.name);
+    assert.ok(item.name && item.doc && !/[{}]/.test(item.doc), item.name);
+  }
+  assert.equal(new Set(file.items.map(item => item.name)).size, file.items.length);
+  for (const name of ['Focus Sash', 'Choice Scarf', 'Choice Specs', 'Light Clay', 'Expert Belt', 'Zoom Lens', 'Draco Plate'])
+    assert.ok(file.items.some(item => item.name === name), name);
+  assert.ok(!file.items.some(item => /Fossil|Mulch|Honey/.test(item.name)));      // no held effect
+});
+
 test('a Generation 4 party is offered that generation\'s Pokémon, moves and abilities, and all it could learn', withDisc, () => {
   const data = require('../src/battle-data').readBattleData(disc), later = data.generations[4];
   const gen4 = require('../src/gen4-learnsets'), gen3 = require('../src/gen3-learnsets');
   const move = id => later.moves.find(entry => entry.id === id);
   assert.equal(later.moves.length, 467);
+  // the disc's items, and the generation's own with the game's numbers
+  assert.ok(data.items.every(item => later.items.some(each => each.id === item.id && each.name === item.name)));
+  assert.equal(later.items.find(item => item.name === 'Life Orb')?.id, 0x251);
+  assert.ok(!data.items.some(item => item.name === 'Life Orb'));
   assert.deepEqual({ ...move(447), doc: undefined }, { id: 447, name: 'Stone Edge', type: 'Rock', power: 100, accuracy: 80, pp: 5, priority: 0,
     category: 'Physical', contact: false, doc: undefined });
   assert.equal(move(94).category, 'Special');            // Psychic

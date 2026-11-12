@@ -162,8 +162,10 @@ function readBattleData(rom) {
 }
 
 // What a later generation's party is offered (the module's header): { moves: [as readMoves's, the generation's numbers
-// and text], species: { id: { name, national, gender, abilities, learnset } } } for the game's own Pokémon and the
-// generation's new ones, by the game's numbers. `tables` is src/pokemon-packs.js readGameTables's.
+// and text], items: [as readItems's], species: { id: { name, national, gender, abilities, learnset } } } for the game's
+// own Pokémon and the generation's new ones, by the game's numbers. The items are the disc's and the ones the game has
+// only under these rules (generations/gen4-items.json: Life Orb, Focus Sash and the rest), as readItems's.
+// `tables` is src/pokemon-packs.js readGameTables's.
 function laterGeneration(rom, base, generation = 4, tables = null) {
   const generations = require('./generations'), pokemonPacks = require('./pokemon-packs');
   const data = generations.load(generation), learned = require(`./generations/gen${generation}-learnsets.json`).species;
@@ -232,7 +234,14 @@ function laterGeneration(rom, base, generation = 4, tables = null) {
     species[id] = { name: pokedex.displayName(data.species[national].name), national, gender: row[0x02],
       abilities: abilitiesOf(changed.get(id) || [row[0x32], row[0x33]]), learnset: [...learnset] };
   }
-  return { generation, moves, species };
+  return { generation, moves, items: laterItems(base.items, generation), species };
+}
+
+// The disc's held items and the generation's own, by name.
+function laterItems(items, generation = 4) {
+  const later = require(`./generations/gen${generation}-items.json`).items, own = new Set(items.map(item => item.id));
+  return [...items, ...later.filter(item => !own.has(item.id)).map(item => ({ ...item, berry: Boolean(item.berry), generation }))]
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Kept once read: the team builder and each battle ask again.
@@ -244,4 +253,4 @@ function create(read = readBattleData) {
   };
 }
 
-module.exports = { create, readBattleData, laterGeneration, generationMoves, prose, MOVES };
+module.exports = { create, readBattleData, laterGeneration, laterItems, generationMoves, prose, MOVES };

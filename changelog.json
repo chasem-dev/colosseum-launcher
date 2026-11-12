@@ -1,6 +1,7 @@
 {
   "beta": {
     "launcher": [
+      "Team builder: a Generation 4 party can now hold that generation's items, such as Life Orb, Focus Sash, Choice Scarf and Light Clay, picked from the Held item list or brought in with Showdown text. They play only under Pokémon Platinum's battle rules.",
       "Randomizer: a randomized run can have the Pokémon of your Pokémon packs too, as starters, Shadow Pokémon, trainers' Pokémon and gifts. Pokémon packs, under Randomizer in Settings → Gameplay, is on to start with and counts for a New Game once you have a pack. Keep the same packs for the whole run, as adding or removing one changes what it chooses.",
       "Generation 4 Pokémon cry with their own voices: Battle Revolution models are now Battle Revolution assets, and make each Pokémon's cry from your Battle Revolution disc along with its model and icons. If you made the models before, press Make assets under Settings → Gameplay to add the cries; only the cries are made.",
       "Pokémon packs: a Pokémon can have its own cry, a cry.wav beside its pokemon.json, which the game and the Pokédex play instead of its base's.",

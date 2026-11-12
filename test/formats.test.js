@@ -218,6 +218,24 @@ test('Generation 4 Pokémon and moves play only under Pokémon Platinum\'s battl
   assert.equal(formats.problems({ format: 'casual' }, [GARCHOMP, 6, 9, 3, 25, 1]).length, 1);
 });
 
+test('Generation 4 held items play only under Pokémon Platinum\'s battle rules, and not in Gen 3 OU', () => {
+  const LIFE_ORB = 0x251, FOCUS_SASH = 0x23f, CHOICE_SCARF = 0x22b, ENIGMA_BERRY = 175, ids = [143, 6, 9, 3, 25, 1];
+  const party = items => ids.map((id, i) => wire(id, { item: items[i] || 0 }));
+  const names = { species: id => ({ 143: 'Snorlax', 6: 'Charizard' })[id], item: id => ({ [LIFE_ORB]: 'Life Orb', [FOCUS_SASH]: 'Focus Sash' })[id] };
+  assert.deepEqual(formats.problems({ format: 'casual' }, ids, party([LIFE_ORB, FOCUS_SASH]), names), [
+    'Snorlax holds Life Orb, a Generation 4 item, which play only under Pokémon Platinum\'s battle rules.',
+    'Charizard holds Focus Sash, a Generation 4 item, which play only under Pokémon Platinum\'s battle rules.']);
+  assert.equal(formats.problems({ format: 'casual' }, ids, party([ENIGMA_BERRY])).length, 1);   // blank in Colosseum
+  const four = items => formats.problems({ format: 'hoenn', battleRules: 4 }, ids, party(items), names);
+  assert.deepEqual(four([LIFE_ORB, FOCUS_SASH, CHOICE_SCARF, ENIGMA_BERRY, 0x224, 0x289]), []);   // Adamant Orb to Zoom Lens
+  assert.deepEqual(four([200]), []);                                                              // the disc's own still
+  assert.match(four([0x28a])[0], /item #650, which a Pokémon can't hold/);                         // past Zoom Lens
+  assert.match(four([289])[0], /which a Pokémon can't hold/);                                      // TM01
+  assert.ok(formats.problems({ format: 'gen3ou', battleRules: 4 }, ids, party([LIFE_ORB]), names).includes(
+    'Snorlax holds Life Orb, a Generation 4 item, which Gen 3 OU doesn\'t have.'));
+  assert.ok(formats.laterItem(LIFE_ORB) && formats.laterItem(ENIGMA_BERRY) && !formats.laterItem(200));
+});
+
 test('only legal Pokémon under Platinum\'s rules: what each could learn in the fourth generation, or bring from the third', () => {
   const rules = { format: 'hoenn', battleRules: 4 }, ids = [143, 474, 6, 9, 3, 25];
   const check = (slot, member) => formats.problems(rules, ids, ids.map((id, i) => i === slot ? member : wire(id)));

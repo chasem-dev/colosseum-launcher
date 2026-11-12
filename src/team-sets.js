@@ -15,8 +15,9 @@
   const EV_MAX = 252, EV_TOTAL = 510, IV_MAX = 31;
   const MOVE_LAST = 0x162;        // the game's Shadow moves come after
   const GENERATIONS = [3, 4];
-  // The fourth generation's Pokémon (Turtwig to Arceus) and its last move (Shadow Force), by the game's numbers.
-  const LATER = { 4: { species: [413, 519], lastMove: 470 } };
+  // The fourth generation's Pokémon (Turtwig to Arceus), its last move (Shadow Force) and its held items (Adamant Orb to
+  // Zoom Lens, and the Enigma Berry, blank in Colosseum), by the game's numbers.
+  const LATER = { 4: { species: [413, 519], lastMove: 470, items: [0x224, 0x289], enigmaBerry: 175 } };
   const ITEM_LAST = 0xffff;
   const BALLS = 12, BALL = 4;     // Poké Ball
   const NICKNAME_LENGTH = 10;
@@ -52,6 +53,7 @@
   // Whether the species or move is one only a later generation's party can have: the generation, or 3.
   const speciesGeneration = id => id >= LATER[4].species[0] && id <= LATER[4].species[1] ? 4 : 3;
   const moveGeneration = id => id > MOVE_LAST && id <= LATER[4].lastMove ? 4 : 3;
+  const itemGeneration = id => id === LATER[4].enigmaBerry || (id >= LATER[4].items[0] && id <= LATER[4].items[1]) ? 4 : 3;
 
   function natureEffect(nature) {
     const up = NATURE_STATS[Math.floor(nature / 5)], down = NATURE_STATS[nature % 5];
@@ -231,7 +233,8 @@
       if (genders(dex.gender(species.id)).includes(gender)) set.gender = gender;
       if (itemName) {
         const item = find(dex.items, itemName);
-        if (item) set.item = item.id; else problems.push(`${species.name}: no held item called ${itemName}.`);
+        if (item && itemGeneration(item.id) > generation) problems.push(`${species.name}: ${item.name} is a Generation 4 item, which only a Generation 4 party can hold.`);
+        else if (item) set.item = item.id; else problems.push(`${species.name}: no held item called ${itemName}.`);
       }
       let ivsGiven = false, hiddenType = null;
       for (const line of lines.slice(1)) {
@@ -296,7 +299,7 @@
     }).join('\n\n');
   }
 
-  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, GENERATIONS, LATER, generationOf, lastMove, speciesGeneration, moveGeneration, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
+  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, GENERATIONS, LATER, generationOf, lastMove, speciesGeneration, moveGeneration, itemGeneration, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
     PHYSICAL_TYPES, category, validSpecies, natureEffect, natureLabel, cleanNickname, cleanEvs, defaultSet, normalizeSet, genders, genderOf, stats, hiddenPower,
     hiddenPowerIvs, personality, toWire, parseShowdown, formatShowdown };
   if (typeof module === 'object' && module.exports) module.exports = api;
