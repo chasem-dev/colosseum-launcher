@@ -41,7 +41,7 @@ function create(disc) {
     const { seconds, region } = music.songSeconds(song);
     const length = Math.min(options.most ?? 600, seconds + TAIL);
     const result = music.render(project, song, setup, { seconds: length, reverb: data[row + 2], loops: 0 });
-    music.limit(result.left, result.right);
+    if (options.limit !== false) music.limit(result.left, result.right);   // (options.limit: false is for measuring a render as mixed)
     const frames = Math.floor(length * result.rate);
     return { left: result.left.subarray(0, frames), right: result.right.subarray(0, frames), rate: result.rate, loop: region };
   }

@@ -575,7 +575,7 @@ function songSeconds(song) {
 // Limits a render's peaks in place, so that it never passes `ceiling`. It turns the gain down smoothly before a peak (5 ms ahead) and
 // lets it back up over about a tenth of a second, so what is below the ceiling is left exactly as it is: unlike a waveshaper
 // (tanh), it adds no distortion to the quiet and loud passages that don't need it.
-function limit(left, right, ceiling = 0.92) {
+function limit(left, right, ceiling = 0.97) {   // the game's own mix reaches full scale; a little under it, and the sound card gets no overs
   const n = left.length, look = 160, release = Math.pow(0.001, 1 / (0.12 * RATE));   // the gain's way back up: -60 dB per 0.12 s
   const want = new Float32Array(n);                     // the gain each sample needs
   let any = false;
