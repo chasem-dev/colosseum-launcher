@@ -22,10 +22,13 @@ const FIRST_ID = 252, LAST_ID = 276;
 const FIRST_PAST_GAP = 1100, LAST_ID_PAST_GAP = 4000;
 const REGISTRY_FILE = 'pokemon-packs.json';
 const ENTRY_FILE = 'pokemon.json', PACK_FILE = 'pack.json';
-const FILES = { model: 'model.pkx', modelShiny: 'model-shiny.pkx', body: 'body.png', bodyShiny: 'body-shiny.png', face: 'face.png', faceShiny: 'face-shiny.png' };
+const FILES = { model: 'model.pkx', modelShiny: 'model-shiny.pkx', body: 'body.png', bodyShiny: 'body-shiny.png', face: 'face.png', faceShiny: 'face-shiny.png',
+  cry: 'cry.wav' };
 const ASSETS = ['model', 'modelShiny', 'body', 'bodyShiny', 'face', 'faceShiny'];
 const SPRITE_SIZE = { body: [64, 64], face: [42, 42] };
-const MAX_MODEL = 8 << 20, MAX_PNG = 4 << 20, MAX_JSON = 256 << 10;
+const MAX_MODEL = 8 << 20, MAX_PNG = 4 << 20, MAX_JSON = 256 << 10, MAX_WAV = 2 << 20;
+// A cry the game plays (host/packcries.c): its rates, and at most 4 seconds at 32000 Hz, what each of its places holds
+const CRY = { lowestRate: 8000, highestRate: 48000, longest: 32000 * 4 };
 const NAME_LENGTH = 10;
 const MAGIC = 0x43504b4d, VERSION = 2;
 
@@ -57,6 +60,37 @@ const key = text => String(text).toLowerCase().replace(/[\s_]+/g, ' ').replace(/
 const isPackRow = id => Number.isInteger(id) && ((id >= FIRST_ID && id <= LAST_ID) || (id >= FIRST_PAST_GAP && id <= LAST_ID_PAST_GAP));
 
 function packsDirectory(userData) { return path.join(userData, 'mods', 'pokemon'); }
+
+// A cry.wav as the game takes it: { rate, samples (mono Int16Array) }. A WAV of 8- or 16-bit PCM, mono or stereo (the
+// channels' mean), at 8000 to 48000 Hz and no longer than 4 seconds at 32000 Hz (or as many samples at its rate).
+function readCry(file) {
+  if (file.length < 12 || file.toString('latin1', 0, 4) !== 'RIFF' || file.toString('latin1', 8, 12) !== 'WAVE') throw new Error('isn\'t a WAV file');
+  let format = null, data = null;
+  for (let at = 12; at + 8 <= file.length;) {
+    const id = file.toString('latin1', at, at + 4), size = file.readUInt32LE(at + 4), body = at + 8;
+    if (id === 'fmt ' && size >= 16 && body + 16 <= file.length) {
+      let kind = file.readUInt16LE(body);
+      if (kind === 0xfffe && size >= 40 && body + 26 <= file.length) kind = file.readUInt16LE(body + 24);   // WAVE_FORMAT_EXTENSIBLE: its sub-format
+      format = { kind, channels: file.readUInt16LE(body + 2), rate: file.readUInt32LE(body + 4), bits: file.readUInt16LE(body + 14) };
+    } else if (id === 'data') data = file.subarray(body, Math.min(file.length, body + size));
+    at = body + size + (size & 1);
+  }
+  if (!format || !data) throw new Error('isn\'t a WAV file');
+  if (format.kind !== 1 || ![8, 16].includes(format.bits)) throw new Error('needs to be 8- or 16-bit PCM');
+  if (![1, 2].includes(format.channels)) throw new Error('needs to be mono or stereo');
+  if (format.rate < CRY.lowestRate || format.rate > CRY.highestRate) throw new Error(`needs a rate of ${CRY.lowestRate} to ${CRY.highestRate} Hz`);
+  const width = format.bits / 8, frame = width * format.channels, count = Math.floor(data.length / frame);
+  if (!count) throw new Error('has no sound');
+  if (count > CRY.longest) throw new Error('is longer than 4 seconds');
+  const sample = at => (width === 2 ? data.readInt16LE(at) : (data[at] - 128) << 8);
+  const samples = new Int16Array(count);
+  for (let i = 0; i < count; i++) {
+    let sum = 0;
+    for (let c = 0; c < format.channels; c++) sum += sample(i * frame + c * width);
+    samples[i] = Math.floor(sum / format.channels);
+  }
+  return { rate: format.rate, samples };
+}
 
 // --- What the disc has: species, moves and abilities by name, and the sprites' headers ----
 
@@ -506,6 +540,13 @@ function loadPacks(dir, tables, registry) {
       if (files.modelShiny && !files.model) throw new Error(`${FILES.modelShiny} needs a ${FILES.model} beside it`);
       if (files.faceShiny && !files.face) throw new Error(`${FILES.faceShiny} needs a ${FILES.face} beside it`);
       if (files.bodyShiny && !files.body) throw new Error(`${FILES.bodyShiny} needs a ${FILES.body} beside it`);
+      const cryFile = path.join(each.dir, FILES.cry);
+      let cry = null;
+      if (fs.existsSync(cryFile)) {
+        if (fs.statSync(cryFile).size > MAX_WAV) throw new Error(`${FILES.cry} is too big`);
+        const wav = fs.readFileSync(cryFile);
+        try { cry = { ...readCry(wav), wav }; } catch (error) { throw new Error(`${FILES.cry} ${error.message}`); }
+      }
       for (const asset of ['model', 'modelShiny']) if (files[asset] && files[asset].length < 0x100) throw new Error(`${FILES[asset]} is too small to be a model`);
       const sprite = (asset, make) => {
         try { return make(); } catch (error) { throw new Error(`${FILES[asset]} ${error.message}`); }
@@ -516,7 +557,7 @@ function loadPacks(dir, tables, registry) {
         face: files.face && sprite(files.faceShiny ? 'faceShiny' : 'face', () => spriteFile('face', tables.headers.face, files.face, files.faceShiny)) };
       // Images the Pokédex shows, as they are
       const images = { body: files.body || null, bodyShiny: files.bodyShiny || null, face: files.face || null };
-      pokemon.push({ ...each, id: assigned.ids.get(each.key), ...built, assets, images,
+      pokemon.push({ ...each, id: assigned.ids.get(each.key), ...built, assets, images, cry,
         packName: typeof each.about.name === 'string' ? each.about.name.slice(0, 80) : each.pack,
         author: typeof each.about.author === 'string' ? each.about.author.slice(0, 80) : '',
         credits: typeof each.about.credits === 'string' ? each.about.credits.slice(0, 300) : '' });
@@ -596,16 +637,31 @@ function compile(contents) {
     }
     chunk('ROWS', parts);
   }
+  const crying = pokemon.filter(each => each.cry);
+  if (crying.length) {
+    // u32 count, then each: u16 species, u16 0, u32 rate, u32 sample count, its samples (16-bit, big-endian), padded to 4
+    const parts = [u32(crying.length)];
+    for (const each of crying) {
+      const head = Buffer.alloc(12), samples = Buffer.alloc(each.cry.samples.length * 2);
+      head.writeUInt16BE(each.id, 0); head.writeUInt32BE(each.cry.rate, 4); head.writeUInt32BE(each.cry.samples.length, 8);
+      each.cry.samples.forEach((value, i) => samples.writeInt16BE(value, i * 2));
+      parts.push(head, padded(samples));
+    }
+    chunk('CRYS', parts);
+  }
   const header = Buffer.alloc(16);
   header.writeUInt32BE(MAGIC, 0); header.writeUInt32BE(VERSION, 4); header.writeUInt32BE(chunks.length / 3, 8);
   return Buffer.concat([header, ...chunks]);
 }
 
-// A converted Pokémon's own model and icons, as a pack's are, or none.
+// A converted Pokémon's own model, icons and cry, as a pack's are, or none. A cry that can't be read is left out.
 function ownLooks(folder, tables) {
   const file = name => { const at = path.join(folder, name); return fs.existsSync(at) ? fs.readFileSync(at) : null; };
+  const cryAt = path.join(folder, FILES.cry), wav = fs.existsSync(cryAt) && fs.statSync(cryAt).size <= MAX_WAV ? fs.readFileSync(cryAt) : null;
+  let cry = null;
+  try { cry = wav && { ...readCry(wav), wav }; } catch (_) { cry = null; }
   const model = file(FILES.model);
-  if (!model) return { assets: {}, images: {} };
+  if (!model) return { assets: {}, images: {}, cry };
   const body = file(FILES.body), bodyShiny = file(FILES.bodyShiny), face = file(FILES.face), faceShiny = file(FILES.faceShiny);
   const sprite = make => { try { return make(); } catch (_) { return undefined; } };
   return {
@@ -613,7 +669,7 @@ function ownLooks(folder, tables) {
       body: body ? sprite(() => spriteFile('body', tables.headers.body, body)) : undefined,
       bodyShiny: bodyShiny ? sprite(() => spriteFile('body', tables.headers.body, bodyShiny)) : undefined,
       face: face ? sprite(() => spriteFile('face', tables.headers.face, face, faceShiny, battleRevolutionFace)) : undefined },
-    images: { body, bodyShiny, face }, converted: true
+    images: { body, bodyShiny, face }, cry, converted: true
   };
 }
 
@@ -635,7 +691,7 @@ function generationPokemon(tables, built, { modelsDirectory = null } = {}) {
   for (const { id, number, generation, spec } of built.species) {
     try {
       const made = buildRow(spec, withMoves, target);
-      const own = modelsDirectory ? ownLooks(path.join(modelsDirectory, String(number)), tables) : { assets: {}, images: {} };
+      const own = modelsDirectory ? ownLooks(path.join(modelsDirectory, String(number)), tables) : { assets: {}, images: {}, cry: null };
       pokemon.push({ pack: `generation-${generation}`, folder: String(number), key: `generation:${number}`, id, ...made, national: number,
         ...own, packName: `Generation ${generation}`, author: '', credits: 'Pokémon Showdown\'s data (MIT)', generation });
     } catch (error) {
@@ -687,6 +743,17 @@ function laterAbility(id) {
   try { return require('./generations').load(4).abilities[id === 124 ? 77 : id]?.name; } catch { return undefined; }   // 124: Tangled Feet
 }
 
+// Where a later generation's Pokémon's looks and cry are from, for the Pokédex.
+function generationNote(each) {
+  const start = `Added by the Generation ${each.generation} Pokémon setting`, end = 'From Pokémon Showdown\'s data.';
+  if (each.converted) {
+    const made = `with its ${each.cry ? 'model, icons and cry' : 'model and icons'} from your Battle Revolution disc (StarsMmd's Blender-Addon-Gamecube-Models writes the models)`;
+    return `${start}, ${made}.${each.cry ? '' : ` ${each.base.name}'s cry stands in for its own.`} ${end}`;
+  }
+  if (each.cry) return `${start}, with its cry from your Battle Revolution disc. ${each.base.name} stands in for its looks until its Battle Revolution assets are made. ${end}`;
+  return `${start}. ${each.base.name} stands in for its looks and cry until its Battle Revolution assets are made. ${end}`;
+}
+
 // What the Pokédex shows of each: as its own entries do (pokedex.js), and where it's from.
 function pokedexEntries(pokemon, tables) {
   const TYPES = pokedex.TYPES;
@@ -710,9 +777,7 @@ function pokedexEntries(pokemon, tables) {
       hasModel: Boolean(each.assets.model), hasShinyModel: Boolean(each.assets.modelShiny),
       status: each.generation
         ? { kind: 'generation', label: `Generation ${each.generation}`, locked: false,
-          note: each.converted
-            ? `Added by the Generation ${each.generation} Pokémon setting, with its model and icons made from your Battle Revolution disc (StarsMmd's Blender-Addon-Gamecube-Models writes them). ${each.base.name}'s cry stands in for its own. From Pokémon Showdown's data.`
-            : `Added by the Generation ${each.generation} Pokémon setting. ${each.base.name} stands in for its looks and cry until Battle Revolution models are made. From Pokémon Showdown's data.` }
+          note: generationNote(each) }
         : { kind: 'pack', label: each.form ? `${each.form} form, from a pack` : 'From a pack', locked: false,
           note: `${each.packName}${each.author ? `, by ${each.author}` : ''}. Based on ${each.base.name}.${each.description ? ` ${each.description}` : ''}` +
             `${each.credits ? ` Credits: ${each.credits}` : ''}` } };
@@ -720,6 +785,6 @@ function pokedexEntries(pokemon, tables) {
 }
 
 module.exports = { FIRST_ID, LAST_ID, FIRST_PAST_GAP, REGISTRY_FILE, FILES, packsDirectory, readGameTables, readRegistry, writeRegistry, assignIds,
-  decodePng, resize, encodeRgba8, spriteFile, battleRevolutionFace, buildRow, evolutionBytes, loadPacks, compile, generationPokemon, ownRows, pokedexEntries,
+  decodePng, resize, encodeRgba8, spriteFile, battleRevolutionFace, buildRow, evolutionBytes, loadPacks, compile, generationPokemon, ownRows, pokedexEntries, readCry,
   // A species the original game hasn't: a pack's, or a later generation's
   isPackSpecies: id => (id >= FIRST_ID && id <= LAST_ID) || id >= 413 };

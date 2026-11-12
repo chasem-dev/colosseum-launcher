@@ -972,8 +972,9 @@ function readPokemonPacks(rom, settings = config.settings) {
 
 const packLabel = problem => `${problem.pack}${problem.entry ? `/${problem.entry}` : ''}`;
 
-// --- Battle Revolution models (the game's tools/pbr2pkx): the player's own Battle Revolution disc, made into models and
-// icons for the later generations' Pokémon, which then look as they do there instead of as a stand-in.
+// --- Battle Revolution assets (the game's tools/pbr2pkx): the player's own Battle Revolution disc, made into models,
+// icons and cries for the later generations' Pokémon, which then look and sound as they do there instead of as a
+// stand-in.
 function pbrWork() { return path.join(app.getPath('userData'), 'battle-revolution'); }
 function pbrModels() { return path.join(pbrWork(), 'models'); }
 // The National Pokédex numbers a model is wanted for: the Pokémon of each generation imported
@@ -985,24 +986,27 @@ function pbrWanted(settings = config.settings) {
   }
   return numbers;
 }
-// Made: a model of it is there, and no fix to the converter since has changed it (those count once Make models remakes them)
+// Made: a model of it is there, no fix to the converter since has changed it (those count once Make assets remakes
+// them), and its cry is there, where the game makes cries (noCry: those with a model and no cry yet)
 function pbrState() {
-  const wanted = pbrWanted(), present = wanted.filter(n => fs.existsSync(path.join(pbrModels(), String(n), 'model.pkx')));
+  const wanted = pbrWanted(), present = wanted.filter(n => fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.model)));
   const outdated = config.repo ? port.pbrOutdated(config.repo, pbrModels(), present) : new Set();
+  const cries = Boolean(config.repo && port.pbrMakesCries(config.repo));
+  const noCry = cries ? present.filter(n => !outdated.has(n) && !fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.cry))).length : 0;
   return { disc: config.pbrDisc || null, discFound: Boolean(config.pbrDisc && fs.existsSync(config.pbrDisc)),
-    wanted: wanted.length, made: present.length - outdated.size, outdated: outdated.size,
+    wanted: wanted.length, made: present.length - outdated.size - noCry, outdated: outdated.size, noCry, cries,
     supported: Boolean(config.repo && fs.existsSync(port.pbrModelsScript(config.repo))) };
 }
 async function makePbrModels() {
   const root = requireRepo(), wanted = pbrWanted();
   if (!config.pbrDisc || !fs.existsSync(config.pbrDisc)) throw new Error('Choose your Pokémon Battle Revolution disc file first.');
-  if (!wanted.length) throw new Error('Turn on a later generation\'s Pokémon first: their models are what this makes.');
-  if (!fs.existsSync(port.pbrModelsScript(root))) throw new Error('This version of the game can\'t make Battle Revolution models yet. Update it from the Play page.');
+  if (!wanted.length) throw new Error('Turn on a later generation\'s Pokémon first: their models and cries are what this makes.');
+  if (!fs.existsSync(port.pbrModelsScript(root))) throw new Error('This version of the game can\'t make Battle Revolution assets yet. Update it from the Play page.');
   await ensureBuildTools();
   const cmd = port.pbrModelsCommand(root, config.pbrDisc, pbrWork(), wanted, process.platform, toolEnv());
-  await launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Make Battle Revolution models');
+  await launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Make Battle Revolution assets');
   const { made } = pbrState();
-  log(`Battle Revolution models: ${made} of ${wanted.length} made. They show in the Pokédex, and in your next game.`);
+  log(`Battle Revolution assets: ${made} of ${wanted.length} Pokémon made. They show in the Pokédex, and in your next game.`);
   return state();
 }
 
@@ -1122,7 +1126,7 @@ function pokedexList(rom) {
       packs = entries.map((entry, i) => {
         const each = all[i], base = species.find(item => item.national === each.base.national);
         pokedexPacks.set(entry.pack.key, { base: each.base.national, files: { model: each.assets.model, modelShiny: each.assets.modelShiny },
-          cry: each.row.readUInt16BE(pokemonCries.VOICE) });
+          cry: each.row.readUInt16BE(pokemonCries.VOICE), ownCry: ownCry(each) });
         return { ...entry, key: `pack:${entry.pack.key}`,
           sprite: each.images.body ? `data:image/png;base64,${each.images.body.toString('base64')}` : base?.sprite || null,
           forms: each.assets.model ? [{ id: 'model', label: 'Normal' }, ...(each.assets.modelShiny ? [{ id: 'modelShiny', label: 'Shiny' }] : [])] : base?.forms || [] };
@@ -1142,12 +1146,20 @@ function pokedexList(rom) {
       }
     }
   } catch (error) { problems = [error.message]; }
-  const hasCry = key => { try { return pokedexCries.has(rom, pokedexCry(rom, key)); } catch (_) { return false; } };
+  const hasCry = key => {
+    if (pokedexPacks.get(String(key).slice('pack:'.length))?.ownCry) return true;
+    try { return pokedexCries.has(rom, pokedexCry(rom, key)); } catch (_) { return false; }
+  };
   return { species: species.map(entry => ({ ...entry, hasCry: hasCry(entry.national) })), packs: packs.map(entry => ({ ...entry, hasCry: hasCry(entry.key) })), problems };
 }
 
+// A pack Pokémon's own cry.wav (or its Battle Revolution one), where the game plays it (host/packcries.c), else null: an
+// older game plays its row's, so the Pokédex does too.
+function ownCry(each) { return each.cry && config.repo && port.playsPackCries(config.repo) ? each.cry.wav : null; }
+
 // The sound id of a Pokédex entry's cry: a disc Pokémon's own, or what its pack's row has (its base's, unless the pack
-// names another's). The game plays a pack Pokémon's from its row too, so this is the cry it has in the game.
+// names another's). The game plays a pack Pokémon's from its row too, so this is the cry it has in the game, unless
+// it has its own (ownCry).
 function pokedexCry(rom, key) {
   const name = String(key);
   if (!name.startsWith('pack:')) return pokedexCries.soundOf(rom, Number(name));
@@ -1962,6 +1974,8 @@ function registerHandlers() {
     return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form)));
   });
   ipcMain.handle('pokedex-cry', (_event, key) => {
+    const own = String(key).startsWith('pack:') ? pokedexPacks.get(String(key).slice('pack:'.length))?.ownCry : null;
+    if (own) return own;
     const rom = port.validateRom(config.rom), wav = pokedexCries.wav(rom, pokedexCry(rom, key));
     if (!wav) throw new Error('That Pokémon has no cry on this disc.');
     return wav;
@@ -2120,7 +2134,7 @@ function registerHandlers() {
   });
   const actions = { 'install-port': ['Download port source', installPort],
     'update-port': ['Update game', updatePort], 'install-textures': ['Install HD textures', () => installTextures()], 'build': ['Build game', () => build(true)],
-    'make-pbr-models': ['Make Battle Revolution models', makePbrModels],
+    'make-pbr-models': ['Make Battle Revolution assets', makePbrModels],
     'setup-game': ['Build game', setupGame], 'prepare-game': ['Prepare game', prepareGame], 'play': [PLAY_LABEL, playInstalled],
     'launch-game': ['Prepare game', () => launchGame()], 'update-and-play': ['Prepare game', () => launchGame(true)],
     'play-previous': [PLAY_LABEL, () => {

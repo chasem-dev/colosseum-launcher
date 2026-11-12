@@ -469,6 +469,11 @@ function pbrOutdated(root, models, numbers) {
   }
   return outdated;
 }
+// Whether the game makes Battle Revolution cries too (tools/pbr2pkx/cries.py, each Pokémon's cry.wav), and whether it
+// plays a Pokémon's own cry (host/packcries.c: the packs file's CRYS chunk). An older game makes models only, and
+// plays the base's cry.
+function pbrMakesCries(root) { return fs.existsSync(path.join(root, 'tools', 'pbr2pkx', 'cries.py')); }
+function playsPackCries(root) { return fs.existsSync(path.join(root, 'host', 'packcries.c')); }
 function pbrModelsCommand(root, disc, work, numbers, platform = process.platform, environment = process.env) {
   const args = [pbrModelsScript(root), disc, work, ...numbers.map(String)];
   if (platform !== 'win32') return { command: 'python3', args, cwd: path.dirname(args[0]), env: environment };
@@ -539,4 +544,4 @@ function gameRuntimeFolders(environment = process.env) {
 module.exports = { PORT_URL, TEXTURE_PACK, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal, turnOnQuickBattles,
   texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
-  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
+  buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, pbrMakesCries, playsPackCries, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };
