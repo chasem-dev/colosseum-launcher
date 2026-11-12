@@ -34,7 +34,7 @@ test('the registry has Colosseum, the default, with every feature, and XD with o
   assert.equal(games.get('nonsense').id, 'colosseum');
   assert.equal(games.get('colosseum').release, game.release, 'Colosseum builds the pin it always has');
   assert.deepEqual(games.FEATURES.filter(feature => games.supports('colosseum', feature)), games.FEATURES);
-  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'discordPresence', 'storyParty', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters', 'shiny', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves']);
+  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdTextures', 'discordPresence', 'storyParty', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters', 'shiny', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves']);
   const { name, discId, executable, decompFolder, buildEnv, needsMainDol } = games.get('xd');
   assert.deepEqual({ name, discId, executable, decompFolder, buildEnv, needsMainDol },
     { name: 'Pokémon XD: Gale of Darkness', discId: 'GXXE01', executable: 'xd', decompFolder: 'pkmn-xd', buildEnv: { COLO_GAME: 'xd' }, needsMainDol: false });
@@ -150,7 +150,7 @@ test('XD plays with the renderer, display and input settings, widescreen, HD tex
   assert.equal(env.COLO_FAST_FORWARD, 'toggle');
   assert.equal(env.COLO_FAST_FORWARD_SPEED, '6');
   assert.equal(env.COLO_SKIP_MOVIES, '1');
-  assert.equal(env.SMS_TEXTURE_PACKS, '0', 'no HD pack, nor Colosseum\'s textures');
+  assert.equal(env.SMS_TEXTURE_PACKS, path.join(root, 'mods', 'textures'), 'its own HD pack, in XD\'s own folder');
   assert.equal(env.COLO_WIDESCREEN, 'auto', 'its cameras widen with the frame');
   assert.equal(env.COLO_HD_TEXT, '0', 'HD text, here turned off');
   assert.equal(env.COLO_BATTLE_SPEED, '2', 'battle speed (host/battlespeed.c, shared)');
@@ -159,7 +159,8 @@ test('XD plays with the renderer, display and input settings, widescreen, HD tex
   assert.match(env.SMS_BUTTON_PROMPTS, /./, 'quick moves\' button pictures');
   // the randomizer's run, without packs' own Pokémon, which XD's game doesn't choose (main.js passes packPokemon false)
   assert.equal(env.COLO_RANDOMIZER, `${settings.randomizerSeed}:19:7`);
-  for (const key of ['COLO_HD_MODELS', 'COLO_SHINY_STARTERS', 'SMS_TEXTURE_PACK_PRELOAD'])
+  assert.equal(env.SMS_TEXTURE_PACK_PRELOAD, '1', 'HD textures load before each area, as Colosseum\'s do');
+  for (const key of ['COLO_HD_MODELS', 'COLO_SHINY_STARTERS'])
     if (!(key in process.env)) assert.equal(key in env, false, key);
   const colosseum = port.buildEnvironment(settings, '/disc/colosseum.iso', root);
   assert.equal(colosseum.COLO_WIDESCREEN, 'auto');
@@ -322,12 +323,30 @@ test('the launcher loads an existing Colosseum setup unchanged, and saves XD bes
   assert.equal(main.currentSource(), game.release);
 });
 
-test('each game has its own HD texture pack: Colosseum its pinned one, XD none until its pack is published', t => {
+test('each game has its own HD texture pack: Colosseum its pinned one, XD its own in two parts', t => {
   assert.equal(port.texturePack('colosseum'), require('../src/texture-pack.json'));
-  assert.equal(port.texturePack('xd'), null);
-  assert.equal(games.supports('xd', 'hdTextures'), false, 'not offered before its pack exists');
+  const xd = require('../src/xd-texture-pack.json');
+  assert.equal(port.texturePack('xd'), xd);
+  assert.equal(games.supports('xd', 'hdTextures'), true);
+  assert.equal(xd.folder, 'xd-upscale-4x', 'beside Colosseum\'s colo-upscale-4x, never in it');
+  assert.equal(xd.parts.length, 2);
+  assert.equal(xd.sha256, xd.parts[0].sha256, 'the first part names the pack in its marker');
+  assert.equal(xd.size, xd.parts.reduce((sum, part) => sum + part.size, 0));
+  for (const part of xd.parts) {
+    assert.match(part.url, /^https:\/\/github\.com\/chasem-dev\/pokemon-colosseum-extras\/releases\/download\/xd-texture-pack-/);
+    assert.match(part.sha256, /^[a-f0-9]{64}$/);
+    assert.ok(part.size < 2 ** 31, 'each zip fits one release file');
+  }
   const root = temporary(t);
   assert.equal(port.texturePackInstalled(root, 'xd'), false);
-  assert.throws(() => port.textureCommand(root, 'linux', {}, 'xd'), /no HD texture pack yet/);
+  const args = port.textureCommand(root, 'linux', {}, 'xd').args;
+  assert.deepEqual(args.slice(2), [xd.parts[0].url, xd.parts[0].sha256, String(xd.parts[0].size), 'xd-upscale-4x',
+    xd.parts[1].url, xd.parts[1].sha256, String(xd.parts[1].size)]);
+  const folder = path.join(port.texturePackDirectory(root), 'xd-upscale-4x');
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, '.release'), JSON.stringify({ sha256: xd.sha256 }));
+  assert.equal(port.texturePackInstalled(root, 'xd'), true);
+  assert.equal(port.texturePackInstalled(root, 'colosseum'), false, 'XD\'s pack is not Colosseum\'s');
   assert.equal(port.textureCommand(root, 'linux', {}).args[2], require('../src/texture-pack.json').url);
+  assert.equal(port.textureCommand(root, 'linux', {}).args.length, 6, 'Colosseum\'s pack is one zip');
 });

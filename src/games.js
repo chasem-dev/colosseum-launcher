@@ -31,9 +31,9 @@ const GAMES = {
     executable: 'xd', decompFolder: 'pkmn-xd',
     checkoutFolder: 'game-xd', locationFolder: 'XD Game',
     release: require('./xd-release.json'), buildEnv: { COLO_GAME: 'xd' },
-    // none until its pack is published (xd-texall: XD's disc textures 4x); then a descriptor like texture-pack.json,
-    // and 'hdTextures' in features
-    texturePack: null,
+    // XD's disc textures 4x, made as Colosseum's are (the port's tools/colo-texall); in two zips (parts), as one
+    // release file holds under 2 GiB
+    texturePack: require('./xd-texture-pack.json'),
     // XD's port builds without the game's files too (its extracted data is only ever read from the disc's DOL)
     needsMainDol: false,
     // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its
@@ -50,7 +50,7 @@ const GAMES = {
     // has no shinyStarters. The randomizer is the port's shared host/randomizer.c, its stamp read from XD's save
     // (xd-save.js), as is the Story party (story-party.js), which XD's online battles take whole. The Pokédex and the
     // Jukebox read XD's own disc (xd-disc.js: its species, models, streamed cries and streamed music)
-    features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
+    features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'hdTextures', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
       'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets', 'gbaLink', 'randomizer', 'storyParty', 'pokedex', 'jukebox']
   }
 };

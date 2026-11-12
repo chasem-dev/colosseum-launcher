@@ -111,3 +111,51 @@ test("a stopped download of an earlier pack is deleted, and this pack's own is k
   assert.deepEqual(ranges, [1000], 'this pack continued from its own part');
   assert.deepEqual(fs.readdirSync(textures).sort(), ['colo-upscale-4x', 'notes.txt']);
 });
+
+// A pack in two zips (XD's): each part is one zip of the same layout, holding some of the textures.
+function packParts(directory, folder) {
+  const code = `import zipfile, sys
+for n, (path, names) in enumerate(((sys.argv[1], 'ab'), (sys.argv[2], 'cde'))):
+    with zipfile.ZipFile(path, 'w') as z:
+        if n == 0: z.writestr('README-texture-pack.txt', 'read me')
+        z.writestr('mods/textures/${folder}/', '')
+        for name in names: z.writestr('mods/textures/${folder}/tex1_8x8_%s_1.png' % name, name * 5000)
+`;
+  const files = [path.join(directory, 'part1.zip'), path.join(directory, 'part2.zip')];
+  assert.equal(spawnSync(python, ['-c', code, ...files]).status, 0);
+  return files.map(file => fs.readFileSync(file));
+}
+
+test('a pack in two parts downloads both, checks each and unpacks them into one folder', options, async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'colo textures-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const parts = packParts(directory, 'xd-upscale-4x');
+  const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+  const base = await serve(t, (request, response) => {
+    const bytes = parts[request.url.includes('part2') ? 1 : 0];
+    response.setHeader('Content-Length', bytes.length); response.end(bytes);
+  });
+  const urls = [base.replace('pack.zip', 'part1.zip'), base.replace('pack.zip', 'part2.zip')];
+  const textures = path.join(directory, 'mods', 'textures');
+  const run = shaSecond => new Promise(resolve => {
+    const child = spawn(python, ['-I', SCRIPT, textures, urls[0], hash(parts[0]), String(parts[0].length), 'xd-upscale-4x',
+      urls[1], shaSecond, String(parts[1].length)]);
+    let output = '';
+    child.stdout.on('data', chunk => { output += chunk; });
+    child.stderr.on('data', chunk => { output += chunk; });
+    child.on('close', code => resolve({ code, output }));
+  });
+  const bad = await run('b'.repeat(64));
+  assert.notEqual(bad.code, 0, 'a part that fails its check installs nothing');
+  assert.match(bad.output, /SHA-256/);
+  assert.equal(fs.existsSync(path.join(textures, 'xd-upscale-4x')), false);
+  const { code, output } = await run(hash(parts[1]));
+  assert.equal(code, 0, output);
+  assert.match(output, /Installed 5 textures/);
+  const total = parts[0].length + parts[1].length;
+  assert.match(output, new RegExp(`Texture download: ${total}/${total} bytes`), 'progress counts both parts');
+  const folder = path.join(textures, 'xd-upscale-4x');
+  assert.deepEqual(fs.readdirSync(folder).sort(), ['.release', ...'abcde'.split('').map(n => `tex1_8x8_${n}_1.png`)]);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(folder, '.release'), 'utf8')).sha256, hash(parts[0]), 'the first part names the pack');
+  assert.deepEqual(fs.readdirSync(textures), ['xd-upscale-4x'], 'both downloads are gone');
+});

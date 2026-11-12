@@ -495,12 +495,14 @@ function buildCommand(root, platform = process.platform, base = process.env, gam
     cwd: root, env: msysEnvironment(msys, environment) };
 }
 
-// install-textures.py: downloads the pinned pack, checks it and unpacks it, reporting as it goes.
+// install-textures.py: downloads the pinned pack, checks it and unpacks it, reporting as it goes. A pack too big for
+// one release file (XD's, xd-texture-pack.json) lists its zips in parts; the first part's SHA-256 is the pack's.
 function textureCommand(root, platform = process.platform, environment = process.env, game = games.DEFAULT) {
   const pack = texturePack(game);
   if (!pack) throw new Error(`${games.get(game).name} has no HD texture pack yet.`);
-  const args = [launcherScript('install-textures.py'), texturePackDirectory(root), pack.url, pack.sha256,
-    String(pack.size), pack.folder];
+  const [first, ...more] = pack.parts || [{ url: pack.url, sha256: pack.sha256, size: pack.size }];
+  const args = [launcherScript('install-textures.py'), texturePackDirectory(root), first.url, first.sha256,
+    String(first.size), pack.folder, ...more.flatMap(part => [part.url, part.sha256, String(part.size)])];
   if (platform !== 'win32') return { command: 'python3', args, cwd: root, env: environment };
   const { msys } = msysBash(environment);
   return { command: path.join(msys, 'mingw64', 'bin', 'python.exe'), args, cwd: root, env: msysEnvironment(msys, environment) };
