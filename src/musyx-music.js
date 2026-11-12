@@ -543,8 +543,31 @@ function render(bank, song, midiSetup, options = {}) {
     const wetLeft = reverbSide(auxLeft, time, preDelay, 0), wetRight = reverbSide(auxRight, time, preDelay, 1);
     for (let n = 0; n < total; n++) { left[n] += wetLeft[n]; right[n] += wetRight[n]; }
   }
-  // loop: where the looped part starts and how long it is, in seconds (null for a song that plays once)
-  return { left, right, rate: RATE, notes, voices, missing: [...missing], loop: loopSeconds ? { start: clock(loopEnd), length: loopSeconds } : null };
+  // loop: where a second pass starts and how long it is, in seconds, when loops were asked for (null for a song that plays once);
+  // region: the part of the song that repeats, { start, end } in seconds, whether or not it was rendered more than once.
+  return { left, right, rate: RATE, notes, voices, missing: [...missing], loop: loopSeconds ? { start: clock(loopEnd), length: loopSeconds } : null,
+    region: loopEnd !== null && loopEnd > loopStartTick ? { start: clock(loopStartTick), end: clock(loopEnd) } : null };
+}
+
+// How long a song lasts played once, in seconds, and the part of it that repeats ({ start, end }, or null): the end of its last
+// note, or of its loop. The sound dies away after: a render adds a few seconds for that.
+function songSeconds(song) {
+  const clock = tickClock(song);
+  let end = 0, loopEnd = null;
+  for (const track of song.tracks) {
+    if (!track || track.midi === 0xff) continue;
+    for (const entry of track.entries) {
+      if (entry.loop) { loopEnd = Math.max(loopEnd ?? 0, entry.time); end = Math.max(end, clock(entry.time)); break; }
+      for (const ev of readPattern(song, entry.pattern)) if (ev.control === undefined) end = Math.max(end, clock(entry.time + ev.time + ev.length));
+    }
+  }
+  const region = loopEnd !== null && loopEnd > song.loopPoint ? { start: clock(song.loopPoint), end: clock(loopEnd) } : null;
+  return { seconds: end, region };
+}
+
+// Soft-limits a render in place, as a WAV of it would be: no harsh clipping where voices add up.
+function limit(left, right) {
+  for (let i = 0; i < left.length; i++) { left[i] = Math.tanh(left[i]); right[i] = Math.tanh(right[i]); }
 }
 
 // 16-bit stereo PCM as a WAV file.
@@ -558,4 +581,4 @@ function wavStereo(left, right, rate, length = left.length) {
   return out;
 }
 
-module.exports = { MIDI_TIME, reverbSide, REVERB_PRESETS, DEFAULT_GAIN, readStream, readPatternStreams, volumeGain, panGains, RATE, loadBank, readSong, readPattern, tickClock, midiSetupFor, samplePcm, voicesFor, runMacro, envelopeOf, gainAt, render, wavStereo };
+module.exports = { songSeconds, limit, MIDI_TIME, reverbSide, REVERB_PRESETS, DEFAULT_GAIN, readStream, readPatternStreams, volumeGain, panGains, RATE, loadBank, readSong, readPattern, tickClock, midiSetupFor, samplePcm, voicesFor, runMacro, envelopeOf, gainAt, render, wavStereo };

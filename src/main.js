@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
+const { Worker } = require('node:worker_threads');
 const port = require('./port');
 const saves = require('./saves');
 const gciSave = require('./gci-save');
@@ -40,7 +41,6 @@ const pokedexNames = require('./pokedex');
 const pokedexData = pokedexNames.create();
 const pokemonCries = require('./pokemon-cries');
 const pokedexCries = pokemonCries.create();
-const jukebox = require('./jukebox');
 const jukeboxSongs = require('./jukebox-songs');
 const { Disc } = require('./disc');
 const texturePackLookup = require('./texture-pack-lookup');
@@ -1171,17 +1171,13 @@ function noteCrashReport(error, since) {
   error.message += ' Settings → Launcher can copy its crash report for a bug report.';
 }
 
-// --- The Jukebox (jukebox.js): the game itself, started without a window, plays the songs; the page only asks.
-// COLO_JUKEBOX_MOCK=1 uses a silent stand-in (scripts/mock-jukebox.js) when there is no game build to try it with.
-const jukeboxPlayer = jukebox.create({ spawn });
-jukeboxPlayer.on('state', value => broadcast('jukebox', value));
-const jukeboxMock = () => process.env.COLO_JUKEBOX_MOCK === '1';
-// The songs on the player's disc, read once for each disc.
+// --- The Jukebox (jukebox-page.js): the game's songs, rendered from the player's disc without the game. A worker thread mixes a
+// song (jukebox-render.js, about a second or two); the page plays what it is sent.
 let jukeboxSongList = { rom: null, tracks: [] };
+function jukeboxRom() { return port.validateRom(config.rom); }
+// The songs on the player's disc, read once for each disc.
 function jukeboxTracks() {
-  // With the stand-in game, COLO_JUKEBOX_ROM (a disc image) still gives the disc's real songs.
-  if (jukeboxMock() && !process.env.COLO_JUKEBOX_ROM) return jukebox.mockTracks();
-  const rom = port.validateRom(jukeboxMock() ? process.env.COLO_JUKEBOX_ROM : config.rom);
+  const rom = jukeboxRom();
   if (jukeboxSongList.rom !== rom) {
     const disc = new Disc(rom);
     try { jukeboxSongList = { rom, tracks: jukeboxSongs.read(disc) }; } finally { disc.close(); }
@@ -1189,39 +1185,36 @@ function jukeboxTracks() {
   return jukeboxSongList.tracks;
 }
 
-function jukeboxRun() {
-  if (jukeboxMock()) return { command: process.execPath, args: [path.join(__dirname, '..', 'scripts', 'mock-jukebox.js'), jukebox.FLAG],
-    cwd: __dirname, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } };
-  if (active) throw new Error('Close the game before opening the Jukebox.');
-  const root = requireRepo(), rom = port.validateRom(config.rom);
-  if (!binaryReady(root)) throw new Error('Set up this version of the game before using the Jukebox.');
-  const playEnv = { ...port.buildEnvironment(config.settings, rom, root, { customTextures: customTextureDirectory() }), ...saves.gameDataEnvironment() };
-  const recordedTools = game.toolRoot(root);
-  const env = recordedTools ? buildTools.environmentAtRoot(recordedTools, playEnv) : toolEnv(playEnv);
-  return jukebox.command(port.gameRunCommand(root, rom, process.platform, env));
+let jukeboxWorker = null, jukeboxRequest = 0;
+const jukeboxPending = new Map();
+function jukeboxStopWorker() {
+  jukeboxWorker?.terminate();
+  jukeboxWorker = null;
+  for (const { reject } of jukeboxPending.values()) reject(new Error('The Jukebox was closed.'));
+  jukeboxPending.clear();
 }
-
-async function jukeboxPlay(id) {
+function jukeboxRender(id) {
   const track = jukeboxTracks().find(each => each.id === id);
-  if (!track) throw new Error('That song is not on the list.');
-  if (!jukeboxPlayer.state().ready) await jukeboxPlayer.start(jukeboxRun());
-  jukeboxPlayer.play(track);
-  return jukeboxPlayer.state();
-}
-
-function jukeboxControl(action, value) {
-  if (action === 'close') jukeboxPlayer.quit();
-  else if (jukeboxPlayer.state().ready) {
-    if (action === 'pause') jukeboxPlayer.pause();
-    else if (action === 'resume') jukeboxPlayer.resume();
-    else if (action === 'stop') jukeboxPlayer.stop();
-    else if (action === 'volume') jukeboxPlayer.setVolume(value);
+  if (!track) return Promise.reject(new Error('That song is not on the list.'));
+  if (!jukeboxWorker) {
+    jukeboxWorker = new Worker(path.join(__dirname, 'jukebox-worker.js'));
+    jukeboxWorker.on('message', ({ id: request, error, ...song }) => {
+      const pending = jukeboxPending.get(request);
+      if (!pending) return;
+      jukeboxPending.delete(request);
+      if (error) pending.reject(new Error(error)); else pending.resolve(song);
+    });
+    jukeboxWorker.on('error', error => { log(`Jukebox: ${error.message}`); jukeboxStopWorker(); });
+    jukeboxWorker.on('exit', () => { jukeboxWorker = null; });
   }
-  return jukeboxPlayer.state();
+  const request = ++jukeboxRequest;
+  return new Promise((resolve, reject) => {
+    jukeboxPending.set(request, { resolve, reject });
+    jukeboxWorker.postMessage({ id: request, rom: jukeboxRom(), sound: track.sound });
+  });
 }
 
 async function play(installation = null, battle = null) {
-  jukeboxPlayer.quit();  // the Jukebox and the game would share the sound device
   const root = installation?.repo || requireRepo();
   // The player's choices, not the build's: an earlier install plays with them too.
   const settings = installation ? { ...config.settings, textures: installation.settings?.textures ?? config.settings.textures } : config.settings;
@@ -1976,8 +1969,8 @@ function registerHandlers() {
     return wav;
   });
   ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
-  ipcMain.handle('jukebox-play', (_event, id) => jukeboxPlay(String(id)));
-  ipcMain.handle('jukebox-control', (_event, action, value) => jukeboxControl(String(action), value));
+  ipcMain.handle('jukebox-render', (_event, id) => jukeboxRender(String(id)));
+  ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));
     return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom), look.national, String(form), Number(index));
@@ -2294,7 +2287,7 @@ app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) creat
 
 app.on('before-quit', () => {
   flushPartialOutput();
-  jukeboxPlayer.quit();
+  jukeboxStopWorker();
   // Stop an in-flight compiler before another launcher process can recover it.
   if (!active?.child || active.label === PLAY_LABEL) return;
   if (process.platform === 'win32') spawn('taskkill', ['/PID', String(active.child.pid), '/T', '/F'], { windowsHide: true });

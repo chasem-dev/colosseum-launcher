@@ -194,3 +194,21 @@ test('a note that ends under the sustain pedal rings on until the pedal comes up
   assert.equal(energy(without.left, 20000, 28000) + energy(without.right, 20000, 28000), 0);       // with none, the note is long over
   assert.equal(energy(withPedal.left, 40000, 64000) + energy(withPedal.right, 40000, 64000), 0);   // and it stops after the pedal
 });
+
+test('a song\'s length is its last note\'s end, or its loop\'s, and the loop is the part that repeats', () => {
+  const plain = tiny();
+  assert.deepEqual(mx.songSeconds(plain.song), { seconds: 0.5, region: null });
+  const looped = tiny({ loop: true });
+  assert.deepEqual(mx.songSeconds(looped.song), { seconds: 0.5, region: { start: 0, end: 0.5 } });
+  const render = mx.render(looped.bank, looped.song, null, { seconds: 2, noReverb: true });
+  assert.deepEqual(render.region, { start: 0, end: 0.5 });   // a render says it even when it plays the loop once
+  assert.equal(render.loop, null);
+});
+
+test('the soft limit keeps a render below full scale, and leaves a quiet one nearly as it is', () => {
+  const left = Float32Array.of(0.01, 3, -3), right = Float32Array.of(0, 0.5, -0.5);
+  mx.limit(left, right);
+  assert.ok(Math.abs(left[0] - 0.01) < 1e-4);
+  assert.ok(left[1] < 1 && left[1] > 0.99 && left[2] > -1 && left[2] < -0.99);
+  assert.ok(Math.abs(right[1] - Math.tanh(0.5)) < 1e-6);
+});

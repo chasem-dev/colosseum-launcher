@@ -50,7 +50,7 @@ function showPage(name) {
 for (const [name, item] of Object.entries(pages)) if (!item.sub) $(item.nav).addEventListener('click', () => showPage(name));
 // The Pokédex (pokedex-page.js) keeps nothing on the GPU while it isn't showing.
 onPage('pokedex', { show: () => window.coloPokedex?.show(), hide: () => window.coloPokedex?.hide() });
-// The Jukebox (jukebox-page.js) starts the game's music only when a song is played, and ends it when the page hides.
+// The Jukebox (jukebox-page.js) renders a song from the disc when it is played, and ends the music when the page hides.
 onPage('jukebox', { show: () => window.coloJukebox?.show(), hide: () => window.coloJukebox?.hide() });
 // Online (online-page.js) asks for the room list only while it's showing.
 onPage('online', { show: () => window.coloOnline?.show(), hide: () => window.coloOnline?.hide() });

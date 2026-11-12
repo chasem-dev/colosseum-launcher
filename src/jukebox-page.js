@@ -1,12 +1,15 @@
-// The Jukebox: the game's songs, listed to pick from. The game plays them itself (src/jukebox.js, in the main process),
-// started when a song is first played and closed when the page is left; this page shows the list and asks.
+// The Jukebox: the game's songs, listed to pick from. A song is rendered from the player's disc in the main process (src/jukebox-render.js,
+// in a worker, about a second or two) and played here with Web Audio; no game runs. A song with a loop point of its own repeats that
+// part while Loop is on, and otherwise plays through to its end and goes on to the next song.
 (() => {
   const $ = id => document.getElementById(id);
   const message = error => String(error?.message || error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+  const KEEP = 3;   // rendered songs kept, for playing one again
 
-  let tracks = null, loading = null, current = null, state = { running: false, ready: false, playing: null, paused: false, volume: 100, error: null };
-  // Set when the player ended a song (Stop, or another song) so that it doesn't count as one that finished.
-  let ending = false, busy = false, notice = '';
+  let tracks = null, loading = null, current = null, busy = false, notice = '';
+  let state = { playing: null, paused: false, volume: 100 };
+  let context = null, gain = null, active = null, token = 0;
+  const songs = new Map();   // id -> { buffer, loop }, oldest first
   const index = () => tracks.findIndex(each => each.id === current);
 
   function render() {
@@ -31,8 +34,7 @@
     $('jukebox-empty').hidden = tracks === null || tracks.length > 0;
     const track = tracks?.find(each => each.id === current);
     $('jukebox-now').textContent = track ? track.name : 'Nothing playing';
-    $('jukebox-status').textContent = notice || state.error || (busy ? 'Starting the game’s music…'
-      : state.playing ? (state.paused ? 'Paused' : 'Playing') : state.running ? 'Ready' : '');
+    $('jukebox-status').textContent = notice || (busy ? 'Preparing the song…' : state.playing ? (state.paused ? 'Paused' : 'Playing') : current ? 'Ready' : '');
     const playing = Boolean(state.playing) && !state.paused;
     $('jukebox-toggle').textContent = playing ? 'Pause' : state.paused ? 'Resume' : 'Play';
     $('jukebox-toggle').setAttribute('aria-label', $('jukebox-toggle').textContent);
@@ -43,21 +45,91 @@
     $('jukebox-volume').value = state.volume;
   }
 
-  async function control(action, value) {
-    try { state = await window.colo.jukeboxControl(action, value); notice = ''; }
-    catch (error) { notice = message(error); }
-    render();
+  // The sound out of the page: made when a song is first played, and let go of when the page is left.
+  function output() {
+    if (!context) {
+      context = new AudioContext({ latencyHint: 'playback' });
+      gain = context.createGain();
+      gain.gain.value = state.volume / 100;
+      gain.connect(context.destination);
+    }
+    return context;
+  }
+
+  // Ends what is playing, quietly: its end does not count as a song that finished.
+  function silence() {
+    const source = active?.source;
+    active = null;
+    if (source) { source.onended = null; try { source.stop(); } catch (_) { /* never started */ } source.disconnect(); }
+    state = { ...state, playing: null, paused: false };
+  }
+
+  async function song(id) {
+    if (songs.has(id)) return songs.get(id);
+    const rendered = await window.colo.jukeboxRender(id);
+    const ctx = output();
+    const buffer = ctx.createBuffer(2, rendered.left.length, rendered.rate);
+    buffer.copyToChannel(rendered.left, 0);
+    buffer.copyToChannel(rendered.right, 1);
+    songs.set(id, { buffer, loop: rendered.loop });
+    while (songs.size > KEEP) songs.delete(songs.keys().next().value);
+    return songs.get(id);
+  }
+
+  async function start(id, { buffer, loop }) {
+    const ctx = output();
+    await ctx.resume();
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    if (loop) { source.loopStart = loop.start; source.loopEnd = loop.end; source.loop = $('jukebox-loop').checked; }
+    source.connect(gain);
+    source.onended = () => { if (active?.source === source) { active = null; state = { ...state, playing: null, paused: false }; render(); finished(); } };
+    active = { source, loop: Boolean(loop) };
+    state = { ...state, playing: id, paused: false };
+    source.start();
   }
 
   async function play(id) {
+    const mine = ++token;
     current = id;
     notice = '';
     busy = true;
-    ending = Boolean(state.playing);  // a song cut off by this one is not one that ended
+    silence();
     render();
-    try { state = await window.colo.jukeboxPlay(id); }
-    catch (error) { ending = false; notice = message(error); }
+    try {
+      const found = await song(id);
+      if (mine !== token) return;
+      await start(id, found);
+    } catch (error) {
+      if (mine === token) notice = message(error);
+    }
+    if (mine === token) { busy = false; render(); }
+  }
+
+  async function pause() {
+    if (!active) return;
+    await context.suspend();
+    state = { ...state, paused: true };
+    render();
+  }
+
+  async function resume() {
+    if (!active) return;
+    await context.resume();
+    state = { ...state, paused: false };
+    render();
+  }
+
+  function stop() {
+    token++;
     busy = false;
+    silence();
+    render();
+  }
+
+  function volume(value) {
+    state = { ...state, volume: Math.max(0, Math.min(100, Number(value) || 0)) };
+    if (gain) gain.gain.value = state.volume / 100;
     render();
   }
 
@@ -68,20 +140,11 @@
     return play(next.id);
   }
 
-  // A song that finished on its own: the same one again when looping, else the next, and the list's end stops.
+  // A song that played through on its own: the same one again when looping, else the next, and the list's end stops.
   function finished() {
     if ($('jukebox-loop').checked) return play(current);
     const at = index();
     if (at >= 0 && at < tracks.length - 1) return play(tracks[at + 1].id);
-  }
-
-  function onState(next) {
-    const previous = state;
-    state = next;
-    const ended = previous.playing && !next.playing && next.running && !ending;
-    if (!next.playing) ending = false;
-    render();
-    if (ended) finished();
   }
 
   function load() {
@@ -91,18 +154,28 @@
   }
 
   $('jukebox-toggle').addEventListener('click', () => {
-    if (state.playing) return control(state.paused ? 'resume' : 'pause');
+    if (state.playing) return state.paused ? resume() : pause();
     if (current || tracks?.length) return play(current || tracks[0].id);
   });
-  $('jukebox-stop').addEventListener('click', () => { ending = true; control('stop'); });
+  $('jukebox-stop').addEventListener('click', stop);
   $('jukebox-previous').addEventListener('click', () => step(-1));
   $('jukebox-next').addEventListener('click', () => step(1));
-  $('jukebox-volume').addEventListener('change', event => control('volume', event.target.value));
-  window.colo.onJukebox(onState);
+  $('jukebox-volume').addEventListener('input', event => volume(event.target.value));
+  // A song with a loop point of its own repeats it only while Loop is on: turned off, it goes on to its end.
+  $('jukebox-loop').addEventListener('change', event => { if (active?.loop) active.source.loop = event.target.checked; });
 
   window.coloJukebox = {
     show() { load(); render(); },
-    // Leaving the page ends the game's music: the game is not left running behind the other tabs.
-    hide() { ending = true; control('close'); },
+    // Leaving the page ends the music and lets go of the sound device and of the disc.
+    hide() {
+      token++;
+      busy = false;
+      silence();
+      songs.clear();
+      context?.close().catch(() => {});
+      context = gain = null;
+      window.colo.jukeboxClose().catch(() => {});
+      render();
+    },
   };
 })();
