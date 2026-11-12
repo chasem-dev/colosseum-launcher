@@ -1010,8 +1010,9 @@ async function makePbrModels() {
   return state();
 }
 
-// The file of packs for the game to load, or null when there are none. Each Pokémon keeps its
-// row of the species table from then on (pokemon-packs.json, beside the saves).
+// The file of packs for the game to load, or null when there are none, and how many of its Pokémon are packs' own
+// (not a later generation's). Each Pokémon keeps its row of the species table from then on (pokemon-packs.json, beside
+// the saves).
 function preparePokemonPacks(rom, folder) {
   const loaded = readPokemonPacks(rom);
   for (const problem of loaded.problems) log(`Pokémon pack ${packLabel(problem)}: ${problem.message}`);
@@ -1019,14 +1020,14 @@ function preparePokemonPacks(rom, folder) {
   const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules } = loaded.built, { ownRows } = loaded;
   // With a later generation's Pokémon, the Move Deleter also makes a Pokémon remember a move, as that generation's games do
   const relearner = loaded.generationPokemon.length > 0;
-  if (!pokemon.length && !moves.length && !rules && !ownRows.length) return null;
+  if (!pokemon.length && !moves.length && !rules && !ownRows.length) return { file: null, own: 0 };
   if (loaded.registryChanged) pokemonPacks.writeRegistry(currentSaveDirectory(), loaded.registry);
   const file = path.join(folder, 'pokemon-packs.bin');
   fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules, ownRows, relearner }));
   if (loaded.pokemon.length) log(`Pokémon packs: ${loaded.pokemon.map(each => `${pokedexNames.displayName(each.name)}${each.form ? ` (${each.form})` : ''} from ${each.key}`).join(', ')}.`);
   for (const generation of config.settings.generationPokemon) log(`Generation ${generation} Pokémon: ${loaded.generationPokemon.filter(each => each.generation === generation).length} Pokémon and ${moves.length} new moves.`);
   if (rules) log(`Battle rules: generation ${rules.generation}.`);
-  return file;
+  return { file, own: loaded.pokemon.length };
 }
 
 // An online room's battle rules for its game: the generation's rules, moves and Pokémon (which a party of that generation
@@ -1223,14 +1224,16 @@ async function play(installation = null, battle = null) {
   fs.mkdirSync(cacheFolder, { recursive: true });
   // An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules are both
   // games' (the room's own, not either player's settings).
-  let packsFile = null;
+  let packsFile = null, packPokemon = 0;
   if (!battle) {
-    try { packsFile = preparePokemonPacks(rom, cacheFolder); }
+    try { ({ file: packsFile, own: packPokemon } = preparePokemonPacks(rom, cacheFolder)); }
     catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); }
   } else if (battle.rules?.battleRules > generations.COLOSSEUM_RULES) {
     packsFile = prepareBattleRules(rom, cacheFolder, battle.rules.battleRules);
   }
-  const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory(), laterGenerations: onlineFeatures(root).randomizerGenerations }),
+  const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory(), laterGenerations: onlineFeatures(root).randomizerGenerations,
+    // a new randomized run can have packs' own Pokémon: there are some, and the game can choose them
+    packPokemon: packPokemon > 0 && onlineFeatures(root).randomizerPacks }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings), ...languagePacks.environment(settings, languageFolder()),
     ...gbaLink.environment(config.gba, settings, gbaBackupFolder()),
     SMS_BUTTON_PROMPT_DIR: promptDirectory(),
@@ -1423,10 +1426,12 @@ function onlineFeatures(root) {
         // the screens around a battle, where the players pick their Pokémon with team preview
         picks: bytes.includes('online: picks, '),
         // the randomizer's fourth generation (host/randomizer.c)
-        randomizerGenerations: bytes.includes('randomizer: later generations') };
+        randomizerGenerations: bytes.includes('randomizer: later generations'),
+        // and Pokémon packs' own Pokémon
+        randomizerPacks: bytes.includes('randomizer: packs\' Pokemon') };
     }
     return onlineBinary;
-  } catch (_) { return { online: false, story: false, rules: false, timers: false, randomizerGenerations: false }; }
+  } catch (_) { return { online: false, story: false, rules: false, timers: false, randomizerGenerations: false, randomizerPacks: false }; }
 }
 const gameHasOnline = root => onlineFeatures(root).online;
 
@@ -1744,6 +1749,7 @@ function state() {
     // The run on the memory card, and whether the game on disk can play one.
     randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c')),
     randomizerGenerations: repoReady && onlineFeatures(config.repo).randomizerGenerations,
+    randomizerPacks: repoReady && onlineFeatures(config.repo).randomizerPacks,
     usage: usageCount, online: onlineState(),
     gba: { ...gbaLink.status(config.gba), backupFolder: gbaBackupFolder() }
   };
@@ -1938,9 +1944,9 @@ function registerHandlers() {
     try { raw = fs.readFileSync(spoilerFile(), 'utf8'); } catch (_) { /* written when the game opens the run */ }
     if (randomizer.spoilerSeed(raw) !== run.seed) throw new Error('Open your save in the game once first: the spoiler log is written when it loads.');
     const readable = path.join(app.getPath('userData'), 'Randomizer spoilers.txt');
-    // the disc's Pokémon, and a later generation's that a run can have (not a pack's own, which it never chooses)
-    const list = pokedexList(port.validateRom(config.rom));
-    fs.writeFileSync(readable, randomizer.spoilerText(raw, [...list.species, ...list.packs.filter(entry => entry.pack.id.startsWith('generation-'))]));
+    // the disc's Pokémon and a later generation's, which the log has by number, then packs' own, which it has by their places
+    const list = pokedexList(port.validateRom(config.rom)), later = entry => entry.pack.id.startsWith('generation-');
+    fs.writeFileSync(readable, randomizer.spoilerText(raw, [...list.species, ...list.packs.filter(later)], list.packs.filter(entry => !later(entry))));
     await shell.openPath(readable);
   });
   ipcMain.handle('online-save', (_event, value) => {

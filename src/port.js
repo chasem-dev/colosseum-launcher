@@ -281,7 +281,7 @@ function texturePackFolders(settings, root, customTextures) {
 
 // What the game reads when it starts, as run.sh and run.cmd set it up. `customTextures` is the custom
 // textures folder, for playing (texturePackFolders).
-function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false } = {}) {
+function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false, packPokemon = false } = {}) {
   if (!root) throw new Error('The port folder is required to configure texture packs.');
   const env = {
     ...process.env,
@@ -320,7 +320,7 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   // Unset is hold at 4x, as in a game built before these settings.
   if (settings.fastForward === 'toggle') env.COLO_FAST_FORWARD = 'toggle';
   if (settings.fastForwardSpeed && settings.fastForwardSpeed !== 4) env.COLO_FAST_FORWARD_SPEED = String(settings.fastForwardSpeed);
-  const run = randomizer.environmentValue(settings, { laterGenerations });
+  const run = randomizer.environmentValue(settings, { laterGenerations, packPokemon });
   if (run) env.COLO_RANDOMIZER = run;
   if (settings.hdModels === false) env.COLO_HD_MODELS = '0';
   // Unset is on in the game, as it is in a game built before these settings.
