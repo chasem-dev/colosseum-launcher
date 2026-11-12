@@ -1618,9 +1618,10 @@ function onlineFeatures(root, id = config.game) {
         members: story || xd,
         rules,
         // turn and battle timers, with the battle's clock shared between the games
-        timers: !xd && bytes.includes('online: turn timer'),
+        // (XD's own strings: an XD from before them logged Colosseum's without having either)
+        timers: xd ? bytes.includes('online: XD turn timer') : bytes.includes('online: turn timer'),
         // the screens around a battle, where the players pick their Pokémon with team preview
-        picks: !xd && bytes.includes('online: picks, '),
+        picks: xd ? bytes.includes('online: XD picks, ') : bytes.includes('online: picks, '),
         // Pokémon Platinum's battle rules (src/generations.js): Colosseum's game only
         platinum: !xd,
         // rooms for either game's players (online.crossBuildId): XD's knows crossplay=1, and Colosseum's needs nothing
@@ -1764,8 +1765,8 @@ function gameBuild(cross = false) {
 // The session's view of what the game can do in a room (src/online.js Session features).
 function sessionFeatures(cross) {
   const features = onlineFeatures(config.repo);
-  // with the other game, the launcher's own preview picks (XD has no pick screen yet)
-  return { rules: features.rules, picks: features.picks && !cross, crossplay: cross };
+  // a room for both games is two games of one port commit, which have the same screens (host/xd/online.c and online.c)
+  return { rules: features.rules, picks: features.picks, crossplay: cross };
 }
 
 function requireOnlineReady() {
@@ -1881,8 +1882,8 @@ async function createRoom() {
   requireOnlineReady();
   const setup = config.online;
   const cross = Boolean(setup.crossplay) && onlineFeatures(config.repo).crossplay;
-  // a game from before timers would play without them, and so would XD's: the room says so
-  const rules = onlineFeatures(config.repo).timers && !cross ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
+  // a game from before timers would play without them: the room says so
+  const rules = onlineFeatures(config.repo).timers ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
   const chosen = partyFor(rules, { cross });
   const session = new online.Session({ features: sessionFeatures(cross) });
   battleResult = null;

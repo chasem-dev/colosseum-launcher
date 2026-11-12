@@ -163,7 +163,7 @@ Your game starts and waits in the stadium, and your room appears for everyone on
 
 Both players need the same build of the game. A room on another version says which one it needs.
 
-**Pokémon XD** battles online too. Its parties come from the team builder, which reads the Pokémon from your Colosseum disc, so set up Colosseum's disc as well. Tick **Colosseum and XD players can join** when you create a room, and a player of either game can take it: the two games play one battle, with XD following Colosseum's rules where they differ. Rooms for both games have no timers or Platinum's rules yet, and both games must come from the same version of the port. XD's online battles don't have the in-game pick screen yet: with team preview, you pick in the launcher.
+**Pokémon XD** battles online too. Its parties come from the team builder, which reads the Pokémon from your Colosseum disc, so set up Colosseum's disc as well. Tick **Colosseum and XD players can join** when you create a room, and a player of either game can take it: the two games play one battle, with XD following Colosseum's rules where they differ. XD's online battles have Colosseum's timers, the in-game pick screen with team preview, and the screens around a battle. Rooms for both games don't have Platinum's rules yet, and both games must come from the same version of the port.
 
 ### Game Boy Advance
 

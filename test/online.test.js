@@ -35,7 +35,7 @@ test('a room for both games is one commit of the port, whichever game and decomp
   assert.equal(online.isCrossBuild(undefined), false);
 });
 
-test('in a room for both games the game is told so, and picks stay the launcher\'s', async () => {
+test('in a room for both games the game is told so', async () => {
   const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, features: { rules: true, picks: false, crossplay: true } });
   const ws = await hosted(session);
   assert.equal(ws.messages()[0].gamePicks, undefined);
