@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { newestPlain } = require('./gci-save');
+const xdSave = require('./xd-save');
 
 // What can change, as the game's stamp holds it.
 const OPTIONS = { randomizerStarters: 1, randomizerShadow: 2, randomizerTrainers: 4, randomizerGifts: 8, randomizerSimilar: 16, randomizerNoLegendaries: 32,
@@ -25,6 +26,17 @@ const STAMP_VERSION = 1;
 const CHECK = 0x5eedc01d;
 
 const SAVE_FILE = 'pokemon_colosseum.dat';
+// Each game's card file, and where its stamp is in the save it loads: XD keeps it in reserve 1's room of its pack
+// (host/randomizer.c), which moves from save to save (xd-save.js).
+const SAVES = {
+  colosseum: { file: SAVE_FILE, read: data => ({ plain: newestPlain(data).plain, at: STAMP }) },
+  xd: { file: 'PokemonXD.dat', read: data => {
+    const pack = xdSave.newestPack(data);
+    if (!pack) throw new Error('no save the game would load');
+    return { plain: pack.plain, at: xdSave.stampAt(pack.plain) };
+  } }
+};
+const saveOf = gameId => SAVES[gameId] || SAVES.colosseum;
 const SPOILER_FILE = 'randomizer-spoiler.txt';
 
 function newSeed() { return crypto.randomBytes(4).toString('hex').toUpperCase(); }
@@ -71,54 +83,66 @@ function environmentValue(settings, { laterGenerations = false, packPokemon = fa
   return `${settings.randomizerSeed}:${options}:${generations}`;
 }
 
-// The run a save's unscrambled slot holds, or null for the normal game.
-function runOf(plain) {
-  if (plain.length < STAMP + 16 || plain.readUInt32BE(STAMP) !== STAMP_MAGIC || plain[STAMP + 4] !== STAMP_VERSION) return null;
-  const options = plain[STAMP + 5], generations = plain[STAMP + 6], seed = plain.readUInt32BE(STAMP + 8);
+// The run a save's unscrambled slot holds, or null for the normal game. at: where the stamp is (XD's moves).
+function runOf(plain, at = STAMP) {
+  if (at < 0 || plain.length < at + 16 || plain.readUInt32BE(at) !== STAMP_MAGIC || plain[at + 4] !== STAMP_VERSION) return null;
+  const options = plain[at + 5], generations = plain[at + 6], seed = plain.readUInt32BE(at + 8);
   const expected = (seed ^ CHECK ^ (options << 8) ^ generations) >>> 0;
-  if (plain.readUInt32BE(STAMP + 12) !== expected) return null;
+  if (plain.readUInt32BE(at + 12) !== expected) return null;
   return { seed: seed.toString(16).toUpperCase().padStart(8, '0'), options, generations };
 }
 
-// What the save in a memory card folder is: { exists: false }, or whether it's a run and which.
-function readSave(saveDirectory) {
+// What gameId's save in a memory card folder is: { exists: false }, or whether it's a run and which.
+function readSave(saveDirectory, gameId = 'colosseum') {
+  const save = saveOf(gameId);
   let data;
-  try { data = fs.readFileSync(path.join(saveDirectory, SAVE_FILE)); }
+  try { data = fs.readFileSync(path.join(saveDirectory, save.file)); }
   catch (_) { return { exists: false, run: null }; }
-  try { return { exists: true, run: runOf(newestPlain(data).plain) }; }
-  catch (_) { return { exists: false, run: null }; }
+  try {
+    const { plain, at } = save.read(data);
+    return { exists: true, run: runOf(plain, at) };
+  } catch (_) { return { exists: false, run: null }; }
 }
 
 // readSave, read again only when the save file changes.
 function createSaveReader() {
   let known = null;
-  return saveDirectory => {
-    let stamp = saveDirectory;
+  return (saveDirectory, gameId = 'colosseum') => {
+    const { file } = saveOf(gameId);
+    let stamp = `${gameId}:${saveDirectory}`;
     try {
-      const stat = fs.statSync(path.join(saveDirectory, SAVE_FILE));
+      const stat = fs.statSync(path.join(saveDirectory, file));
       stamp += `:${stat.size}:${stat.mtimeMs}`;
     } catch (_) { stamp += ':none'; }
-    if (known?.stamp !== stamp) known = { stamp, save: readSave(saveDirectory) };
+    if (known?.stamp !== stamp) known = { stamp, save: readSave(saveDirectory, gameId) };
     return known.save;
   };
 }
 
+// What each game's spoilers call its parts: XD starts with one Eevee, and its gifts are trades and Mt. Battle's.
+const SPOILER_TEXT = {
+  colosseum: { title: 'Pokémon Colosseum randomizer', starters: 'Starters', gifts: 'Gifts' },
+  xd: { title: 'Pokémon XD: Gale of Darkness randomizer', starters: 'Starter', gifts: 'Gifts and trades' }
+};
+
 // The game's spoiler log (what host/randomizer.c writes) as a player reads it. Teams' rows are
-// left out: thousands of lines, and each trainer's turn to surprise. species are named by their National Pokédex
+// left out: thousands of lines, and each trainer's turn to surprise (in XD a row is its deck's kind * 4096 plus its
+// row, which says nothing to a player either). species are named by their National Pokédex
 // numbers, and packs (Pokémon packs' own, { packId, name }) by their places in the species table.
-function spoilerText(raw, species, packs = []) {
+function spoilerText(raw, species, packs = [], gameId = 'colosseum') {
+  const words = SPOILER_TEXT[gameId] || SPOILER_TEXT.colosseum;
   const nameOf = number => number >= PACK_SPECIES
     ? packs.find(entry => entry.packId === number - PACK_SPECIES)?.name || 'a Pokémon of a pack that isn\'t here now'
     : species.find(entry => entry.national === number)?.name || `#${number}`;
   const lines = String(raw).trim().split('\n'), [, seed] = (lines[0] || '').split(' ');
-  const out = [`Pokémon Colosseum randomizer: seed ${seed}`, ''];
+  const out = [`${words.title}: seed ${seed}`, ''];
   const section = (title, kind, describe) => {
     const items = lines.map(line => line.split(' ')).filter(parts => parts[0] === kind);
     if (items.length) out.push(title, ...items.map(describe), '');
   };
   const swap = ([, was, now]) => `  ${nameOf(Number(was))} is now ${nameOf(Number(now))}`;
-  section('Starters', 'starter', swap);
-  section('Gifts', 'gift', swap);
+  section(words.starters, 'starter', swap);
+  section(words.gifts, 'gift', swap);
   section('Shadow Pokémon', 'shadow', ([, , was, now]) => `  ${nameOf(Number(was))} is now ${nameOf(Number(now))}`);
   return out.join('\n');
 }

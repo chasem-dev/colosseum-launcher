@@ -72,7 +72,8 @@ function requireFeature(feature, what) {
 let window;
 let config;
 const saveRun = randomizer.createSaveReader();
-const spoilerFile = () => path.join(app.getPath('userData'), randomizer.SPOILER_FILE);
+// Each game's spoiler log is its own: a run of one game opened doesn't overwrite the other's.
+const spoilerFile = () => path.join(app.getPath('userData'), config.game === games.DEFAULT ? randomizer.SPOILER_FILE : `randomizer-spoiler-${config.game}.txt`);
 let active = null;
 let preparingTools = false;
 let operation = null;
@@ -1225,7 +1226,7 @@ function hdSpriteResponse(request) {
   try {
     const url = new URL(request.url), national = Number(url.pathname.slice(1));
     if (url.hostname !== 'sprite' || !Number.isInteger(national)) return missing();
-    const rom = port.validateRom(config.rom), entry = pokedexData.list(rom).find(item => item.national === national);
+    const rom = port.validateRom(config.rom, config.game), entry = pokedexData.list(rom).find(item => item.national === national);
     const found = entry && texturePackLookup.findReplacement(pokedexTextureIndex(), pokedexData.spriteTexture(rom, national));
     if (found) return net.fetch(pathToFileURL(found.file).toString());
     if (!entry?.sprite) return missing();
@@ -1260,9 +1261,12 @@ function generationDex(rom, generation = 4) {
 function pokedexList(rom) {
   let species = withHdSprites(rom, pokedexData.list(rom));
   let packs = [], problems = [];
+  // Another game's packs and later generations are made from Colosseum's disc (packsDisc), so they're listed once it's
+  // set up; the Pokémon stand in for theirs are the chosen game's own, and so are their cries.
+  const own = config.game === games.DEFAULT;
   try {
-    {
-      const loaded = readPokemonPacks(rom);
+    if (own || teamDiscReady()) {
+      const loaded = readPokemonPacks(packsDisc(rom, 'The Pokédex\'s packs and later generations are read'));
       problems = loaded.problems.map(problem => `${packLabel(problem)}: ${problem.message}`);
       const all = [...loaded.pokemon, ...loaded.generationPokemon];
       const entries = pokemonPacks.pokedexEntries(all, loaded.tables);
@@ -1270,7 +1274,7 @@ function pokedexList(rom) {
       packs = entries.map((entry, i) => {
         const each = all[i], base = species.find(item => item.national === each.base.national);
         pokedexPacks.set(entry.pack.key, { base: each.base.national, files: { model: each.assets.model, modelShiny: each.assets.modelShiny },
-          cry: each.row.readUInt16BE(pokemonCries.VOICE), ownCry: ownCry(each) });
+          cry: own ? each.row.readUInt16BE(pokemonCries.VOICE) : pokedexCries.soundOf(rom, each.base.national), ownCry: ownCry(each) });
         return { ...entry, key: `pack:${entry.pack.key}`,
           sprite: each.images.body ? `data:image/png;base64,${each.images.body.toString('base64')}` : base?.sprite || null,
           forms: each.assets.model ? [{ id: 'model', label: 'Normal' }, ...(each.assets.modelShiny ? [{ id: 'modelShiny', label: 'Shiny' }] : [])] : base?.forms || [] };
@@ -1299,7 +1303,11 @@ function pokedexList(rom) {
 
 // A pack Pokémon's own cry.wav (or its Battle Revolution one), where the game plays it (host/packcries.c), else null: an
 // older game plays its row's, so the Pokédex does too.
-function ownCry(each) { return each.cry && config.repo && port.playsPackCries(config.repo) ? each.cry.wav : null; }
+// XD's game plays them from host/xd/cries.c.
+function ownCry(each) {
+  const plays = root => (config.game === games.DEFAULT ? port.playsPackCries(root) : fs.existsSync(path.join(root, 'host', 'xd', 'cries.c')));
+  return each.cry && config.repo && plays(config.repo) ? each.cry.wav : null;
+}
 
 // The sound id of a Pokédex entry's cry: a disc Pokémon's own, or what its pack's row has (its base's, unless the pack
 // names another's). The game plays a pack Pokémon's from its row too, so this is the cry it has in the game, unless
@@ -1355,7 +1363,7 @@ function noteCrashReport(error, since) {
 // --- The Jukebox (jukebox-page.js): the game's songs, rendered from the player's disc without the game. A worker thread mixes a
 // song (jukebox-render.js, about a second or two); the page plays what it is sent.
 let jukeboxSongList = { rom: null, tracks: [] };
-function jukeboxRom() { requireFeature('jukebox', 'The Jukebox'); return port.validateRom(config.rom); }
+function jukeboxRom() { requireFeature('jukebox', 'The Jukebox'); return port.validateRom(config.rom, config.game); }
 // The songs on the player's disc, read once for each disc.
 function jukeboxTracks() {
   const rom = jukeboxRom();
@@ -1610,7 +1618,8 @@ function onlineFeatures(root, id = config.game) {
       const bytes = fs.readFileSync(file);
       // XD's online battles (host/xd/online.c) speak Colosseum's lines, with less around them so far
       const xd = bytes.includes('online: Pokemon XD');
-      const story = !xd && bytes.includes('online: story member');
+      // a Story party's Pokémon, whole (member lines): XD's game has taken them from the start (host/xd/online.c)
+      const story = xd || bytes.includes('online: story member');
       // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
       const rules = xd ? bytes.includes('online: crossplay ') : bytes.includes('battle, rules: ');
       onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story,
@@ -1626,7 +1635,9 @@ function onlineFeatures(root, id = config.game) {
         // rooms for either game's players (online.crossBuildId): XD's knows crossplay=1, and Colosseum's needs nothing
         // more than its rules line and whole Pokémon
         crossplay: rules && (story || xd),
-        // the randomizer's fourth generation (host/randomizer.c)
+        // the randomizer (host/randomizer.c), which XD's game has once it prints its run
+        randomizer: bytes.includes('randomizer: seed '),
+        // the randomizer's fourth generation
         randomizerGenerations: bytes.includes('randomizer: later generations'),
         // and Pokémon packs' own Pokémon
         randomizerPacks: bytes.includes('randomizer: packs\' Pokemon') };
@@ -1634,8 +1645,15 @@ function onlineFeatures(root, id = config.game) {
     return onlineBinary;
   } catch (_) {
     return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossplay: false,
-      randomizerGenerations: false, randomizerPacks: false };
+      randomizer: false, randomizerGenerations: false, randomizerPacks: false };
   }
+}
+
+// Whether the game at root plays randomized runs: Colosseum's has since its randomizer.c; XD's shares that file with
+// Colosseum's, so its game says so itself (onlineFeatures).
+function randomizerReady(root) {
+  if (!supports('randomizer')) return false;
+  return config.game === games.DEFAULT ? fs.existsSync(path.join(root, 'host', 'randomizer.c')) : onlineFeatures(root).randomizer;
 }
 
 // The disc the team builder and online parties read their Pokémon from: Colosseum's, whichever game is chosen. XD's
@@ -1649,14 +1667,15 @@ function teamDisc(reader = 'The team builder reads its Pokémon') {
 function teamDiscReady() { try { teamDisc(); return true; } catch (_) { return false; } }
 const gameHasOnline = root => onlineFeatures(root).online;
 
-// The Story party, read again whenever the save changes. null without a save; error when it can't be read.
+// The Story party, read again whenever the save changes: the chosen game's. null without a save; error when it can't
+// be read.
 let storyCache = null;
 function readStory() {
-  const file = path.join(currentSaveDirectory(), 'pokemon_colosseum.dat');
+  const file = path.join(currentSaveDirectory(), config.game === 'xd' ? storyParty.XD_SAVE : storyParty.SAVE);
   const mtimeMs = fs.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? null;
   if (storyCache?.file !== file || storyCache.mtimeMs !== mtimeMs) {
     let party = null, error = null;
-    try { party = storyParty.readStoryParty(currentSaveDirectory()); }
+    try { party = storyParty.readStoryParty(currentSaveDirectory(), config.game); }
     catch (failure) { error = failure.message; }
     storyCache = { file, mtimeMs, party, error };
   }
@@ -1678,7 +1697,6 @@ function storyState() {
 // Why the Story party can't battle in a room of `size` each, or null.
 function storyBlocked(size) {
   const { party, error } = readStory();
-  if (config.game !== games.DEFAULT) return `Story parties come from Colosseum's save for now. Build a party to battle with in ${games.get(config.game).shortName}.`;
   if (!binaryReady() || !onlineFeatures(config.repo).story) return 'This version of the game can\'t battle with your Story party yet. Update it from the Play page.';
   if (error) return `Your save can't be read: ${error}`;
   if (!party) return 'Your Story party is the one in your save. Play and save the game first.';
@@ -1990,7 +2008,7 @@ function state() {
     backups: saves.listBackups().filter(item => item.source === currentSaveDirectory()),
     crashReports: crashReports.summary(crashReports.directory()), directPlayFailure,
     // The run on the memory card, and whether the game on disk can play one.
-    randomizerSave: saveRun(currentSaveDirectory()), randomizerReady: repoReady && supports('randomizer') && fs.existsSync(path.join(config.repo, 'host', 'randomizer.c')),
+    randomizerSave: saveRun(currentSaveDirectory(), config.game), randomizerReady: repoReady && randomizerReady(config.repo),
     randomizerGenerations: repoReady && onlineFeatures(config.repo).randomizerGenerations,
     randomizerPacks: repoReady && onlineFeatures(config.repo).randomizerPacks,
     usage: usageCount, online: onlineState(),
@@ -2183,15 +2201,15 @@ function registerHandlers() {
   ipcMain.handle('select-game', (_event, id) => selectGame(String(id)));
   ipcMain.handle('randomizer-spoilers', async () => {
     requireFeature('randomizer', 'The randomizer');
-    const { run } = saveRun(currentSaveDirectory());
+    const { run } = saveRun(currentSaveDirectory(), config.game);
     if (!run) throw new Error('Your save isn\'t a randomized run, so there are no spoilers to show.');
     let raw = null;
     try { raw = fs.readFileSync(spoilerFile(), 'utf8'); } catch (_) { /* written when the game opens the run */ }
     if (randomizer.spoilerSeed(raw) !== run.seed) throw new Error('Open your save in the game once first: the spoiler log is written when it loads.');
     const readable = path.join(app.getPath('userData'), 'Randomizer spoilers.txt');
     // the disc's Pokémon and a later generation's, which the log has by number, then packs' own, which it has by their places
-    const list = pokedexList(port.validateRom(config.rom)), later = entry => entry.pack.id.startsWith('generation-');
-    fs.writeFileSync(readable, randomizer.spoilerText(raw, [...list.species, ...list.packs.filter(later)], list.packs.filter(entry => !later(entry))));
+    const list = pokedexList(port.validateRom(config.rom, config.game)), later = entry => entry.pack.id.startsWith('generation-');
+    fs.writeFileSync(readable, randomizer.spoilerText(raw, [...list.species, ...list.packs.filter(later)], list.packs.filter(entry => !later(entry)), config.game));
     await shell.openPath(readable);
   });
   ipcMain.handle('online-save', (_event, value) => {
@@ -2208,7 +2226,7 @@ function registerHandlers() {
   // (the team builder's Pokémon too: Colosseum's disc's, in XD as well)
   ipcMain.handle('pokedex', () => {
     if (!supports('teamBuilder')) requireFeature('pokedex', 'The Pokédex');
-    return pokedexList(supports('pokedex') ? port.validateRom(config.rom) : teamDisc());
+    return pokedexList(supports('pokedex') ? port.validateRom(config.rom, config.game) : teamDisc());
   });
   // gameTakesSets: false when the installed game is from before sets, and battles with its species only
   // categories: each later generation's own physical or special for a move, as its battle rules make it
@@ -2227,12 +2245,12 @@ function registerHandlers() {
   });
   ipcMain.handle('pokedex-model', (_event, key, form) => {
     const look = pokedexLook(key, String(form));
-    return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom), look.national, String(form)));
+    return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom, config.game), look.national, String(form)));
   });
   ipcMain.handle('pokedex-cry', (_event, key) => {
     const own = String(key).startsWith('pack:') ? pokedexPacks.get(String(key).slice('pack:'.length))?.ownCry : null;
     if (own) return own;
-    const rom = port.validateRom(config.rom), wav = pokedexCries.wav(rom, pokedexCry(rom, key));
+    const rom = port.validateRom(config.rom, config.game), wav = pokedexCries.wav(rom, pokedexCry(rom, key));
     if (!wav) throw new Error('That Pokémon has no cry on this disc.');
     return wav;
   });
@@ -2242,7 +2260,7 @@ function registerHandlers() {
   ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));
-    return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom), look.national, String(form), Number(index));
+    return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom, config.game), look.national, String(form), Number(index));
   });
   ipcMain.handle('open-pokemon-packs', () => {
     fs.mkdirSync(pokemonPacksDirectory(), { recursive: true });
@@ -2458,7 +2476,7 @@ function registerHandlers() {
     if (chosen.canceled || !chosen.filePath) return { cancelled: true };
     const file = gciSave.writeGci(save.gci, chosen.filePath);
     log(`Exported ${save.title} save to ${file}.`);
-    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, extraBoxPokemon: save.extraBoxPokemon, randomized: Boolean(saveRun(currentSaveDirectory()).run) };
+    return { file: path.basename(file), trainer: save.trainer, damaged: save.damaged, extraBoxPokemon: save.extraBoxPokemon, randomized: Boolean(saveRun(currentSaveDirectory(), config.game).run) };
   }));
   ipcMain.handle('restore-saves', async (_event, id) => {
     if (operation || active) throw new Error('Stop the running game or task before restoring saves.');

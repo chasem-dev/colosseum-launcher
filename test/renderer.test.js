@@ -704,15 +704,22 @@ test('choosing XD on the Play page names it, asks for its disc, and hides what o
   assert.equal(ui.elements.get('game-colosseum')['aria-pressed'], 'false');
   assert.equal(ui.elements.get('home-title').textContent, 'Pokémon XD: Gale of Darkness');
   assert.match(ui.elements.get('setup-disc-description').textContent, /North American Pokémon XD: Gale of Darkness disc \(GXXE01\)/);
-  assert.deepEqual(['nav-pokedex', 'nav-jukebox', 'tab-gba', 'texture-info'].filter(id => !off(id)), []);
+  assert.deepEqual(['tab-gba', 'texture-info'].filter(id => !off(id)), []);
+  assert.deepEqual(['nav-pokedex', 'nav-jukebox'].filter(off), [], 'XD\'s Pokédex and Jukebox read its own disc');
   assert.equal(off('promptPad-field'), false, 'XD has quick moves');
   assert.equal(ui.elements.get('choose-starters-title').textContent, 'Choose starter', 'XD\'s starter is one Eevee');
+  // the randomizer, as XD has it: one Eevee, its trades and Mt. Battle's gifts, and no packs' own Pokémon
+  assert.equal(ui.elements.get('randomizer-starters-title').textContent, 'Starter');
+  assert.match(ui.elements.get('randomizer-starters-note').textContent, /instead of Eevee/);
+  assert.match(ui.elements.get('randomizer-gifts-note').textContent, /Chikorita, Cyndaquil and Totodile/);
+  assert.equal(ui.elements.get('randomizer-packs-row').hidden, true);
   assert.equal(off('nav-online'), false, 'XD has online battles');
   assert.equal(off('dolphin-save-drop'), false, 'XD saves go to and from Dolphin too');
   // the renderer's, display and input settings stay
   assert.equal(off('renderer-field'), false);
   await ui.click('game-colosseum');
   assert.equal(off('nav-online'), false);
+  assert.equal(ui.elements.get('randomizer-packs-row').hidden, false);
 });
 
 // The Play page's two games: the art split by a diagonal (style.css #game-art), the chosen game's side the larger.
