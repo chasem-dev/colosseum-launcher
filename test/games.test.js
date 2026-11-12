@@ -54,10 +54,10 @@ test('the registry has Colosseum, the default, with every feature, and XD with o
   assert.deepEqual(summary.list.map(each => each.id), ['colosseum', 'xd']);
 });
 
-test("XD's pin is the port's XD branch and the XD decomp, each at a whole commit, with no launcher patch", () => {
+test("XD's pin is the port's branch and the XD decomp, each at a whole commit, with no launcher patch", () => {
   assert.equal(xdRelease.game, 'xd');
   assert.equal(xdRelease.repository, game.release.repository, 'one port builds both games');
-  assert.equal(xdRelease.branch, 'feat/xd-bringup');
+  assert.equal(xdRelease.branch, game.release.branch, 'Beta builds both games from one branch');
   assert.match(xdRelease.commit, /^[0-9a-f]{40}$/);
   assert.equal(xdRelease.decompRepository, 'https://github.com/chasem-dev/Pokemon-XD-Decomp.git');
   assert.match(xdRelease.decomp, /^[0-9a-f]{40}$/);

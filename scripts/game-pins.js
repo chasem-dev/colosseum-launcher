@@ -1,8 +1,9 @@
 'use strict';
 
-// What a commit of the port builds with: it names the decomp in tools/ci/linux-build.sh. An older commit names the
-// renderer there too, and the renderer names its headers' repository as a submodule. Used by npm run update:game and,
-// for Beta, by CI.
+// What a commit of the port builds with: it names the decomp in tools/ci/linux-build.sh (Colosseum's DECOMP_REF, and
+// XD's XD_DECOMP_REF since the port builds XD). An older commit names the renderer there too, and the renderer names
+// its headers' repository as a submodule. Used by npm run update:game and, for Beta, by CI: Beta builds both games
+// from the same newest commit, so a room for both games pairs them.
 //   node scripts/game-pins.js   the newest commit of game-release.json's branch, as GitHub Actions outputs
 const fs = require('node:fs');
 const os = require('node:os');
@@ -28,7 +29,9 @@ function pinsAt(repository, commit) {
   return inTemporaryRepository(git => {
     git(['fetch', '-q', '--depth', '1', repository, commit]);
     const script = git(['show', `${commit}:tools/ci/linux-build.sh`]);
-    return { decomp: pinned(script, 'DECOMP_REF'), renderer: rendererPin(script) };
+    let xdDecomp = '';
+    try { xdDecomp = pinned(script, 'XD_DECOMP_REF'); } catch { /* a port from before it built XD */ }
+    return { decomp: pinned(script, 'DECOMP_REF'), xdDecomp, renderer: rendererPin(script) };
   });
 }
 
@@ -50,9 +53,12 @@ function newestCommit(repository, branch) {
 if (require.main === module) {
   const release = require('../src/game-release.json');
   const commit = newestCommit(release.repository, release.branch);
-  const { decomp, renderer } = pinsAt(release.repository, commit);
+  const xd = require('../src/xd-release.json');
+  if (xd.repository !== release.repository || xd.branch !== release.branch)
+    throw new Error("src/xd-release.json must name game-release.json's repository and branch: Beta builds both games from one commit.");
+  const { decomp, xdDecomp, renderer } = pinsAt(release.repository, commit);
   const headers = renderer ? rendererHeaders(OLDER_RENDERER.repository, renderer) : {};
-  const lines = [`commit=${commit}`, `decomp=${decomp}`, `renderer=${renderer || ''}`, `renderer_decomp=${headers.decomp || ''}`];
+  const lines = [`commit=${commit}`, `decomp=${decomp}`, `xd_decomp=${xdDecomp}`, `renderer=${renderer || ''}`, `renderer_decomp=${headers.decomp || ''}`];
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
   process.stdout.write(`${lines.join('\n')}\n`);
 }

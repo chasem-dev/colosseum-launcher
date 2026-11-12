@@ -48,6 +48,7 @@ jobs:
       game_version: ${{ steps.plan.outputs.game_version }}
       previous: ${{ steps.plan.outputs.previous }}
       decomp: ${{ steps.plan.outputs.decomp }}
+      xd_decomp: ${{ steps.plan.outputs.xd_decomp }}
       renderer: ${{ steps.plan.outputs.renderer }}
       renderer_decomp: ${{ steps.plan.outputs.renderer_decomp }}
     steps:
@@ -83,7 +84,8 @@ jobs:
             [ "$REF" = refs/heads/main ] || { echo "::error::Run Beta from main."; exit 1; }
             out preview true; out channel beta; out suffix beta; out sha "$SHA"
             # Beta plays the newest game, not the commit main pins for the next Stable release:
-            # the port's branch, and the decomp (and any renderer) its newest commit names.
+            # the port's branch, and the decomp (and any renderer) its newest commit names. XD plays
+            # the same commit, with the XD decomp it names, so rooms for both games pair them.
             node scripts/game-pins.js
             game=$(sed -n 's/^commit=//p' "$GITHUB_OUTPUT" | tail -1)
             out game "$game"; out game_version "$(date -u +%Y.%m.%d)-beta.${game:0:7}"
@@ -114,6 +116,7 @@ jobs:
       GAME: ${{ needs.plan.outputs.game }}
       GAME_VERSION: ${{ needs.plan.outputs.game_version }}
       DECOMP: ${{ needs.plan.outputs.decomp }}
+      XD_DECOMP: ${{ needs.plan.outputs.xd_decomp }}
       RENDERER: ${{ needs.plan.outputs.renderer }}
       RENDERER_DECOMP: ${{ needs.plan.outputs.renderer_decomp }}
     steps:
@@ -154,6 +157,13 @@ jobs:
               else delete game.renderer;
               fs.writeFileSync(file, JSON.stringify(game, null, 2) + "\n");
               console.log(`Game ${game.version}: ${GAME}`);
+              if (process.env.XD_DECOMP) {
+                const xdFile = "src/xd-release.json";
+                const xd = JSON.parse(fs.readFileSync(xdFile, "utf8"));
+                Object.assign(xd, { version: `${GAME_VERSION}.xd`, commit: GAME, decomp: process.env.XD_DECOMP });
+                fs.writeFileSync(xdFile, JSON.stringify(xd, null, 2) + "\n");
+                console.log(`XD ${xd.version}: ${GAME}`);
+              }
             }'
         env:
           RUN: ${{ github.run_number }}
@@ -217,6 +227,7 @@ jobs:
       launcher-ref: ${{ needs.plan.outputs.sha }}
       game-commit: ${{ needs.plan.outputs.game }}
       game-decomp: ${{ needs.plan.outputs.decomp }}
+      game-xd-decomp: ${{ needs.plan.outputs.xd_decomp }}
       game-renderer: ${{ needs.plan.outputs.renderer }}
       game-renderer-decomp: ${{ needs.plan.outputs.renderer_decomp }}
       game-version: ${{ needs.plan.outputs.game_version }}
