@@ -28,13 +28,13 @@ function temporary(t, prefix = 'colo xd-') {
 const disc = (root, bytes, name = 'game.iso') => { const file = path.join(root, name); fs.writeFileSync(file, bytes); return file; };
 const xd = (id = 'GXXE01', revision = 0) => gcm(id, revision, 'Pokemon XD');
 
-test('the registry has Colosseum, the default, with every feature, and XD with fast-forward and movie skipping', () => {
+test('the registry has Colosseum, the default, with every feature, and XD with online battles, fast-forward and movie skipping', () => {
   assert.deepEqual(games.ids(), ['colosseum', 'xd']);
   assert.equal(games.get().id, 'colosseum');
   assert.equal(games.get('nonsense').id, 'colosseum');
   assert.equal(games.get('colosseum').release, game.release, 'Colosseum builds the pin it always has');
   assert.deepEqual(games.FEATURES.filter(feature => games.supports('colosseum', feature)), games.FEATURES);
-  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['widescreen', 'hdText', 'discordPresence', 'fastForward', 'skipMovies', 'gciSaves']);
+  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['online', 'widescreen', 'hdText', 'discordPresence', 'fastForward', 'skipMovies', 'teamBuilder', 'gciSaves']);
   const { name, discId, executable, decompFolder, buildEnv, needsMainDol } = games.get('xd');
   assert.deepEqual({ name, discId, executable, decompFolder, buildEnv, needsMainDol },
     { name: 'Pokémon XD: Gale of Darkness', discId: 'GXXE01', executable: 'xd', decompFolder: 'pkmn-xd', buildEnv: { COLO_GAME: 'xd' }, needsMainDol: false });
@@ -47,7 +47,8 @@ test('the registry has Colosseum, the default, with every feature, and XD with f
   assert.equal(games.identifyDisc('GMSE01'), null);
   const summary = games.summary('xd');
   assert.equal(summary.id, 'xd');
-  assert.equal(summary.features.online, false);
+  assert.equal(summary.features.online, true);
+  assert.equal(summary.features.pokedex, false);
   assert.equal(summary.features.fastForward, true);
   assert.deepEqual(summary.list.map(each => each.id), ['colosseum', 'xd']);
 });

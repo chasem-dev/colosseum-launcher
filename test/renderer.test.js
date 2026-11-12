@@ -704,7 +704,8 @@ test('choosing XD on the Play page names it, asks for its disc, and hides what o
   assert.equal(ui.elements.get('game-colosseum')['aria-pressed'], 'false');
   assert.equal(ui.elements.get('home-title').textContent, 'Pokémon XD: Gale of Darkness');
   assert.match(ui.elements.get('setup-disc-description').textContent, /North American Pokémon XD: Gale of Darkness disc \(GXXE01\)/);
-  assert.deepEqual(['nav-pokedex', 'nav-jukebox', 'nav-online', 'tab-gba', 'promptPad-field', 'texture-info'].filter(id => !off(id)), []);
+  assert.deepEqual(['nav-pokedex', 'nav-jukebox', 'tab-gba', 'promptPad-field', 'texture-info'].filter(id => !off(id)), []);
+  assert.equal(off('nav-online'), false, 'XD has online battles');
   assert.equal(off('dolphin-save-drop'), false, 'XD saves go to and from Dolphin too');
   // the renderer's, display and input settings stay
   assert.equal(off('renderer-field'), false);

@@ -60,6 +60,8 @@ function normalize(input) {
     // Casual's timers, as level and size are its own: 0 for none (the competitive formats keep theirs in custom)
     ...casualTimers(input),
     listed: input?.listed !== false,
+    // a room for both games' players, Colosseum's and XD's (src/online.js crossBuildId)
+    crossplay: input?.crossplay === true,
     // whose battle rules the room plays by: Colosseum's (3) or Pokémon Platinum's (4), with any format
     battleRules: formats.BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : formats.BATTLE_RULES[0],
     // the room's format (src/formats.js), its changes for each format the player has changed, and how many games

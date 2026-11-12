@@ -1522,6 +1522,9 @@ function onlineState() {
   return { setup: config.online, ready: onlineReadiness(), build: binaryReady() ? gameBuild().build : null, result: battleResult,
     story: storyState(), rulesSupported: binaryReady() && onlineFeatures(config.repo).rules,
     timersSupported: binaryReady() && onlineFeatures(config.repo).timers,
+    // rooms for both games, with this game's build for them; Platinum's rules; the game's short name
+    crossBuild: binaryReady() && onlineFeatures(config.repo).crossplay ? gameBuild(true).build : null,
+    platinumSupported: !binaryReady() || onlineFeatures(config.repo).platinum, game: games.get(config.game).shortName,
     battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
       opponent: battle.opponent, peerLost: Boolean(battle.peerLost), bestOf: battle.bestOf || 1, game: battle.game || 0,
       wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null } };
@@ -1533,26 +1536,47 @@ function broadcastOnline() { broadcast('online', onlineState()); }
 let onlineBinary = null;
 function onlineFeatures(root, id = config.game) {
   try {
-    // Only Colosseum's game has them so far.
-    if (!games.supports(id, 'online')) throw new Error('not Colosseum');
+    if (!games.supports(id, 'online')) throw new Error('no online battles');
     const file = binaryOf(root, id);
     const { mtimeMs } = fs.statSync(file);
     if (onlineBinary?.file !== file || onlineBinary.mtimeMs !== mtimeMs) {
       const bytes = fs.readFileSync(file);
-      onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story: bytes.includes('online: story member'),
-        // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
-        rules: bytes.includes('battle, rules: '),
+      // XD's online battles (host/xd/online.c) speak Colosseum's lines, with less around them so far
+      const xd = bytes.includes('online: Pokemon XD');
+      const story = !xd && bytes.includes('online: story member');
+      // rooms' rules and formats: the game takes a rules line, and closes a waiting game to start again
+      const rules = xd ? bytes.includes('online: crossplay ') : bytes.includes('battle, rules: ');
+      onlineBinary = { file, mtimeMs, online: bytes.includes('COLO_ONLINE'), story,
+        // a party's Pokémon go to the game whole (member lines): a Story party's, and the team builder's sets
+        members: story || xd,
+        rules,
         // turn and battle timers, with the battle's clock shared between the games
-        timers: bytes.includes('online: turn timer'),
+        timers: !xd && bytes.includes('online: turn timer'),
         // the screens around a battle, where the players pick their Pokémon with team preview
-        picks: bytes.includes('online: picks, '),
+        picks: !xd && bytes.includes('online: picks, '),
+        // Pokémon Platinum's battle rules (src/generations.js): Colosseum's game only
+        platinum: !xd,
+        // rooms for either game's players (online.crossBuildId): XD's knows crossplay=1, and Colosseum's needs nothing
+        // more than its rules line and whole Pokémon
+        crossplay: rules && (story || xd),
         // the randomizer's fourth generation (host/randomizer.c)
         randomizerGenerations: bytes.includes('randomizer: later generations'),
         // and Pokémon packs' own Pokémon
         randomizerPacks: bytes.includes('randomizer: packs\' Pokemon') };
     }
     return onlineBinary;
-  } catch (_) { return { online: false, story: false, rules: false, timers: false, randomizerGenerations: false, randomizerPacks: false }; }
+  } catch (_) {
+    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossplay: false,
+      randomizerGenerations: false, randomizerPacks: false };
+  }
+}
+
+// The disc the team builder and online parties read their Pokémon from: Colosseum's, whichever game is chosen. XD's
+// Pokémon, moves and items have Colosseum's numbers, so a party built from it battles in either game.
+function teamDisc() {
+  const rom = games.allFields(config).colosseum?.rom;
+  if (!rom) throw new Error('The team builder reads its Pokémon from Pokémon Colosseum\'s disc. Choose Colosseum at the top of the Play page and set up its disc first.');
+  return port.validateRom(rom, 'colosseum');
 }
 const gameHasOnline = root => onlineFeatures(root).online;
 
@@ -1585,6 +1609,7 @@ function storyState() {
 // Why the Story party can't battle in a room of `size` each, or null.
 function storyBlocked(size) {
   const { party, error } = readStory();
+  if (config.game !== games.DEFAULT) return `Story parties come from Colosseum's save for now. Build a party to battle with in ${games.get(config.game).shortName}.`;
   if (!binaryReady() || !onlineFeatures(config.repo).story) return 'This version of the game can\'t battle with your Story party yet. Update it from the Play page.';
   if (error) return `Your save can't be read: ${error}`;
   if (!party) return 'Your Story party is the one in your save. Play and save the game first.';
@@ -1607,10 +1632,10 @@ function battleParty(size) {
   }
   // A built party's sets go to the game as a Story party's Pokémon do. A game from before those takes the species only.
   const party = parties.selectedParty(config.online);
-  if (!onlineFeatures(config.repo).story) return { party: party.members };
+  if (!onlineFeatures(config.repo).members) return { party: party.members };
   let species = {};
   try {
-    const data = battleData(port.validateRom(config.rom));
+    const data = battleData(teamDisc());
     species = party.generation >= 4 ? data.generations[party.generation].species : data.species;
   } catch (error) { log(`Team builder: couldn't read genders from the disc (${error.message}).`); }
   return { party: party.members, members: party.sets.map((set, slot) => teamSets.toWire(set, species[set.species]?.gender ?? teamSets.GENDER.none, slot)) };
@@ -1619,7 +1644,7 @@ function battleParty(size) {
 // Names for what a party's problems mention, from the disc.
 function partyNames() {
   try {
-    const rom = port.validateRom(config.rom), data = battleData(rom);
+    const rom = teamDisc(), data = battleData(rom);
     const later = data.generations?.[4];
     const species = new Map([...Object.entries(later?.species || {}).map(([id, entry]) => [Number(id), entry.name]),
       ...pokedexData.list(rom).map(entry => [entry.id, entry.name])]);
@@ -1629,9 +1654,17 @@ function partyNames() {
 }
 
 // The party to battle with by a room's rules: what battleParty gives, once it can play by them.
-function partyFor(rules) {
-  if (rules.format !== 'casual' && !onlineFeatures(config.repo).rules)
+function partyFor(rules, { cross = false } = {}) {
+  const features = onlineFeatures(config.repo);
+  if (rules.format !== 'casual' && !features.rules)
     throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
+  if (rules.battleRules === 4 && (!features.platinum || cross)) {
+    const why = cross ? 'a room for both games plays by Colosseum\'s' : `${games.get(config.game).shortName}'s online battles play by Colosseum's`;
+    throw Object.assign(new Error(`Pokémon Platinum's battle rules are for Colosseum's rooms for now: ${why}.`), { problems: ['Platinum\'s battle rules'] });
+  }
+  // the other game makes a Pokémon from its species differently: each goes whole
+  if (cross && config.online.selected !== parties.STORY && !features.members)
+    throw new Error('A room for both games needs a newer game. Update it from the Play page.');
   const own = config.online.selected === parties.STORY ? null : parties.selectedParty(config.online);
   const mismatch = parties.rulesProblem(own, rules.battleRules);
   if (mismatch) throw Object.assign(new Error(mismatch), { problems: [mismatch] });
@@ -1643,7 +1676,7 @@ function partyFor(rules) {
 
 // Why a room can't be made or joined now, or null.
 function onlineReadiness() {
-  if (!supports('online')) return 'Online battles are for Pokémon Colosseum for now. Choose Colosseum at the top of the Play page.';
+  if (!supports('online')) return `Online battles aren't in ${games.get(config.game).shortName} yet. Choose Colosseum at the top of the Play page.`;
   if (!port.isPort(config.repo, config.game) || !binaryReady()) return 'Set up the game on the Play page first.';
   if (!gameHasOnline(config.repo)) return 'This version of the game has no online battles yet. Update it from the Play page.';
   if (config.online.selected === parties.STORY) return storyBlocked(Math.min(...parties.SIZES));
@@ -1651,10 +1684,19 @@ function onlineReadiness() {
   return null;
 }
 
-// What identifies this game to another player's: both must play the very same build.
-function gameBuild() {
+// What identifies this game to another player's: both must play the very same build, or for a room for both games
+// (cross), a build of either game from the same commit of the port. The version says which game, for XD.
+function gameBuild(cross = false) {
   const installedBuild = game.installed(config.repo, config.game);
-  return { build: online.buildId(installedBuild), version: installedBuild?.gameVersion || '', launcher: app.getVersion() };
+  const version = `${config.game === games.DEFAULT ? '' : `${games.get(config.game).shortName} `}${installedBuild?.gameVersion || ''}`.trim();
+  return { build: cross ? online.crossBuildId(installedBuild) : online.buildId(installedBuild), version, launcher: app.getVersion() };
+}
+
+// The session's view of what the game can do in a room (src/online.js Session features).
+function sessionFeatures(cross) {
+  const features = onlineFeatures(config.repo);
+  // with the other game, the launcher's own preview picks (XD has no pick screen yet)
+  return { rules: features.rules, picks: features.picks && !cross, crossplay: cross };
 }
 
 function requireOnlineReady() {
@@ -1769,16 +1811,17 @@ function pickPokemon(order) {
 async function createRoom() {
   requireOnlineReady();
   const setup = config.online;
-  // a game from before timers would play without them: the room says so
-  const rules = onlineFeatures(config.repo).timers ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
-  const chosen = partyFor(rules);
-  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules, picks: onlineFeatures(config.repo).picks } });
+  const cross = Boolean(setup.crossplay) && onlineFeatures(config.repo).crossplay;
+  // a game from before timers would play without them, and so would XD's: the room says so
+  const rules = onlineFeatures(config.repo).timers && !cross ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
+  const chosen = partyFor(rules, { cross });
+  const session = new online.Session({ features: sessionFeatures(cross) });
   battleResult = null;
   battle = { session, status: 'connecting', role: 'host', rules, bestOf: setup.bestOf, code: null, opponent: null };
   broadcastOnline();
   watchSession(session);
   try {
-    battle.code = await session.host({ name: setup.trainer, ...gameBuild(), ...chosen, rules, bestOf: setup.bestOf, listed: setup.listed });
+    battle.code = await session.host({ name: setup.trainer, ...gameBuild(cross), ...chosen, rules, bestOf: setup.bestOf, listed: setup.listed });
   } catch (error) {
     session.close();
     battle = null;
@@ -1797,16 +1840,18 @@ async function joinRoom(input) {
   const code = online.parseRoomCode(input);
   if (!code) throw new Error('A room code looks like KQ7-M2D.');
   const setup = config.online;
-  const session = new online.Session({ features: { rules: onlineFeatures(config.repo).rules, picks: onlineFeatures(config.repo).picks } });
   battleResult = null;
   const info = await online.lookup(code);
   if (info.status !== 'waiting') throw new Error('That battle has already started.');
+  const cross = online.isCrossBuild(info.build);
+  if (cross && !onlineFeatures(config.repo).crossplay) throw new Error('That room is for both games, which this version of the game can\'t play. Update it from the Play page.');
+  const session = new online.Session({ features: sessionFeatures(cross) });
   const rules = formats.normalize(info.rules || {});
-  const chosen = partyFor(rules);
+  const chosen = partyFor(rules, { cross });
   battle = { session, status: 'connecting', role: 'joiner', rules, bestOf: info.bestOf || 1, code, opponent: info.name };
   broadcastOnline();
   watchSession(session);
-  try { await session.join({ code, name: setup.trainer, ...gameBuild(), ...chosen }); }
+  try { await session.join({ code, name: setup.trainer, ...gameBuild(cross), ...chosen }); }
   catch (error) {
     session.close();
     battle = null;
@@ -2089,19 +2134,23 @@ function registerHandlers() {
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('online-pick', (_event, order) => pickPokemon(Array.isArray(order) ? order.map(Number) : []));
-  ipcMain.handle('pokedex', () => { requireFeature('pokedex', 'The Pokédex'); return pokedexList(port.validateRom(config.rom)); });
+  // (the team builder's Pokémon too: Colosseum's disc's, in XD as well)
+  ipcMain.handle('pokedex', () => {
+    if (!supports('teamBuilder')) requireFeature('pokedex', 'The Pokédex');
+    return pokedexList(supports('pokedex') ? port.validateRom(config.rom) : teamDisc());
+  });
   // gameTakesSets: false when the installed game is from before sets, and battles with its species only
   // categories: each later generation's own physical or special for a move, as its battle rules make it
   // generations: what a party of a later generation is offered (src/battle-data.js), with its Pokémon to pick from (dex)
   ipcMain.handle('battle-data', () => {
     requireFeature('teamBuilder', 'The team builder');
-    const rom = port.validateRom(config.rom), data = battleData(rom);
+    const rom = teamDisc(), data = battleData(rom);
     const later = Object.fromEntries(Object.entries(data.generations || {}).map(([generation, each]) => {
       let dex = [];
       try { dex = generationDex(rom, Number(generation)); } catch (error) { log(`Team builder: couldn't list the Generation ${generation} Pokémon (${error.message}).`); }
       return [generation, { ...each, dex }];
     }));
-    return { ...data, generations: later, gameTakesSets: !binaryReady() || onlineFeatures(config.repo).story,
+    return { ...data, generations: later, gameTakesSets: !binaryReady() || onlineFeatures(config.repo).members,
       categories: Object.fromEntries(generations.available().filter(each => each.generation > generations.COLOSSEUM_RULES)
         .map(each => [each.generation, generations.moveCategories(each.generation)])) };
   });

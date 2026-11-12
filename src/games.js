@@ -37,9 +37,11 @@ const GAMES = {
     // XD's port builds without the game's files too (its extracted data is only ever read from the disc's DOL)
     needsMainDol: false,
     // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its
-    // 2D stays 4:3, centred); its save goes to and from Dolphin as a .gci (gci-save.js); it prints its [presence] lines (host/xd/presence.c); its text goes through HD text (host/hdtext.c); the rest hook
-    // Colosseum's functions
-    features: ['widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence']
+    // 2D stays 4:3, centred); its save goes to and from Dolphin as a .gci (gci-save.js); it prints its [presence] lines
+    // (host/xd/presence.c); its text goes through HD text (host/hdtext.c); its online battles (host/xd/online.c) speak
+    // Colosseum's lines, with parties from the team builder, which reads Colosseum's disc (main.js teamDisc); the rest
+    // hook Colosseum's functions
+    features: ['online', 'teamBuilder', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence']
   }
 };
 

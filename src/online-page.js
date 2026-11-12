@@ -304,14 +304,18 @@
     $('online-rooms-empty').hidden = rooms.length > 0;
     $('online-rooms').replaceChildren(...rooms.map(room => {
       // Both games play the same battle, so a room takes the same build of the game only.
-      const rules = F.normalize(room.rules || {}), sameGame = room.build === state.build, waiting = room.status === 'waiting';
+      // A room for both games takes either game built from the same commit of the port (src/online.js crossBuildId).
+      const cross = String(room.build || '').startsWith('cross-');
+      const rules = F.normalize(room.rules || {}), waiting = room.status === 'waiting';
+      const sameGame = cross ? Boolean(state.crossBuild) && room.build === state.crossBuild : room.build === state.build;
       const needsGame = rules.format !== 'casual' && !state.rulesSupported;
       const problems = waiting && sameGame && !needsGame ? partyProblems(rules) : [];
-      const detail = !waiting ? ' · in battle' : !sameGame ? ` · needs game ${room.version}` : needsGame ? ' · update the game to join'
+      const crossText = cross ? ` · ${String(room.version || '').startsWith('XD ') ? 'XD' : 'Colosseum'}, either game can join` : '';
+      const detail = !waiting ? ' · in battle' : !sameGame ? ` · needs ${cross ? 'the game from' : 'game'} ${room.version}` : needsGame ? ' · update the game to join'
         : problems.length ? ` · ${rules.size > partyCount() ? 'your party is too short' : 'your party can\'t play this'}` : '';
       const row = Object.assign(document.createElement('div'), { className: 'online-room' });
       row.append(Object.assign(document.createElement('span'), { textContent: room.name }));
-      row.append(Object.assign(document.createElement('small'), { textContent: `${rulesText(rules)}${gamesText(room.bestOf || 1)}${detail}` }));
+      row.append(Object.assign(document.createElement('small'), { textContent: `${rulesText(rules)}${gamesText(room.bestOf || 1)}${crossText}${detail}` }));
       row.title = [F.rulesText(rules).join(', '), ...problems].join('\n');
       const join = Object.assign(document.createElement('button'), { className: 'solid', type: 'button', textContent: 'Join' });
       join.disabled = busy || !waiting || !sameGame || needsGame || problems.length > 0;
@@ -436,6 +440,10 @@
     $('online-size').value = String(setup.size);
     $('online-rules').value = String(setup.battleRules || 3);
     $('online-listed').checked = setup.listed;
+    // rooms for both games, when this game can play them; such a room has no timers, and Colosseum's rules
+    $('online-crossplay-row').hidden = !state.crossBuild;
+    $('online-crossplay').checked = Boolean(setup.crossplay) && Boolean(state.crossBuild);
+    $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported || Boolean(setup.crossplay && state.crossBuild);
     renderParties();
     renderFormat();
     renderBanner();
@@ -461,6 +469,7 @@
   for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number], ['online-rules', 'battleRules', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
+  $('online-crossplay').addEventListener('change', event => { setup.crossplay = event.target.checked; save(); });
   for (const [id, key] of TIMER_FIELDS) $(id).addEventListener('change', event => changeTimer(key, Number(event.target.value)));
   $('online-format').addEventListener('change', event => { setup.format = event.target.value; customOpen = false; save(); });
   $('online-best-of').addEventListener('change', event => { setup.bestOf = Number(event.target.value); save(); });
