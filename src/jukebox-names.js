@@ -65,6 +65,7 @@ const NAMES = {
   agb_me_shinka: 'Evolution Jingle',
   level_up: 'Level Up',
   agb_me_asa: 'Heal Pokémon',   // heard and confirmed by the person who tried it
+  me_welcome: 'Rui Joins Wes',   // heard and confirmed by the person who tried it
   agb_fanfa1b: 'Get Item',   // heard and confirmed by the person who tried it
   agb_fanfa5: 'Congratulations (Evolution Success)',   // heard and confirmed by the person who tried it
   me_win: 'Win Battle',
