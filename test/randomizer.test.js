@@ -88,8 +88,16 @@ function stamp(seed, options = 15, generations = 7) {
   out.writeUInt32BE((seed ^ 0x5eedc01d ^ (options << 8) ^ generations) >>> 0, 12);
   return out;
 }
-function card(...slots) {
+// temporary card folders, removed when the tests are done (they used to pile up in the system's temp folder)
+const made = [];
+test.after(() => { for (const folder of made) fs.rmSync(folder, { recursive: true, force: true }); });
+function tempFolder() {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'colo-randomizer-'));
+  made.push(folder);
+  return folder;
+}
+function card(...slots) {
+  const folder = tempFolder();
   fs.writeFileSync(path.join(folder, 'pokemon_colosseum.dat'), Buffer.concat([Buffer.alloc(FIRST), ...slots]));
   return folder;
 }
@@ -110,8 +118,8 @@ test('a stamp that does not check out is no run', () => {
 });
 
 test('no save, or one that cannot be read, is no run', () => {
-  assert.deepEqual(randomizer.readSave(fs.mkdtempSync(path.join(os.tmpdir(), 'colo-randomizer-'))), { exists: false, run: null });
-  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'colo-randomizer-'));
+  assert.deepEqual(randomizer.readSave(tempFolder()), { exists: false, run: null });
+  const folder = tempFolder();
   fs.writeFileSync(path.join(folder, 'pokemon_colosseum.dat'), Buffer.alloc(16));
   assert.equal(randomizer.readSave(folder).run, null);
 });
