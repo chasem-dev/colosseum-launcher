@@ -9,7 +9,7 @@ const gblink = require('../src/gblink');
 
 // A /sys and /dev laid out as Linux has them: /sys/class/tty/<name> links into the USB device's
 // interface, whose parent directory has the device's IDs.
-function linuxTree({ vendor = '2fe3', product = '000a', allowed = false } = {}) {
+function linuxTree({ vendor = '1209', product = 'b011', allowed = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gblink-'));
   const sys = path.join(root, 'sys'), dev = path.join(root, 'dev');
   const write = (file, text, mode) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text); if (mode != null) fs.chmodSync(file, mode); };
@@ -51,6 +51,12 @@ test('Linux: the adapter\'s port, past other USB serial devices', { skip: noSysf
   } finally { tree.done(); }
 });
 
+test('Linux: an adapter on firmware before 3.0.0, with its old IDs', { skip: noSysfs }, () => {
+  const tree = linuxTree({ vendor: '2fe3', product: '000a', allowed: true });
+  try { assert.equal(gblink.linuxStatus(tree).port, path.join(tree.dev, 'ttyACM1')); }
+  finally { tree.done(); }
+});
+
 test('Linux: a port this user may not open needs the udev rule', { skip: asRoot || noSysfs }, () => {
   const tree = linuxTree();
   try {
@@ -61,12 +67,17 @@ test('Linux: a port this user may not open needs the udev rule', { skip: asRoot 
 });
 
 test('the udev rule: the adapter\'s serial port, for the logged-in user, not probed by ModemManager', () => {
-  assert.match(gblink.RULES, /SUBSYSTEM=="tty", ATTRS\{idVendor\}=="2fe3", ATTRS\{idProduct\}=="000a", TAG\+="uaccess", ENV\{ID_MM_DEVICE_IGNORE\}="1"/);
+  for (const [vendor, product] of [['1209', 'b011'], ['2fe3', '000a']])
+    assert.match(gblink.RULES, new RegExp(`SUBSYSTEM=="tty", ATTRS\\{idVendor\\}=="${vendor}", ATTRS\\{idProduct\\}=="${product}", TAG\\+="uaccess", ENV\\{ID_MM_DEVICE_IGNORE\\}="1"`));
   const { command, args } = gblink.allowCommand();
   assert.equal(command, 'pkexec');
   assert.equal(args[4], gblink.RULES);       // as an argument, not through the shell
   assert.equal(args[5], gblink.RULES_FILE);
   assert.match(gblink.terminalCommand(), /^sudo tee \/etc\/udev\/rules\.d\/51-gblink-colosseum\.rules/);
+});
+
+test('Windows: the query asks for both IDs', () => {
+  assert.match(gblink.WINDOWS_QUERY, /DeviceID LIKE 'USB\\\\VID_1209&PID_B011%' OR DeviceID LIKE 'USB\\\\VID_2FE3&PID_000A%'/);
 });
 
 test('Windows: the COM port from the device\'s name, past its other interface', () => {
@@ -82,5 +93,6 @@ test('Windows: the COM port from the device\'s name, past its other interface', 
 test('macOS: the adapter in ioreg\'s USB plane', () => {
   const block = (vendor, product) => `+-o GBLink USB@01100000  <class IOUSBHostDevice>\n    "idProduct" = ${product}\n    "idVendor" = ${vendor}\n`;
   assert.deepEqual(gblink.macStatus(block(1452, 591)), { present: false });
-  assert.deepEqual(gblink.macStatus(block(1452, 591) + block(0x2fe3, 0x000a)), { present: true, readable: true, fix: null });
+  assert.deepEqual(gblink.macStatus(block(1452, 591) + block(0x1209, 0xb011)), { present: true, readable: true, fix: null });
+  assert.deepEqual(gblink.macStatus(block(0x2fe3, 0x000a)), { present: true, readable: true, fix: null });
 });
