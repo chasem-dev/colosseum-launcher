@@ -34,7 +34,7 @@ test('the registry has Colosseum, the default, with every feature, and XD with o
   assert.equal(games.get('nonsense').id, 'colosseum');
   assert.equal(games.get('colosseum').release, game.release, 'Colosseum builds the pin it always has');
   assert.deepEqual(games.FEATURES.filter(feature => games.supports('colosseum', feature)), games.FEATURES);
-  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['online', 'generations', 'widescreen', 'hdText', 'discordPresence', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters', 'shiny', 'pokemonPacks', 'pbrAssets', 'teamBuilder', 'gciSaves']);
+  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'discordPresence', 'storyParty', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters', 'shiny', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves']);
   const { name, discId, executable, decompFolder, buildEnv, needsMainDol } = games.get('xd');
   assert.deepEqual({ name, discId, executable, decompFolder, buildEnv, needsMainDol },
     { name: 'Pokémon XD: Gale of Darkness', discId: 'GXXE01', executable: 'xd', decompFolder: 'pkmn-xd', buildEnv: { COLO_GAME: 'xd' }, needsMainDol: false });
@@ -48,7 +48,8 @@ test('the registry has Colosseum, the default, with every feature, and XD with o
   const summary = games.summary('xd');
   assert.equal(summary.id, 'xd');
   assert.equal(summary.features.online, true);
-  assert.equal(summary.features.pokedex, false);
+  assert.equal(summary.features.pokedex, true);
+  assert.equal(summary.features.hdModels, false);
   assert.equal(summary.features.fastForward, true);
   assert.deepEqual(summary.list.map(each => each.id), ['colosseum', 'xd']);
 });
@@ -135,7 +136,7 @@ test("the build script names each game's decomp, and leaves preparing XD's to th
   assert.equal(run({ COLO_GAME: 'xd' }), `DECOMP=${root}/deps/pkmn-xd COLO_PORT=${root}`);
 });
 
-test('XD plays with the renderer, display and input settings, widescreen, HD text, fast-forward, movie skipping, battle speed, quick moves, shiny Shadow Pokémon and the starter question, and none of Colosseum\'s other features', t => {
+test('XD plays with the renderer, display and input settings, widescreen, HD text, fast-forward, movie skipping, battle speed, quick moves, shiny Shadow Pokémon, the starter question and the randomizer, and none of Colosseum\'s other features', t => {
   const root = temporary(t);
   const settings = port.normalizeSettings({ renderer: 'opengl', resolution: 3, fullscreen: true, vsync: 'on', padMode: 'single', fastForward: 'toggle',
     fastForwardSpeed: 6, skipMovies: true, randomizer: true, battleSpeed: 2, hdText: 'off', hdModels: false, shinyShadow: false, chooseStarters: false }, 'linux');
@@ -156,7 +157,9 @@ test('XD plays with the renderer, display and input settings, widescreen, HD tex
   assert.equal(env.COLO_SHINY_SHADOW, '0');
   assert.equal(env.COLO_CHOOSE_STARTERS, '0');
   assert.match(env.SMS_BUTTON_PROMPTS, /./, 'quick moves\' button pictures');
-  for (const key of ['COLO_RANDOMIZER', 'COLO_HD_MODELS', 'COLO_SHINY_STARTERS', 'SMS_TEXTURE_PACK_PRELOAD'])
+  // the randomizer's run, without packs' own Pokémon, which XD's game doesn't choose (main.js passes packPokemon false)
+  assert.equal(env.COLO_RANDOMIZER, `${settings.randomizerSeed}:19:7`);
+  for (const key of ['COLO_HD_MODELS', 'COLO_SHINY_STARTERS', 'SMS_TEXTURE_PACK_PRELOAD'])
     if (!(key in process.env)) assert.equal(key in env, false, key);
   const colosseum = port.buildEnvironment(settings, '/disc/colosseum.iso', root);
   assert.equal(colosseum.COLO_WIDESCREEN, 'auto');

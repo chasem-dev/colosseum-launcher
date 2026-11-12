@@ -734,8 +734,12 @@ function showChosenGame(id) {
 }
 
 // The game picker, and what the chosen game has: its disc, and the tabs and settings of features it doesn't have hidden.
+// The Pokédex and the Jukebox read the chosen game's disc, so they start again when another game is chosen.
+let renderedGame = null;
 function renderGame(data) {
   const chosen = chosenGame(data), locked = Boolean(data.active) || setupPending;
+  if (renderedGame && renderedGame !== chosen.id) { window.coloPokedex?.reset?.(); window.coloJukebox?.reset?.(); }
+  renderedGame = chosen.id;
   showChosenGame(choosingGame || chosen.id);
   for (const id of GAME_IDS) $(`game-${id}`).disabled = locked;
   // the art can't be clicked to choose either while a task runs
@@ -761,28 +765,42 @@ function renderGenerationsText(data, chosen) {
   $('battle-rules-note').textContent = own
     ? `${GENERATION_RULES} An online battle plays by its room's rules, chosen under Rules on the Online page.`
     : `${GENERATION_RULES} It applies to Colosseum too, and ${chosen.shortName}'s online battles play by Gen 3 rules for now.`;
+  // another game's story gives none yet, but its randomizer can choose them
+  const story = gameHas(data, 'randomizer') ? `Nothing in ${chosen.shortName}'s story gives you one, but the randomizer can choose them, with Gen 4 under its Generations.`
+    : `Nothing in ${chosen.shortName}'s story gives you one yet.`;
   $('generation4-note').textContent = own
     ? 'Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models and cries come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one\'s looks and cry.'
     : gameHas(data, 'pbrAssets')
-      ? `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}, and the game's own Pokémon learn moves and evolve as in Platinum. Their models and cries come from your own Pokémon Battle Revolution disc; without it, a Pokémon of the game stands in for each one's looks and cry. Nothing in ${chosen.shortName}'s story gives you one yet. It applies to Colosseum too.`
-      : `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}. Each one looks and sounds like a Pokémon of the game standing in for it. Nothing in ${chosen.shortName}'s story gives you one yet. It applies to Colosseum too.`;
+      ? `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}, and the game's own Pokémon learn moves and evolve as in Platinum. Their models and cries come from your own Pokémon Battle Revolution disc; without it, a Pokémon of the game stands in for each one's looks and cry. ${story} It applies to Colosseum too.`
+      : `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}. Each one looks and sounds like a Pokémon of the game standing in for it. ${story} It applies to Colosseum too.`;
   // made from Colosseum's disc, which has to be set up first
   $('generations-disc-note').hidden = own || data.teamDiscReady !== false;
   $('generations-disc-note').textContent = `Generation 4 in ${chosen.shortName} is made from your Pokémon Colosseum disc. Choose Colosseum on the Play page and set up its disc first; until then ${chosen.shortName} plays by Gen 3 rules.`;
 }
 
-// Shiny Shadow Pokémon and choosing starters, as each game has them: XD's Shadow Pokémon could never be shiny, and its
-// starter is one Eevee (host/shiny.c, host/starters.c).
+// Shiny Shadow Pokémon, choosing starters and the randomizer, as each game has them: XD's Shadow Pokémon could never be
+// shiny, its starter is one Eevee, and its gifts are trades and Mt. Battle's Johto starters (host/shiny.c,
+// host/starters.c, host/randomizer.c).
 const POKEMON_TEXT = {};
+const XD_RANDOMIZER_TEXT = {
+  'randomizer-starters-title': 'Starter',
+  'randomizer-starters-note': 'Your first Pokémon, instead of Eevee.',
+  'randomizer-shadow-note': 'Every Shadow Pokémon you can snag. Each is a different species. Lugia and the Shadow Togepi you\'re given stay as they are.',
+  'randomizer-trainers-note': 'Everything else trainers send out, in the story, on Mt. Battle and in the Orre Colosseum. Quick Battle and the battle CDs stay as they are.',
+  'randomizer-gifts-note': 'The Pokémon traded to you in the story, and Mt. Battle\'s Chikorita, Cyndaquil and Totodile. Poké Spot Pokémon stay as they are.'
+};
 function renderPokemonText(chosen) {
-  for (const id of ['shiny-shadow-note', 'choose-starters-title', 'choose-starters-note']) POKEMON_TEXT[id] ??= $(id).textContent;
+  for (const id of ['shiny-shadow-note', 'choose-starters-title', 'choose-starters-note', ...Object.keys(XD_RANDOMIZER_TEXT)]) POKEMON_TEXT[id] ??= $(id).textContent;
   const xd = chosen.id === 'xd';
+  for (const [id, text] of Object.entries(XD_RANDOMIZER_TEXT)) $(id).textContent = xd ? text : POKEMON_TEXT[id];
+  // XD's game has no Pokémon packs' own Pokémon to choose (host/randomizer.c ignores the option there)
+  $('randomizer-packs-row').hidden = xd;
   $('shiny-shadow-note').textContent = xd
     ? 'A Shadow Pokémon can be shiny, at 1 in 8192 as other Pokémon are, and looks it in battle before you snag it. The original XD never makes them shiny. Each one\'s chance is decided when you first meet it in battle.'
     : POKEMON_TEXT['shiny-shadow-note'];
   $('choose-starters-title').textContent = xd ? 'Choose starter' : POKEMON_TEXT['choose-starters-title'];
   $('choose-starters-note').textContent = xd
-    ? 'After you enter your name for a New Game, the game asks whether to begin with Eevee. Say No to pick any Pokémon instead, at level 10.'
+    ? 'After you enter your name for a New Game, the game asks whether to begin with Eevee. Say No to pick any Pokémon instead, at level 10. A randomized game that randomizes the starter doesn\'t ask.'
     : POKEMON_TEXT['choose-starters-note'];
 }
 

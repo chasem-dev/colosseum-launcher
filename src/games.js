@@ -47,9 +47,11 @@ const GAMES = {
     // Pokémon packs and later generations with Battle Revolution assets come in the same file as Colosseum's, made from
     // Colosseum's disc (main.js packsDisc) and turned into XD's rows by the game (host/xd/packs.c)
     // (host/battlespeed.c, quickmoves.c, shiny.c, starters.c with XD's parts); XD's Eevee can already be shiny, so it
-    // has no shinyStarters
+    // has no shinyStarters. The randomizer is the port's shared host/randomizer.c, its stamp read from XD's save
+    // (xd-save.js), as is the Story party (story-party.js), which XD's online battles take whole. The Pokédex and the
+    // Jukebox read XD's own disc (xd-disc.js: its species, models, streamed cries and streamed music)
     features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
-      'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets']
+      'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets', 'randomizer', 'storyParty', 'pokedex', 'jukebox']
   }
 };
 

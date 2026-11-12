@@ -187,6 +187,15 @@
 
   window.coloJukebox = {
     show() { load(); render(); },
+    // Another game was chosen: its disc has other songs, so the music ends and the list is read again from it.
+    reset() {
+      close();
+      tracks = null;
+      loading = null;
+      $('jukebox-list').dataset.rendered = '';
+      $('jukebox-list').replaceChildren();
+      render();
+    },
     // Leaving the page doesn't end the music: the player stays under whatever page is open.
     hide() {},
   };

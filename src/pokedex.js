@@ -8,6 +8,7 @@ const { Disc } = require('./disc');
 const fsys = require('./fsys');
 const gx = require('./gx-texture');
 const hsd = require('./hsd-model');
+const xdDisc = require('./xd-disc');
 
 // Places in the one release the launcher accepts (GC6E01, revision 0: port.validateRom).
 const REL_DATA_SECTION = 4;
@@ -76,9 +77,9 @@ function messageText(data, at, limit = 200) {
   return text.trim();
 }
 
-function readMessages(data, limit) {
+function readMessages(data, limit, tables = MESSAGES) {
   const messages = new Map();
-  for (const table of MESSAGES) {
+  for (const table of tables) {
     const count = data.readUInt16BE(table + 4);
     for (let i = 0; i < count; i++) {
       const key = data.readUInt32BE(table + 0x10 + i * 8);
@@ -225,6 +226,9 @@ function spritesOf(disc) {
 function readPokedex(rom, discSprites = null) {
   const disc = new Disc(rom);
   try {
+    // Pokémon XD's disc: its own tables, read with these same helpers (xd-disc.js)
+    if (xdDisc.isXd(disc))
+      return xdDisc.readPokedex(disc, discSprites, { readMessages, displayName, TYPES, ABILITY_MESSAGES, readDol, dolOffset, modelFiles, spritesOf, formsOf });
     const rel = fsys.entries(disc.file('common.fsys')).find(entry => entry.name === 'common_rel');
     if (!rel) throw new Error('The game disc has no Pokémon data.');
     const data = relData(rel.data()), messages = readMessages(data), species = readSpecies(data, messages);
@@ -261,8 +265,11 @@ function create() {
     if (!entry?.forms.some(item => item.id === form)) throw new Error('That Pokémon has no such model on this disc.');
     if (shown?.rom === rom && shown.form === form) return shown;
     const disc = new Disc(rom), file = form.startsWith(SHINY_FILTER) ? form.slice(SHINY_FILTER.length) : form;
-    try { shown = { rom, form, pkx: Buffer.from(fsys.entries(disc.file(`pkx_${file}.fsys`))[0].data()) }; }
-    finally { disc.close(); }
+    try {
+      const pkx = Buffer.from(fsys.entries(disc.file(`pkx_${file}.fsys`))[0].data());
+      // XD's models have XD's header in front: made Colosseum's, which hsd-model.js reads
+      shown = { rom, form, pkx: xdDisc.isXd(disc) ? xdDisc.colosseumPkx(pkx) : pkx };
+    } finally { disc.close(); }
     return shown;
   };
   return {

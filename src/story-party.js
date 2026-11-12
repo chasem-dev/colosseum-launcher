@@ -9,8 +9,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { newestPlain } = require('./gci-save');
 const { isPackSpecies } = require('./pokemon-packs');
+const xdSave = require('./xd-save');
 
 const SAVE = 'pokemon_colosseum.dat';
+const XD_SAVE = 'PokemonXD.dat';
+// XD numbers the moves after Gen 3's 354 differently: its own Shadow moves first (355 to 374), then later generations'
+// 17 past Colosseum's (host/mechanics.c colo_xd_move). A member goes in Colosseum's numbers, which both games read.
+const XD_SHADOW_MOVES = [355, 374], XD_MOVE_SHIFT = 17;
 const PARTY = 0xa8;          // where an unscrambled slot keeps the party (src/gci-save.js)
 const PARTY_SIZE = 6;
 const POKEMON = 0x138;
@@ -57,9 +62,43 @@ function readMember(plain, at) {
 // Personality and trainer ID together: the game's own test for a shiny (pokemonCheckRare).
 const isShiny = member => ((member.trainer >>> 16) ^ (member.trainer & 0xffff) ^ (member.rnd >>> 16) ^ (member.rnd & 0xffff)) < 8;
 
+// A move of XD's save in Colosseum's numbers; a Shadow move (which a purified Pokémon never has) is none.
+function xdMove(move) {
+  if (move >= XD_SHADOW_MOVES[0] && move <= XD_SHADOW_MOVES[1]) return 0;
+  return move > XD_SHADOW_MOVES[1] ? move - XD_MOVE_SHIFT : move;
+}
+
+// The party in the save of Pokémon XD the game would load (xd-save.js), as readStoryParty gives Colosseum's.
+function readXdParty(saveDir) {
+  const file = path.join(saveDir, XD_SAVE);
+  let data;
+  try { data = fs.readFileSync(file); } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  const pack = xdSave.newestPack(data);
+  if (!pack) {
+    if (data.subarray(0x6000).some(Boolean)) throw new Error('This save is damaged: neither of its two copies can be read. Restore a backup from the Saves tab.');
+    return null;
+  }
+  const { trainer, party } = xdSave.party(pack.plain);
+  const members = [];
+  let leftOut = 0, packsLeftOut = 0;
+  for (const member of party) {
+    if (member.egg) continue;
+    if (member.shadow) { leftOut++; continue; }
+    if (isPackSpecies(member.species)) { packsLeftOut++; continue; }
+    const moves = member.moves.map(([move, ups]) => [xdMove(move), ups]).map(([move, ups]) => (move ? [move, ups] : [0, 0]));
+    members.push({ ...member, moves, shiny: isShiny(member) });
+  }
+  return { trainer, members, leftOut, packsLeftOut, modified: fs.statSync(file).mtimeMs };
+}
+
 // The party in the save the game would load, or null when there's no save yet. members are those that can battle;
-// leftOut counts the Shadow Pokémon that stay behind, packsLeftOut the Pokémon of Pokémon packs.
-function readStoryParty(saveDir) {
+// leftOut counts the Shadow Pokémon that stay behind, packsLeftOut the Pokémon of Pokémon packs. gameId: whose save
+// (games.js), Colosseum's or XD's.
+function readStoryParty(saveDir, gameId = 'colosseum') {
+  if (gameId === 'xd') return readXdParty(saveDir);
   const file = path.join(saveDir, SAVE);
   let data;
   try { data = fs.readFileSync(file); } catch (error) {
@@ -115,4 +154,4 @@ function memberLine(side, slot, member) {
   return `member ${side} ${slot} ${member.join(' ')}`;
 }
 
-module.exports = { PARTY_SIZE, readStoryParty, readMember, isShiny, wireMember, validWireMember, memberLine, WIRE_NUMBERS };
+module.exports = { PARTY_SIZE, SAVE, XD_SAVE, readStoryParty, readMember, xdMove, isShiny, wireMember, validWireMember, memberLine, WIRE_NUMBERS };

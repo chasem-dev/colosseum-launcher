@@ -6,13 +6,16 @@ const fsys = require('./fsys');
 const pokedex = require('./pokedex');
 const { SOUNDS } = require('./pokemon-cries');
 const music = require('./musyx-music');
+const xdDisc = require('./xd-disc');
 
 const SONG_TABLE = { offset: 0x111B8C, size: 8, countAt: 0x14A6BC, most: 256 };
 const PROJECTS = new Map([[0, { base: 'snd_music', samples: 'sound/snd_music.samp' }], [1, { base: 'snd_music_atmos', samples: 'sound/snd_music_atmos.samp' }]]);
 const TAIL = 4;   // seconds of ringing, and reverb, left after a song's last note
 
 // What renders songs of one disc: keeps the disc's tables, and each music project's samples once they are decoded.
+// Pokémon XD's songs are streams, decoded rather than mixed (xd-disc.js songRenderer).
 function create(disc) {
+  if (xdDisc.isXd(disc)) return xdDisc.songRenderer(disc);
   const common = new Map(fsys.entries(disc.file('common.fsys')).map(entry => [entry.name, entry]));
   const rel = common.get('common_rel');
   if (!rel) throw new Error('The game disc has no sound data.');

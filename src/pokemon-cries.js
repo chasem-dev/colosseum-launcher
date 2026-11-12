@@ -15,6 +15,7 @@
 const { Disc } = require('./disc');
 const fsys = require('./fsys');
 const pokedex = require('./pokedex');
+const xdDisc = require('./xd-disc');
 
 const VOICE = 0x0e;
 const SOUNDS = { offset: 0x13fe08, count: 1236, size: 12 };
@@ -162,13 +163,22 @@ function decodeCry(disc, tables, sound) {
 }
 
 // The cries of one disc. Its tables are kept once read, and the last cry decoded, as the player often plays it again.
+// Pokémon XD's disc streams its cries instead (xd-disc.js): the same three questions have its own answers.
+const XD_CRIES = { readTables: xdDisc.readCryTables, locate: xdDisc.locateCry,
+  decodeCry: (disc, tables, sound) => { const cry = xdDisc.decodeCry(disc, tables, sound); return cry && { ...cry, wav: wav(cry.samples, cry.rate) }; } };
+const COLOSSEUM_CRIES = { readTables, locate, decodeCry };
 function create() {
   let tables = null, last = null;
+  const kind = () => (tables?.xd ? XD_CRIES : COLOSSEUM_CRIES);
   // A disc whose cries can't be read is read once: the Pokédex asks of every Pokémon.
   const read = rom => {
     if (tables?.rom !== rom) {
       let disc = null;
-      try { disc = new Disc(rom); tables = { rom, ...readTables(disc) }; }
+      try {
+        disc = new Disc(rom);
+        const xd = xdDisc.isXd(disc);
+        tables = { rom, xd, ...(xd ? XD_CRIES : COLOSSEUM_CRIES).readTables(disc) };
+      }
       catch (error) { tables = { rom, error }; }
       finally { disc?.close(); }
     }
@@ -180,14 +190,14 @@ function create() {
     soundOf: (rom, national) => read(rom).voices.get(national) ?? null,
     // Whether it's a cry this disc has. False when the disc's cries can't be read.
     has(rom, sound) {
-      try { return locate(read(rom), sound) !== null; } catch (_) { return false; }
+      try { const found = read(rom); return kind().locate(found, sound) !== null; } catch (_) { return false; }
     },
     // The cry's WAV file, or null.
     wav(rom, sound) {
       if (last?.rom === rom && last.sound === sound) return last.wav;
       const found = read(rom), disc = new Disc(rom);
       let cry;
-      try { cry = decodeCry(disc, found, sound); } finally { disc.close(); }
+      try { cry = kind().decodeCry(disc, found, sound); } finally { disc.close(); }
       last = { rom, sound, wav: cry?.wav || null };
       return last.wav;
     }
