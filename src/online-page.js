@@ -64,6 +64,8 @@
       card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `${story.leftOut === 1 ? 'A Shadow Pokémon stays' : `${story.leftOut} Shadow Pokémon stay`} home until purified.` }));
     if (story.packsLeftOut)
       card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `${story.packsLeftOut === 1 ? 'A Pokémon from a Pokémon pack stays' : `${story.packsLeftOut} Pokémon from Pokémon packs stay`} home: the other player's game doesn't have them.` }));
+    if (setup.crossplay && story.crossLeftOut?.length)
+      card.append(Object.assign(document.createElement('small'), { className: 'story-note', textContent: `In a room for both games, these stay home: ${story.crossLeftOut.join(' ')}` }));
     if (count && setup.parties.length < MAX_PARTIES) {
       const copy = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button story-copy', textContent: 'Copy to a new party' });
       copy.title = 'Start a party of your own from these Pokémon, to change their moves, items and spreads';
@@ -443,6 +445,8 @@
     // rooms for both games, when this game can play them; such a room has no timers, and Colosseum's rules
     $('online-crossplay-row').hidden = !state.crossBuild;
     $('online-crossplay').checked = Boolean(setup.crossplay) && Boolean(state.crossBuild);
+    // the game's own battle rules: Colosseum's, or XD's (the third generation's in both)
+    $('online-rules').querySelector('option[value="3"]').textContent = `${state.game || 'Colosseum'}'s`;
     $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported || Boolean(setup.crossplay && state.crossBuild);
     renderParties();
     renderFormat();
