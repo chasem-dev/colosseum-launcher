@@ -96,7 +96,8 @@
       "Fixed Generation 4 Pokémon from Battle Revolution keeping part of their last move or hit in their idle pose, which turned Leafeon upside down after it was hit and left Floatzel lying on its back. Press Make models under Settings → Gameplay to make them again.",
       "Fixed move sounds such as Sing, Attract and Captivate having a dull echo trailing behind them that the original game doesn't have.",
       "Fixed a stretched box around Sweet Scent's and Confusion's ripple in widescreen.",
-      "Fixed the game crashing on Mac when a Pokémon's Wish came true in battle."
+      "Fixed the game crashing on Mac when a Pokémon's Wish came true in battle.",
+      "With Generation 4 battle rules, the move list in battle shows whether the move under the cursor is physical, special or a status move, in a tag above its type, so you can also tell the rules are on."
     ]
   },
   "releases": [
