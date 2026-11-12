@@ -806,6 +806,7 @@ async function build(forceFresh = false) {
   await ensureBuildTools();
   const source = currentSource();
   let root = original;
+  let moved = [], result;
   const sourceMarker = path.join(root, 'launcher-source.json');
   const freshPinnedSource = fs.existsSync(sourceMarker) && !binaryReady(root) && game.matchesSource(root, source);
   if (forceFresh || (!game.isCurrent(root, source) && !freshPinnedSource)) {
@@ -814,46 +815,55 @@ async function build(forceFresh = false) {
     if (!fs.existsSync(root)) await game.checkout(root, { run: launch, capture, env: toolEnv(), source, stopped: wasStopped });
     if (!game.matchesSource(root, source))
       throw new Error('The update folder has changed. Choose another setup location in Settings and try again.');
-    game.carryUserFiles(original, root);
+    moved = game.carryUserFiles(original, root);
+    if (moved.length) log('This drive cannot link folders (it is likely exFAT or FAT32, as SD cards and USB drives often are), ' +
+      'so the HD textures moved into the new game version instead of being shared with the one before.');
   }
-  // A fresh build's folder is longer than the one ensureBuildTools checked.
-  requireBuildablePath(root);
-  if (!port.hdVisualsInstalled(root, settings)) await installTextures(root);
-  // Only the icon needs it, so a build without it goes on without one.
-  if (process.platform === 'win32') {
-    try { port.placeMainDol(root, rom); }
-    catch (error) { log(`Could not copy main.dol from your disc for the game's icon: ${error.message}`); }
+  // Until the new version is saved as the one to play, the one before still is: a
+  // failed update gives back the HD textures it moved (carryUserFiles).
+  try {
+    // A fresh build's folder is longer than the one ensureBuildTools checked.
+    requireBuildablePath(root);
+    if (!port.hdVisualsInstalled(root, settings)) await installTextures(root);
+    // Only the icon needs it, so a build without it goes on without one.
+    if (process.platform === 'win32') {
+      try { port.placeMainDol(root, rom); }
+      catch (error) { log(`Could not copy main.dol from your disc for the game's icon: ${error.message}`); }
+    }
+    const env = await withBuildCaches(toolEnv({ ...process.env, NINJA_STATUS: '[%f/%t] ' }), root);
+    const compile = buildEnv => {
+      const cmd = port.buildCommand(root, process.platform, buildEnv);
+      return game.buildSafely(root, saveDirectory,
+        // A build that fails because antivirus deleted or blocked a tool says so instead of the compiler's error.
+        () => launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Build Pokémon Colosseum')
+          .catch(error => {
+            const userData = app.getPath('userData');
+            throw hintedError(error) || buildTools.deletedToolsError(userData) || buildTools.blockedToolError(userData, error.output) || error;
+          }),
+        { source, toolFolder: toolsStatus().mode === 'own' ? null : buildTools.rootFor(app.getPath('userData')) });
+    };
+    const startedAt = Date.now();
+    try { result = await compile(env); }
+    catch (error) {
+      // A failed build through the caches is tried once more without them, unless the player stopped it, the build
+      // tools lost files, or the drive is full or Windows won't let them fork (which fail the same way again).
+      if (!env.COLO_UNIT_CACHE || wasStopped(startedAt) || error.blockedTool || error.buildHint || buildTools.missingTools(app.getPath('userData'))?.length) throw error;
+      log('The build failed with the compiler cache. Building again without it…');
+      result = await compile(compilerCache.withoutCaches(env));
+    }
+    // Preferences switch only after a successful build. Closing the app or a
+    // failed download/build leaves the last installation selected and playable.
+    const earlier = { ...config };
+    config = { ...config, repo: root, installRoot: config.installRoot || original, completedSetup: true,
+      previousInstall: root !== original && binaryReady(original)
+        ? { repo: original, settings, rom } : config.previousInstall };
+    try { saveConfig(); }
+    catch (error) { config = earlier; throw error; }
+  } catch (error) {
+    try { game.restoreUserFiles(moved); }
+    catch (restoreError) { log(`Could not move the HD textures back: ${restoreError.message}`); }
+    throw error;
   }
-  const env = await withBuildCaches(toolEnv({ ...process.env, NINJA_STATUS: '[%f/%t] ' }), root);
-  const compile = buildEnv => {
-    const cmd = port.buildCommand(root, process.platform, buildEnv);
-    return game.buildSafely(root, saveDirectory,
-      // A build that fails because antivirus deleted or blocked a tool says so instead of the compiler's error.
-      () => launch(cmd.command, cmd.args, { cwd: cmd.cwd, env: cmd.env }, 'Build Pokémon Colosseum')
-        .catch(error => {
-          const userData = app.getPath('userData');
-          throw hintedError(error) || buildTools.deletedToolsError(userData) || buildTools.blockedToolError(userData, error.output) || error;
-        }),
-      { source, toolFolder: toolsStatus().mode === 'own' ? null : buildTools.rootFor(app.getPath('userData')) });
-  };
-  const startedAt = Date.now();
-  let result;
-  try { result = await compile(env); }
-  catch (error) {
-    // A failed build through the caches is tried once more without them, unless the player stopped it, the build
-    // tools lost files, or the drive is full or Windows won't let them fork (which fail the same way again).
-    if (!env.COLO_UNIT_CACHE || wasStopped(startedAt) || error.blockedTool || error.buildHint || buildTools.missingTools(app.getPath('userData'))?.length) throw error;
-    log('The build failed with the compiler cache. Building again without it…');
-    result = await compile(compilerCache.withoutCaches(env));
-  }
-  // Preferences switch only after a successful build. Closing the app or a
-  // failed download/build leaves the last installation selected and playable.
-  const earlier = { ...config };
-  config = { ...config, repo: root, installRoot: config.installRoot || original, completedSetup: true,
-    previousInstall: root !== original && binaryReady(original)
-      ? { repo: original, settings, rom } : config.previousInstall };
-  try { saveConfig(); }
-  catch (error) { config = earlier; throw error; }
   log(`Game ${source.version} is ready. Your saved games stay in the same folder.`);
   await removeOldVersions();
   await removeOldBuildTools();
