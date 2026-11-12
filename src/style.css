@@ -185,6 +185,9 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
   padding: 6px 12px 4px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #fff; text-align: center;
   text-shadow: 0 2px 14px #12051acc, 0 1px 3px #12051a99; white-space: normal; transition: opacity var(--tween), background .2s, border-color .2s; }
 .game-tab-art { display: grid; place-content: center; justify-items: center; gap: 1px; width: var(--w, 200px); aspect-ratio: 2.4; }
+/* the tween draws each part from where it was by a transform (renderer.js tweenPlayStage): kept on its own layer, a logo isn't
+   drawn afresh as its tween ends, which left it blank for a frame */
+.game-tab-art, .game-tab-state { will-change: transform; }
 .game-tab.has-logo .game-tab-art { display: block; aspect-ratio: auto; }
 .game-tab-art small { font-size: max(9px, calc(var(--w, 200px) * .05)); font-weight: 800; letter-spacing: .2em; text-transform: uppercase; opacity: .85; }
 .game-tab-art strong { font-size: calc(var(--w, 200px) * .125); font-weight: 900; letter-spacing: .04em; line-height: 1; text-transform: uppercase; }
