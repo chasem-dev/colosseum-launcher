@@ -235,16 +235,18 @@ test('the game\'s Discord presence lines stay out of the activity log, and other
 });
 
 // XD reads Colosseum's file of later generations (host/xd/packs.c): made from Colosseum's disc, whichever disc XD's is.
-test('XD gets the later generations the settings ask for, made from Colosseum\'s disc', t => {
+test('XD gets the later generations the settings ask for, and its packs, made from Colosseum\'s disc', t => {
   const runtime = main(t);
   const { gcm } = require('./disc-fixture');
   const pokemonPacks = require('../src/pokemon-packs'), generations = require('../src/generations');
   const colosseum = path.join(runtime.root, 'colosseum.iso'), xd = path.join(runtime.root, 'xd.iso');
   fs.writeFileSync(colosseum, gcm()); fs.writeFileSync(xd, gcm('GXXE01', 0, 'Pokemon XD'));
-  const read = [], built = [], originals = { readGameTables: pokemonPacks.readGameTables, generationPokemon: pokemonPacks.generationPokemon, build: generations.build };
-  t.after(() => { Object.assign(pokemonPacks, { readGameTables: originals.readGameTables, generationPokemon: originals.generationPokemon }); generations.build = originals.build; });
+  const read = [], built = [], originals = { readGameTables: pokemonPacks.readGameTables, generationPokemon: pokemonPacks.generationPokemon, ownRows: pokemonPacks.ownRows, build: generations.build };
+  t.after(() => { Object.assign(pokemonPacks, { readGameTables: originals.readGameTables, generationPokemon: originals.generationPokemon, ownRows: originals.ownRows }); generations.build = originals.build; });
   pokemonPacks.readGameTables = rom => { read.push(rom); return { rom }; };
-  pokemonPacks.generationPokemon = () => ({ pokemon: [], problems: [] });
+  pokemonPacks.generationPokemon = (_tables, _built, options) => { assert.ok(options?.modelsDirectory, 'with the Battle Revolution models, as Colosseum\'s'); return { pokemon: [], problems: [] }; };
+  // the game's own Pokémon as Platinum has them (Yanma: its evolutions and level-up moves), which XD takes too (host/evolutions.c)
+  pokemonPacks.ownRows = (_tables, built) => ({ rows: built.rules ? [{ id: 193, evolutions: Buffer.alloc(30), moves: Buffer.alloc(40) }] : [], problems: [] });
   generations.build = (tables, settings) => {
     built.push(settings);
     return { moves: [], species: [], abilities: [], rules: settings.battleRules > 3 ? { generation: settings.battleRules, features: 3, categories: Buffer.alloc(4), changed: [], species: [] } : null };
@@ -255,13 +257,13 @@ test('XD gets the later generations the settings ask for, made from Colosseum\'s
   runtime.setConfig({ game: 'xd', rom: xd, settings, games: { colosseum: { rom: colosseum } } });
   const played = runtime.preparePlayPacks(xd, folder);
   assert.equal(played.own, 0);
-  assert.equal(played.file, path.join(folder, 'generations.bin'));
+  assert.equal(played.file, path.join(folder, 'pokemon-packs.bin'), 'the same file as Colosseum\'s');
   assert.deepEqual(read, [colosseum], 'Colosseum\'s disc, not XD\'s');
   assert.deepEqual(built, [{ battleRules: 4, generationPokemon: [4] }]);
   const bytes = fs.readFileSync(played.file);
   assert.equal(bytes.subarray(0, 4).toString('latin1'), 'CPKM');
   assert.ok(bytes.includes(Buffer.from('MECH')), 'the rules go in');
-  assert.ok(!bytes.includes(Buffer.from('ROWS')), 'no rows of Colosseum\'s own Pokémon, which XD has no use for');
+  assert.ok(bytes.includes(Buffer.from('ROWS')), 'and the game\'s own Pokémon\'s rows, for their evolutions and moves');
   assert.equal(runtime.teamDiscReady(), true);
   // Colosseum's rules and no later Pokémon: nothing to read
   runtime.setConfig({ game: 'xd', rom: xd, settings: { battleRules: 3, generationPokemon: [] }, games: { colosseum: { rom: colosseum } } });
@@ -274,6 +276,6 @@ test('XD gets the later generations the settings ask for, made from Colosseum\'s
   runtime.setConfig({ game: 'xd', rom: xd, settings, games: {} });
   assert.deepEqual({ ...runtime.preparePlayPacks(xd, folder) }, { file: null, own: 0 });
   assert.match(runtime.activityLog.snapshot().map(entry => entry.text).join('\n'),
-    /Later generations weren't loaded: XD's later generations are made from Pokémon Colosseum's disc\. Choose Colosseum on the Play page/);
+    /Pokémon packs weren't loaded: XD's Pokémon packs and later generations are made from Pokémon Colosseum's disc\. Choose Colosseum on the Play page/);
   assert.equal(runtime.teamDiscReady(), false);
 });

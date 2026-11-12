@@ -1134,13 +1134,16 @@ function prepareGenerations(rom, folder, settings = config.settings) {
 // packs' own). An online battle has no packs: both players' games must have the same Pokémon. Its room's battle rules
 // are both games' (the room's own, not either player's settings). A game without packs of its own reads its later
 // generations from Colosseum's disc.
+// The disc a game's packs and later generations are made from: Colosseum's own, or for another game Colosseum's disc,
+// whose rows its game turns into its own (XD: host/xd/packs.c).
+function packsDisc(rom, what) { return config.game === games.DEFAULT ? rom : teamDisc(what); }
 function preparePlayPacks(rom, folder, battle = null) {
   if (battle) {
     if (!(battle.rules?.battleRules > generations.COLOSSEUM_RULES) || !supports('generations')) return { file: null, own: 0 };
-    return { file: prepareBattleRules(supports('pokemonPacks') ? rom : teamDisc('The room\'s battle rules are made'), folder, battle.rules.battleRules), own: 0 };
+    return { file: prepareBattleRules(packsDisc(rom, 'The room\'s battle rules are made'), folder, battle.rules.battleRules), own: 0 };
   }
   if (supports('pokemonPacks')) {
-    try { return preparePokemonPacks(rom, folder); }
+    try { return preparePokemonPacks(packsDisc(rom, `${activeGame().shortName}'s Pokémon packs and later generations are made`), folder); }
     catch (error) { log(`Pokémon packs weren't loaded: ${error.message}`); return { file: null, own: 0 }; }
   }
   if (!supports('generations')) return { file: null, own: 0 };

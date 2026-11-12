@@ -43,11 +43,13 @@ const GAMES = {
     // generations' rules, Pokémon and moves come in Colosseum's file, made from Colosseum's disc (main.js
     // prepareGenerations), which host/xd/packs.c turns into XD's rows, its Pokémon looking as the ones standing in for
     // them; the rest hook Colosseum's functions
-    // battle speed, quick moves and status, shiny Shadow Pokémon and choosing the starter are the port's shared host code
+    // battle speed, quick moves and status, shiny Shadow Pokémon and choosing the starter are the port's shared host code;
+    // Pokémon packs and later generations with Battle Revolution assets come in the same file as Colosseum's, made from
+    // Colosseum's disc (main.js packsDisc) and turned into XD's rows by the game (host/xd/packs.c)
     // (host/battlespeed.c, quickmoves.c, shiny.c, starters.c with XD's parts); XD's Eevee can already be shiny, so it
     // has no shinyStarters
     features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
-      'battleSpeed', 'quickMoves', 'shiny', 'starters']
+      'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets']
   }
 };
 

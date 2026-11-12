@@ -801,10 +801,10 @@ test('XD\'s later generations explain where they come from, and need Colosseum\'
   assert.equal(off('pbr-row'), false);
   data.teamDiscReady = false;
   await ui.click('game-xd');
-  assert.equal(off('pbr-row'), true, 'and no Battle Revolution assets');
+  assert.equal(off('pbr-row'), false, 'Battle Revolution assets for XD\'s Gen 4 Pokémon too');
   assert.equal(text('battle-rules-gen3'), 'XD (Gen 3)');
   assert.match(text('battle-rules-note'), /XD's online battles play by Gen 3 rules for now/);
-  assert.match(text('generation4-note'), /Each one looks and sounds like a Pokémon of the game standing in for it/);
+  assert.match(text('generation4-note'), /Battle Revolution disc; without it, a Pokémon of the game stands in/);
   assert.equal(ui.elements.get('generations-disc-note').hidden, false);
   assert.match(text('generations-disc-note'), /made from your Pokémon Colosseum disc/);
   data.teamDiscReady = true;
