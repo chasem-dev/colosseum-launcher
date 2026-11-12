@@ -25,7 +25,8 @@
       "Online: in a room for both games, Colosseum makes every Pokémon by the same list of Pokémon, moves and held items as XD does, so both games battle with the same Pokémon.",
       "Online battles now check the battle itself at every turn, so two games that drift apart end the battle instead of playing on with different HP.",
       "Pokémon XD: fixed battles between two of the game's trainers never ending, such as ZOOK and ARDOS at Gateon Port, where neither ever chose a move.",
-      "Pokémon XD: fixed walls and furniture in the HQ lab popping in and the room looking squeezed at the 16:10 screen format."
+      "Pokémon XD: fixed walls and furniture in the HQ lab popping in and the room looking squeezed at the 16:10 screen format.",
+      "Pokémon XD: fixed the game crashing as it started on some Linux PCs, with some graphics drivers and overlays."
     ]
   },
   "releases": [
