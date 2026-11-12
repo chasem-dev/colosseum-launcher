@@ -1179,8 +1179,9 @@ const jukeboxMock = () => process.env.COLO_JUKEBOX_MOCK === '1';
 // The songs on the player's disc, read once for each disc.
 let jukeboxSongList = { rom: null, tracks: [] };
 function jukeboxTracks() {
-  if (jukeboxMock()) return jukebox.mockTracks();
-  const rom = port.validateRom(config.rom);
+  // With the stand-in game, COLO_JUKEBOX_ROM (a disc image) still gives the disc's real songs.
+  if (jukeboxMock() && !process.env.COLO_JUKEBOX_ROM) return jukebox.mockTracks();
+  const rom = port.validateRom(jukeboxMock() ? process.env.COLO_JUKEBOX_ROM : config.rom);
   if (jukeboxSongList.rom !== rom) {
     const disc = new Disc(rom);
     try { jukeboxSongList = { rom, tracks: jukeboxSongs.read(disc) }; } finally { disc.close(); }

@@ -2,6 +2,7 @@
 // A stand-in for the game in jukebox mode (src/jukebox.js describes the protocol), for developing the Jukebox
 // without a game build or disc: it plays nothing, and each "song" lasts MOCK_SONG_MS (3 seconds) of silence.
 // COLO_JUKEBOX_MOCK=1 npm start  makes the launcher use it.
+// COLO_JUKEBOX_ROM=/path/to/disc.iso as well lists that disc's real songs.
 const readline = require('node:readline');
 
 if (!process.argv.includes('--jukebox')) {
