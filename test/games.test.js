@@ -34,7 +34,7 @@ test('the registry has Colosseum, the default, with every feature, and XD with f
   assert.equal(games.get('nonsense').id, 'colosseum');
   assert.equal(games.get('colosseum').release, game.release, 'Colosseum builds the pin it always has');
   assert.deepEqual(games.FEATURES.filter(feature => games.supports('colosseum', feature)), games.FEATURES);
-  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['fastForward', 'skipMovies']);
+  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['widescreen', 'fastForward', 'skipMovies']);
   const { name, discId, executable, decompFolder, buildEnv, needsMainDol } = games.get('xd');
   assert.deepEqual({ name, discId, executable, decompFolder, buildEnv, needsMainDol },
     { name: 'Pokémon XD: Gale of Darkness', discId: 'GXXE01', executable: 'xd', decompFolder: 'pkmn-xd', buildEnv: { COLO_GAME: 'xd' }, needsMainDol: true });
@@ -134,7 +134,7 @@ test("the build script names each game's decomp, and leaves preparing XD's to th
   assert.equal(run({ COLO_GAME: 'xd' }), `DECOMP=${root}/deps/pkmn-xd COLO_PORT=${root}`);
 });
 
-test('XD plays with the renderer, display and input settings, fast-forward and movie skipping, and none of Colosseum\'s features', t => {
+test('XD plays with the renderer, display and input settings, widescreen, fast-forward and movie skipping, and none of Colosseum\'s features', t => {
   const root = temporary(t);
   const settings = port.normalizeSettings({ renderer: 'opengl', resolution: 3, fullscreen: true, vsync: 'on', padMode: 'single', fastForward: 'toggle',
     fastForwardSpeed: 6, skipMovies: true, randomizer: true, battleSpeed: 2, hdText: 'off', hdModels: false, shinyShadow: false, chooseStarters: false }, 'linux');
@@ -149,7 +149,8 @@ test('XD plays with the renderer, display and input settings, fast-forward and m
   assert.equal(env.COLO_FAST_FORWARD_SPEED, '6');
   assert.equal(env.COLO_SKIP_MOVIES, '1');
   assert.equal(env.SMS_TEXTURE_PACKS, '0', 'no HD pack, nor Colosseum\'s textures');
-  for (const key of ['COLO_WIDESCREEN', 'COLO_WIDESCREEN_HUD', 'COLO_RANDOMIZER', 'COLO_BATTLE_SPEED', 'COLO_QUICK_MOVES', 'COLO_FAST_STATUS',
+  assert.equal(env.COLO_WIDESCREEN, 'auto', 'its cameras widen with the frame');
+  for (const key of ['COLO_RANDOMIZER', 'COLO_BATTLE_SPEED', 'COLO_QUICK_MOVES', 'COLO_FAST_STATUS',
     'COLO_HD_TEXT', 'COLO_HD_MODELS', 'COLO_SHINY_SHADOW', 'COLO_CHOOSE_STARTERS', 'SMS_BUTTON_PROMPTS', 'SMS_TEXTURE_PACK_PRELOAD'])
     if (!(key in process.env)) assert.equal(key in env, false, key);
   const colosseum = port.buildEnvironment(settings, '/disc/colosseum.iso', root);

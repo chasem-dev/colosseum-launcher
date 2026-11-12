@@ -31,8 +31,9 @@ const GAMES = {
     release: require('./xd-release.json'), buildEnv: { COLO_GAME: 'xd' },
     // the decomp's own build extracts XD's fonts and tables from main.dol before the port's build reads them
     needsMainDol: true,
-    // fast-forward is the port's shared input code, and XD skips its own movies; the rest hook Colosseum's functions
-    features: ['fastForward', 'skipMovies']
+    // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its
+    // 2D stays 4:3, centred); the rest hook Colosseum's functions
+    features: ['widescreen', 'fastForward', 'skipMovies']
   }
 };
 
