@@ -1162,3 +1162,37 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .jukebox-filter[aria-pressed="true"] { background: var(--jk-selected); border-color: var(--jk-accent); color: var(--jk-text); }
 .jukebox-filter:focus-visible { outline: 2px solid var(--jk-accent); outline-offset: 1px; }
 .jukebox-count { margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--jk-muted); }
+
+.jukebox-sort { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--jk-muted); }
+.jukebox-sort select { padding: 5px 8px; border: 1px solid var(--jk-line); border-radius: 8px; background: var(--jk-panel); color: var(--jk-text); font: inherit; font-size: 12px; }
+.jukebox-views { display: inline-flex; border: 1px solid var(--jk-line); border-radius: 8px; overflow: hidden; }
+.jukebox-view { padding: 5px 8px; border: 0; border-radius: 0; background: transparent; color: var(--jk-muted); line-height: 0; }
+.jukebox-view + .jukebox-view { border-left: 1px solid var(--jk-line); }
+.jukebox-view svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.jukebox-view[data-view="list"] svg circle { fill: currentColor; stroke: none; }
+.jukebox-view:hover { background: var(--jk-hover); color: var(--jk-text); }
+.jukebox-view[aria-pressed="true"] { background: var(--jk-selected); color: var(--jk-text); }
+.jukebox-view:focus-visible { outline: 2px solid var(--jk-accent); outline-offset: -2px; }
+.jukebox-track-type, .jukebox-columns { display: none; }
+/* List and compact: one row each, in columns, under headings that sort */
+.jukebox-list[data-view="list"], .jukebox-list[data-view="compact"] { grid-template-columns: 1fr; gap: 0; border: 1px solid var(--jk-line); border-radius: 8px; background: var(--jk-panel); }
+.jukebox-list[data-view="list"] .jukebox-track, .jukebox-list[data-view="list"] .jukebox-columns { display: grid; grid-template-columns: 26px minmax(0, 1fr) 110px 56px; gap: 12px; align-items: center; }
+.jukebox-list[data-view="compact"] .jukebox-track, .jukebox-list[data-view="compact"] .jukebox-columns { display: grid; grid-template-columns: minmax(0, 1fr) 110px 56px; gap: 12px; align-items: center; }
+.jukebox-list[data-view="list"] .jukebox-track, .jukebox-list[data-view="compact"] .jukebox-track { border: 0; border-bottom: 1px solid var(--jk-line); border-radius: 0; padding: 6px 14px; }
+.jukebox-list[data-view="compact"] .jukebox-track { padding: 4px 14px; font-size: 12.5px; }
+.jukebox-list[data-view="compact"] .jukebox-chip { display: none; }
+.jukebox-list[data-view="compact"] .jukebox-track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jukebox-list[data-view] .jukebox-track:last-child { border-bottom: 0; }
+.jukebox-list[data-view="list"] .jukebox-track-type, .jukebox-list[data-view="compact"] .jukebox-track-type { display: block; font-size: 12px; color: var(--jk-muted); }
+.jukebox-list[data-view="list"] .jukebox-track-length, .jukebox-list[data-view="compact"] .jukebox-track-length { text-align: right; }
+.jukebox-list[data-view="list"] .jukebox-track.selected, .jukebox-list[data-view="compact"] .jukebox-track.selected { box-shadow: inset 3px 0 0 var(--jk-accent); }
+.jukebox-list[data-view="list"] .jukebox-group, .jukebox-list[data-view="compact"] .jukebox-group { margin: 0; padding: 12px 14px 6px; border-bottom: 1px solid var(--jk-line); }
+.jukebox-columns { position: sticky; top: -14px; z-index: 1; padding: 7px 14px; border-bottom: 1px solid var(--jk-line); border-radius: 8px 8px 0 0; background: var(--jk-panel); }
+.jukebox-columns button { padding: 0; border: 0; background: none; color: var(--jk-muted); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-align: left; cursor: pointer; }
+.jukebox-columns button:last-child { text-align: right; }
+.jukebox-columns button:hover, .jukebox-columns button.on { color: var(--jk-text); }
+@media (max-width: 640px) {
+  .jukebox-list[data-view="list"] .jukebox-track, .jukebox-list[data-view="list"] .jukebox-columns { grid-template-columns: 26px minmax(0, 1fr) 56px; }
+  .jukebox-list[data-view="compact"] .jukebox-track, .jukebox-list[data-view="compact"] .jukebox-columns { grid-template-columns: minmax(0, 1fr) 56px; }
+  .jukebox-list[data-view] .jukebox-track-type, .jukebox-columns [data-sort="type"] { display: none; }
+}

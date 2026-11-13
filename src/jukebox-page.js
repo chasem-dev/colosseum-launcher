@@ -42,6 +42,47 @@
     return filter === 'jingles' ? Boolean(track.short) : filter === 'battles' ? battle : !track.short && !battle;
   };
   // the effects' filters are their groups, as the disc has them
+  // How the list is shown, and in what order. The view is kept for each tab, and the order for both, in this browser's storage
+  // (a convenience: without it, the grid in the game's order).
+  const VIEWS = ['grid', 'list', 'compact'], SORTS = ['game', 'name', 'name-desc', 'type', 'length', 'length-desc'];
+  const stored = (key, allowed, fallback) => { try { const value = localStorage.getItem(key); return allowed.includes(value) ? value : fallback; } catch (_) { return fallback; } };
+  const store = (key, value) => { try { localStorage.setItem(key, value); } catch (_) { /* not kept */ } };
+  const views = { music: stored('jukebox-view-music', VIEWS, 'grid'), sfx: stored('jukebox-view-sfx', VIEWS, 'grid') };
+  let sort = stored('jukebox-sort', SORTS, 'game');
+  // what a song is, in the list's Type column: a tune, a battle or a jingle; an effect's group
+  const typeOf = track => (kindOf(track) === 'sfx' ? track.group : track.short ? 'Jingle' : window.coloJukeboxCover.kind(track) === 'battle' ? 'Battle' : 'Tune');
+  const COMPARE = {
+    name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+    type: (a, b) => typeOf(a).localeCompare(typeOf(b)),
+    length: (a, b) => (a.seconds ?? 0) - (b.seconds ?? 0)
+  };
+  const ordered = list => {
+    if (sort === 'game') return list;
+    const [field, way] = sort.split('-'), out = [...list].sort(COMPARE[field]);   // (a stable sort: ties keep the game's order)
+    return way === 'desc' ? out.reverse() : out;
+  };
+  const setSort = value => { sort = SORTS.includes(value) ? value : 'game'; store('jukebox-sort', sort); render(); };
+  // a column's heading: sorts by it, and again the other way
+  const COLUMNS = [['name', 'Name'], ['type', 'Type'], ['length', 'Length']];
+  function columns(view) {
+    const row = document.createElement('div');
+    row.className = 'jukebox-columns';
+    row.setAttribute('aria-hidden', 'true');   // the Sort menu says the same to a screen reader
+    if (view === 'list') row.append(document.createElement('span'));
+    for (const [field, label] of COLUMNS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.tabIndex = -1;
+      button.dataset.sort = field;
+      const on = sort === field || sort === `${field}-desc`;
+      button.textContent = on ? `${label} ${sort.endsWith('-desc') ? '\u2193' : '\u2191'}` : label;
+      if (on) button.classList.add('on');
+      button.addEventListener('click', () => setSort(sort === field && field !== 'type' ? `${field}-desc` : field));
+      row.append(button);
+    }
+    return row;
+  }
+
   const filtersFor = () => (tab === 'sfx'
     ? [['all', 'All'], ...[...new Set((tracks ?? []).filter(each => kindOf(each) === 'sfx').map(each => each.group))].map(group => [group, group])]
     : FILTERS.music);
@@ -69,14 +110,17 @@
     }
     bar.hidden = options.length < 2;
     for (const chip of bar.children) chip.setAttribute('aria-pressed', String(chip.dataset.filter === filter));
-    const shown = `${tab}:${filter}:${query}:${tracks?.length}`;
+    const view = views[tab];
+    for (const button of $('jukebox-views').children) button.setAttribute('aria-pressed', String(button.dataset.view === view));
+    $('jukebox-sort').value = sort;
+    const shown = `${tab}:${filter}:${query}:${sort}:${view}:${tracks?.length}`;
     if (tracks && list.dataset.rendered !== shown) {
-      const items = [];
+      const items = view === 'grid' ? [] : [columns(view)];
       let group = null;
-      const visible = tracks.filter(each => kindOf(each) === tab && matches(each));
+      const visible = ordered(tracks.filter(each => kindOf(each) === tab && matches(each)));
       for (const track of visible) {
-        // the sound effects are in groups, each under its heading
-        if (track.group && track.group !== group) {
+        // the sound effects are in groups, each under its heading (in the game's order: sorted, the groups are mixed)
+        if (sort === 'game' && track.group && track.group !== group) {
           group = track.group;
           const heading = document.createElement('h2');
           heading.className = 'jukebox-group';
@@ -84,7 +128,7 @@
           items.push(heading);
         }
         // the short tracks and jingles follow the tunes, under a heading of their own
-        if (track.short && !items.some(item => item.tagName === 'H2')) {
+        if (sort === 'game' && track.short && !items.some(item => item.tagName === 'H2')) {
           const heading = document.createElement('h2');
           heading.className = 'jukebox-group';
           heading.textContent = 'Short tracks and jingles';
@@ -103,6 +147,10 @@
         name.className = 'jukebox-track-name';
         name.textContent = track.name;
         button.append(name);
+        const type = document.createElement('span');
+        type.className = 'jukebox-track-type';
+        type.textContent = typeOf(track);
+        button.append(type);
         if (typeof track.seconds === 'number') {
           const length = document.createElement('span');
           length.className = 'jukebox-track-length';
@@ -115,6 +163,7 @@
       }
       list.replaceChildren(...items);
       list.dataset.rendered = shown;
+      list.dataset.view = view;
       const all = tracks.filter(each => kindOf(each) === tab).length;
       $('jukebox-count').textContent = visible.length === all ? `${all}` : `${visible.length} of ${all}`;
       $('jukebox-nomatch').hidden = visible.length > 0;
@@ -303,6 +352,8 @@
     if (current || pool().length) return play(current || pool()[0].id);
   });
   $('jukebox-stop').addEventListener('click', stop);
+  $('jukebox-sort').addEventListener('change', event => setSort(event.target.value));
+  for (const button of $('jukebox-views').children) button.addEventListener('click', () => { views[tab] = button.dataset.view; store(`jukebox-view-${tab}`, views[tab]); render(); });
   $('jukebox-search').addEventListener('input', event => { query = event.target.value.trim(); render(); });
   for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).addEventListener('click', () => { tab = kind; filter = 'all'; render(); });
   $('jukebox-previous').addEventListener('click', () => step(-1));

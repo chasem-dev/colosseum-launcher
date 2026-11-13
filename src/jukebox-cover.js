@@ -21,7 +21,9 @@
     if (track?.kind === 'sfx') return 'effect';
     if (/silence/i.test(name)) return 'silence';
     if (/\(unused\)/i.test(name)) return 'unused';
-    if (/battle|vs\. mode|admin|peon|final fight/i.test(name) && !track?.short) return 'battle';
+    // a battle's music; not a place or a menu named for one (Mt. Battle, its rest room, Battle Mode's menu, Battle Bingo)
+    const place = /^mt\. battle\b|battle mode menu|^battle bingo$/i.test(name);
+    if (/battle|vs\. mode|admin|peon|final fight/i.test(name) && !place && !track?.short) return 'battle';
     if (track?.short) return 'jingle';
     return 'tune';
   }

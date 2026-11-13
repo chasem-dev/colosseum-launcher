@@ -139,6 +139,15 @@
           <input id="jukebox-search" class="jukebox-search" type="search" placeholder="Search" aria-label="Search the list" autocomplete="off" spellcheck="false">
           <div id="jukebox-filters" class="jukebox-filters" role="group" aria-label="Show"></div>
           <span id="jukebox-count" class="jukebox-count" role="status"></span>
+          <label class="jukebox-sort"><span>Sort</span><select id="jukebox-sort" aria-label="Sort the list">
+            <option value="game">Game order</option><option value="name">Name, A to Z</option><option value="name-desc">Name, Z to A</option>
+            <option value="type">Type</option><option value="length">Shortest first</option><option value="length-desc">Longest first</option>
+          </select></label>
+          <div id="jukebox-views" class="jukebox-views" role="group" aria-label="View">
+            <button type="button" class="jukebox-view" data-view="grid" aria-label="Grid" title="Grid"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg></button>
+            <button type="button" class="jukebox-view" data-view="list" aria-label="List" title="List"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="5" r="1.8"/><circle cx="5" cy="10" r="1.8"/><circle cx="5" cy="15" r="1.8"/><path d="M9 5h8M9 10h8M9 15h8"/></svg></button>
+            <button type="button" class="jukebox-view" data-view="compact" aria-label="Compact list" title="Compact list"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14M3 8h14M3 12h14M3 16h14"/></svg></button>
+          </div>
         </div>
         <div class="jukebox-body">
           <div id="jukebox-list" class="jukebox-list" aria-label="Songs"></div>
