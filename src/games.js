@@ -9,7 +9,7 @@ const path = require('node:path');
 // ones its port has so far. Renderer, display, picture and input settings apply to every game.
 const FEATURES = ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdModels', 'hdTextures', 'languagePacks',
   'discordPresence', 'storyParty', 'pcBoxes', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters',
-  'shiny', 'shinyStarters', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves', 'tmNames'];
+  'shiny', 'shinyStarters', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves', 'tmNames', 'quitMenu'];
 
 const GAMES = {
   colosseum: {

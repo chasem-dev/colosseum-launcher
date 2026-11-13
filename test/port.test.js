@@ -256,6 +256,21 @@ test('TMs by move name are on unless turned off, and on leaves it to the game', 
   }
 });
 
+test('Quit in the menu is on unless turned off, and only Colosseum has it', () => {
+  const env = (settings, options) => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port', options);
+  const saved = process.env.COLO_QUIT_MENU;
+  delete process.env.COLO_QUIT_MENU;
+  try {
+    assert.equal(port.normalizeSettings({}).quitMenu, true);
+    assert.equal(env({}).COLO_QUIT_MENU, undefined);
+    assert.equal(env({ quitMenu: true }).COLO_QUIT_MENU, undefined);
+    assert.equal(env({ quitMenu: false }).COLO_QUIT_MENU, '0');
+    assert.equal(env({ quitMenu: false }, { game: 'xd' }).COLO_QUIT_MENU, undefined, "XD's field menu is its own");
+  } finally {
+    if (saved !== undefined) process.env.COLO_QUIT_MENU = saved;
+  }
+});
+
 test('HD models are on unless turned off, and on leaves it to the game', () => {
   const env = hdModels => port.buildEnvironment(port.normalizeSettings({ hdModels }), 'disc', '/port').COLO_HD_MODELS;
   const saved = process.env.COLO_HD_MODELS;
