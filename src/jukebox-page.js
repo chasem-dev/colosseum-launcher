@@ -208,8 +208,15 @@
     dockStar.dataset.id = current ?? '';
     dockStar.setAttribute('aria-pressed', String(Boolean(current) && lists.isFavorite(playlists, current)));
     const playing = Boolean(state.playing) && !state.paused;
-    $('jukebox-toggle').textContent = playing ? 'Pause' : state.paused ? 'Resume' : 'Play';
-    $('jukebox-toggle').setAttribute('aria-label', $('jukebox-toggle').textContent);
+    // Play and pause are icons, to keep the player one thin row; what the button does is its label
+    const toggle = $('jukebox-toggle'), action = playing ? 'Pause' : state.paused ? 'Resume' : 'Play';
+    if (toggle.dataset.action !== action) {
+      toggle.innerHTML = playing ? '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1"/><rect x="11.5" y="4" width="3.5" height="12" rx="1"/></svg>'
+        : '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>';
+      toggle.dataset.action = action;
+      toggle.setAttribute('aria-label', action);
+      toggle.title = action;
+    }
     const none = !pool().length;
     $('jukebox-toggle').disabled = none || busy;
     $('jukebox-previous').disabled = $('jukebox-next').disabled = none || busy;

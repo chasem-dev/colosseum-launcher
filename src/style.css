@@ -1256,3 +1256,28 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 
 .jukebox-favorites[hidden] { display: none; }
 .jukebox-pl-heading { flex: 1; margin: 0; font-size: 16px; color: var(--jk-text); }
+
+/* The player: one thin row. The song, its buttons, the bar that seeks (taking what room is left), then Loop, volume and close;
+   in a narrow window the bar goes to a row of its own */
+.jukebox-dock { flex-wrap: nowrap; gap: 6px 16px; padding: 6px 20px; }
+.jukebox-dock .jukebox-title { flex: 0 1 230px; min-width: 120px; gap: 10px; }
+.jukebox-dock .jukebox-disc { width: 34px; height: 34px; filter: drop-shadow(0 1px 2px #32081a44); }
+.jukebox-dock .jukebox-now { min-width: 0; }
+.jukebox-dock .jukebox-now strong { font-size: 13px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jukebox-dock .jukebox-now span { font-size: 11px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jukebox-dock .jukebox-controls, .jukebox-extras { flex: none; display: flex; align-items: center; gap: 4px; }
+.jukebox-extras { gap: 10px; }
+.jukebox-dock button { height: 30px; min-width: 30px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; }
+.jukebox-dock #jukebox-toggle { min-width: 36px; border-radius: 999px; }
+.jukebox-dock #jukebox-toggle svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+.jukebox-extras button svg, .jukebox-volume svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.jukebox-volume svg path:first-child { fill: currentColor; }
+.jukebox-volume input { width: 80px; }
+.jukebox-dock .jukebox-progress { flex: 1 1 auto; min-width: 160px; gap: 8px; }
+.jukebox-dock .jukebox-clock { min-width: 30px; }
+.jukebox-dock .jukebox-close { margin-left: 0; }
+@media (max-width: 980px) {
+  .jukebox-dock { flex-wrap: wrap; }
+  .jukebox-dock .jukebox-progress { order: 10; flex-basis: 100%; }
+  .jukebox-dock .jukebox-title { flex: 1 1 160px; }
+}

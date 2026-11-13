@@ -425,16 +425,18 @@
       </section>
     </main>
     <section id="jukebox-dock" class="jukebox-dock" aria-label="Music player" hidden>
-      <div class="jukebox-progress"><span id="jukebox-time" class="jukebox-clock">0:00</span><input id="jukebox-seek" type="range" min="0" max="1000" value="0" aria-label="Position in the song" disabled><span id="jukebox-length" class="jukebox-clock">0:00</span></div>
       <div class="jukebox-title"><span id="jukebox-disc" class="jukebox-disc" aria-hidden="true"></span><div class="jukebox-now"><strong id="jukebox-now">Nothing playing</strong><span id="jukebox-status" role="status"></span></div></div>
       <div class="jukebox-controls">
         <button id="jukebox-previous" class="subtle" aria-label="Previous song" title="Previous song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12M16 4.5v11l-8-5.5z"/></svg></button>
-        <button id="jukebox-toggle" class="solid" aria-label="Play" title="Play or pause">Play</button>
+        <button id="jukebox-toggle" class="solid" aria-label="Play" title="Play or pause"></button>
         <button id="jukebox-stop" class="subtle" aria-label="Stop" title="Stop"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1"/></svg></button>
         <button id="jukebox-next" class="subtle" aria-label="Next song" title="Next song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12M4 4.5v11l8-5.5z"/></svg></button>
         <button id="jukebox-star" class="subtle jukebox-star" aria-label="Favorite" title="Favorite" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.6l2.3 4.9 5.3.6-3.9 3.6 1.1 5.3L10 14.3 5.2 17l1.1-5.3-3.9-3.6 5.3-.6z"/></svg></button>
-        <label class="jukebox-loop"><input id="jukebox-loop" type="checkbox"><span>Loop</span></label>
-        <label class="jukebox-volume"><span>Volume</span><input id="jukebox-volume" type="range" min="0" max="100" value="100" aria-label="Volume"></label>
+      </div>
+      <div class="jukebox-progress"><span id="jukebox-time" class="jukebox-clock">0:00</span><input id="jukebox-seek" type="range" min="0" max="1000" value="0" aria-label="Position in the song" disabled><span id="jukebox-length" class="jukebox-clock">0:00</span></div>
+      <div class="jukebox-extras">
+        <label class="jukebox-loop" title="Loop"><input id="jukebox-loop" type="checkbox"><span>Loop</span></label>
+        <label class="jukebox-volume" title="Volume"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-3.5v11L6 12H3z"/><path d="M13 7.5q1.6 2.5 0 5M15.5 5.5q3.2 4.5 0 9"/></svg><input id="jukebox-volume" type="range" min="0" max="100" value="100" aria-label="Volume"></label>
         <button id="jukebox-close" class="subtle jukebox-close" aria-label="Close the music player" title="Close the music player (stops the music)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
       </div>
     </section>
