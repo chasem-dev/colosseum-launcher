@@ -8,6 +8,7 @@ const { spawn, execFile } = require('node:child_process');
 const { Worker } = require('node:worker_threads');
 const port = require('./port');
 const games = require('./games');
+const pbrDisc = require('./pbr-disc');
 const saves = require('./saves');
 const gciSave = require('./gci-save');
 const buildTools = require('./build-tools');
@@ -1055,6 +1056,24 @@ const packLabel = problem => `${problem.pack}${problem.entry ? `/${problem.entry
 // icons and cries for the later generations' Pokémon, which then look and sound as they do there instead of as a
 // stand-in.
 function pbrWork() { return path.join(app.getPath('userData'), 'battle-revolution'); }
+// The last disc file chosen, and what the check found ({ ok, warning, file, message, at }): the renderer shows it in a banner
+let pbrDiscChoice = null;
+// What is wrong with the disc kept in the settings (one chosen before the launcher checked them), or '' when nothing
+// is; read again only when the file changes
+let pbrDiscProblemCache = null;
+function pbrDiscProblem() {
+  const file = config.pbrDisc;
+  if (!file) return '';
+  let stat;
+  try { stat = fs.statSync(file); } catch { return ''; }   // not there: discFound says so
+  const key = `${file}\0${stat.size}\0${stat.mtimeMs}`;
+  if (pbrDiscProblemCache?.key !== key) {
+    let problem = '';
+    try { pbrDisc.validate(file); } catch (error) { problem = error.message; }
+    pbrDiscProblemCache = { key, problem };
+  }
+  return pbrDiscProblemCache.problem;
+}
 function pbrModels() { return path.join(pbrWork(), 'models'); }
 // The National Pokédex numbers a model is wanted for: the Pokémon of each generation imported
 function pbrWanted(settings = config.settings) {
@@ -1073,6 +1092,7 @@ function pbrState() {
   const cries = Boolean(config.repo && port.pbrMakesCries(config.repo));
   const noCry = cries ? present.filter(n => !outdated.has(n) && !fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.cry))).length : 0;
   return { disc: config.pbrDisc || null, discFound: Boolean(config.pbrDisc && fs.existsSync(config.pbrDisc)),
+    discProblem: pbrDiscProblem(), choice: pbrDiscChoice,
     wanted: wanted.length, made: present.length - outdated.size - noCry, outdated: outdated.size, noCry, cries,
     supported: Boolean(config.repo && fs.existsSync(port.pbrModelsScript(config.repo))) };
 }
@@ -1080,6 +1100,8 @@ async function makePbrModels() {
   requireFeature('pbrAssets', 'Battle Revolution assets');
   const root = requireRepo(), wanted = pbrWanted();
   if (!config.pbrDisc || !fs.existsSync(config.pbrDisc)) throw new Error('Choose your Pokémon Battle Revolution disc file first.');
+  const problem = pbrDiscProblem();
+  if (problem) throw new Error(`Your Battle Revolution disc can't be used: ${problem}`);
   if (!wanted.length) throw new Error('Turn on a later generation\'s Pokémon first: their models and cries are what this makes.');
   if (!fs.existsSync(port.pbrModelsScript(root))) throw new Error('This version of the game can\'t make Battle Revolution assets yet. Update it from the Play page.');
   await ensureBuildTools();
@@ -2356,7 +2378,18 @@ function registerHandlers() {
       filters: [{ name: 'Wii disc files', extensions: ['rvz', 'iso', 'wbfs', 'ciso', 'gcz', 'wia'] }, { name: 'All files', extensions: ['*'] }]
     });
     if (chosen.canceled) return state();
-    config.pbrDisc = chosen.filePaths[0];
+    // Checked first: a wrong file is turned away with the reason, and the disc chosen before stays
+    const file = chosen.filePaths[0];
+    let disc;
+    try { disc = pbrDisc.validate(file); }
+    catch (error) {
+      pbrDiscChoice = { ok: false, file, message: error.message, at: Date.now() };
+      log(`Battle Revolution disc not used: ${file}: ${error.message}`);
+      return state();
+    }
+    config.pbrDisc = disc.file;
+    pbrDiscChoice = { ok: true, warning: Boolean(disc.warning), file: disc.file, message: pbrDisc.describe(disc), at: Date.now() };
+    log(`Battle Revolution disc chosen: ${disc.file}: ${pbrDisc.describe(disc)}`);
     saveConfig();
     return state();
   });

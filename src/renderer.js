@@ -1414,9 +1414,42 @@ function renderPbr(data) {
           : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make assets to make ${pbr.outdated === 1 ? 'it' : 'them'} again.`
             : pbr.noCry ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. ${pbr.noCry === 1 ? '1 Pokémon has' : `${pbr.noCry} Pokémon have`} a model but no cry of its own yet: press Make assets to add ${pbr.noCry === 1 ? 'it' : 'them'}.`
               : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
-  $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
+  $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbrDiscUsable(pbr);
   $('choose-pbr-disc').disabled = Boolean(data.active);
+  renderPbrCheck('pbr-check', pbr);
   renderPbrBanner(data);
+}
+
+// The disc chosen is there and is Battle Revolution
+function pbrDiscUsable(pbr) { return Boolean(pbr?.discFound && !pbr.discProblem); }
+function fileName(file) { return String(file || '').split(/[\\/]/).pop(); }
+
+// What the last disc chosen was, or what is wrong with the one kept, in a banner under the Battle Revolution row (and
+// in the disc offer): a wrong file was otherwise turned away, or failed minutes into making the assets, with the reason
+// only in the activity log. Each can be dismissed; a new choice shows again.
+let pbrCheckDismissed = null;
+function pbrCheck(pbr) {
+  const choice = pbr.choice;
+  if (choice && !choice.ok) return { kind: 'error', key: `choice:${choice.at}`, title: `${fileName(choice.file)} can't be used`,
+    detail: `${choice.message}${pbr.disc && pbrDiscUsable(pbr) ? ` Your disc stays ${fileName(pbr.disc)}.` : ''}` };
+  if (pbr.disc && pbr.discProblem) return { kind: 'error', key: `problem:${pbr.disc}:${pbr.discProblem}`, title: 'Your Battle Revolution disc can\'t be used',
+    detail: `${fileName(pbr.disc)}: ${pbr.discProblem}` };
+  if (pbr.disc && !pbr.discFound) return { kind: 'warn', key: `missing:${pbr.disc}`, title: 'Your Battle Revolution disc isn\'t where it was',
+    detail: `${pbr.disc} can't be found. Choose it again.` };
+  if (choice?.ok && choice.file === pbr.disc) return { kind: choice.warning ? 'warn' : 'ok', key: `choice:${choice.at}`,
+    title: choice.warning ? 'Battle Revolution disc found, but check it' : 'Battle Revolution disc found', detail: choice.message };
+  return null;
+}
+function renderPbrCheck(id, pbr, { dismissible = true } = {}) {
+  const check = pbrCheck(pbr || {});
+  const show = Boolean(check && !(dismissible && pbrCheckDismissed === check.key));
+  $(id).hidden = !show;
+  if (!show) return;
+  $(id).classList.toggle('ok', check.kind === 'ok');
+  $(id).classList.toggle('warn', check.kind === 'warn');
+  $(id).dataset.key = check.key;
+  $(`${id}-title`).textContent = check.title;
+  $(`${id}-detail`).textContent = check.detail;
 }
 
 // Above Play: models made before a converter fix that changed them, Pokémon whose models were made before the game made
@@ -1426,27 +1459,34 @@ function renderPbrBanner(data) {
   const pbr = data.pbr || {}, making = Boolean(pbrProgress(data.active));
   const missing = (pbr.wanted || 0) - (pbr.made || 0) - (pbr.outdated || 0) - (pbr.noCry || 0);
   // hidden while they're being made: the progress bar below shows that
-  const show = Boolean(pbr.supported && pbr.wanted && pbr.disc && !making && (pbr.outdated || pbr.noCry || (missing > 0 && pbr.made > 0)));
+  const show = Boolean(pbr.supported && pbr.wanted && pbr.disc && !making && (pbr.discProblem || pbr.outdated || pbr.noCry || (missing > 0 && pbr.made > 0)));
   $('pbr-banner').hidden = !show;
   if (!show) return;
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-  $('pbr-banner-title').textContent = pbr.outdated ? 'Your Battle Revolution assets need making again'
+  $('pbr-banner-title').textContent = pbr.discProblem ? 'Your Battle Revolution disc can\'t be used'
+    : pbr.outdated ? 'Your Battle Revolution assets need making again'
     : !missing && pbr.noCry ? 'Your Generation 4 Pokémon can have their own cries' : 'Some Battle Revolution assets aren\'t made yet';
-  $('pbr-banner-detail').textContent = (!pbr.discFound
-    ? `Your Battle Revolution disc isn't where it was. Choose it again under Settings → Gameplay, then make them.`
+  $('pbr-banner-detail').textContent = (pbr.discProblem && pbr.discFound
+    ? `${pbr.discProblem} Choose it under Settings → Gameplay.`
+    : !pbr.discFound ? `Your Battle Revolution disc isn't where it was. Choose it again under Settings → Gameplay, then make them.`
     : pbr.outdated ? `A fix changed ${count(pbr.outdated, 'Generation 4 Pokémon\'s model', 'Generation 4 Pokémon\'s models')}. Until they're made again, they look as they did before the fix.`
       : !missing && pbr.noCry ? `${count(pbr.noCry, 'Generation 4 Pokémon cries', 'Generation 4 Pokémon cry')} with a Colosseum Pokémon's voice. Battle Revolution's own is on your disc.`
         : `${count(missing, 'Generation 4 Pokémon has', 'Generation 4 Pokémon have')} no model of its own yet.`);
-  $('pbr-banner-make').textContent = pbr.discFound ? 'Make assets' : 'Open Settings';
+  $('pbr-banner-make').textContent = pbrDiscUsable(pbr) ? 'Make assets' : 'Open Settings';
   $('pbr-banner-make').disabled = Boolean(data.active);
 }
 
-// Choosing the disc starts making the assets it has for the Pokémon still without theirs, so it's one step.
+// Choosing the disc starts making the assets it has for the Pokémon still without theirs, so it's one step. The
+// launcher checks the file first: one that isn't Battle Revolution is turned away, and the banner says why. Returns
+// the check ({ ok, file, message }), or null when the player closed the file picker.
 async function choosePbrDisc() {
-  const before = current?.pbr?.disc;
+  const before = current?.pbr?.disc, last = current?.pbr?.choice?.at;
+  pbrCheckDismissed = null;
   await action('choosePbrDisc');
   const pbr = current?.pbr || {};
-  if (!current?.active && pbr.discFound && pbr.disc !== before && pbr.supported && pbr.made < pbr.wanted) action('makePbrModels');
+  const choice = pbr.choice && pbr.choice.at !== last ? pbr.choice : null;
+  if (choice?.ok && !current?.active && pbrDiscUsable(pbr) && pbr.disc !== before && pbr.supported && pbr.made < pbr.wanted) action('makePbrModels');
+  return choice;
 }
 
 // Turning on Generation 4 Pokémon asks for the Battle Revolution disc their models and cries come from, and says what
@@ -1455,10 +1495,12 @@ function offerPbrModels() {
   const pbr = current?.pbr || {};
   if (!gameHas(current, 'pbrAssets') || current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
   const remake = pbr.made > 0 || pbr.outdated > 0 || pbr.noCry > 0;
-  $('pbr-offer-lead').textContent = pbr.discFound
+  $('pbr-offer-check').hidden = true;
+  if (pbr.disc && !pbrDiscUsable(pbr)) renderPbrCheck('pbr-offer-check', pbr, { dismissible: false });
+  $('pbr-offer-lead').textContent = pbrDiscUsable(pbr)
     ? `Your Battle Revolution disc is chosen: ${pbr.disc}. Make ${remake ? 'what\'s still missing' : `their ${pbrAssets(pbr, true)}`} from it now? It takes a few minutes.`
     : `Each one can have its own ${pbr.cries ? 'model, icons and cry' : 'model and icons'}, as in Pokémon Battle Revolution, made from a file of your own Wii disc (RVZ, ISO or WBFS). Choose it and they're made in a few minutes. No Blender needed.`;
-  $('pbr-offer-confirm').textContent = pbr.discFound ? 'Make assets' : 'Choose disc';
+  $('pbr-offer-confirm').textContent = pbrDiscUsable(pbr) ? 'Make assets' : pbr.disc ? 'Choose another file' : 'Choose disc';
   closeModal();
   $('pbr-offer').showModal();
 }
@@ -1963,8 +2005,9 @@ for (const type of ['dragover', 'drop']) window.addEventListener(type, event => 
 $('open-custom-textures').addEventListener('click', () => window.colo.openCustomTextures().catch(showError));
 $('choose-pbr-disc').addEventListener('click', choosePbrDisc);
 $('make-pbr-models').addEventListener('click', () => action('makePbrModels'));
+$('pbr-check-close').addEventListener('click', () => { pbrCheckDismissed = $('pbr-check').dataset.key; $('pbr-check').hidden = true; });
 $('pbr-banner-make').addEventListener('click', () => {
-  if (current?.pbr?.discFound) action('makePbrModels');
+  if (pbrDiscUsable(current?.pbr)) action('makePbrModels');
   else { showPage('settings'); showSettingsTab('gameplay'); }
 });
 $('open-languages').addEventListener('click', () => window.colo.openLanguages().catch(showError));
@@ -1973,9 +2016,19 @@ $('generation4Pokemon').addEventListener('change', async () => {
   await saveSettings();
   if (current?.config.settings.generation4Pokemon) offerPbrModels();
 });
-$('pbr-offer-confirm').addEventListener('click', () => {
-  $('pbr-offer').close();
-  if (current?.pbr?.discFound) action('makePbrModels'); else choosePbrDisc();
+// The offer stays open until a disc passes the check, showing why a file was turned away, so the player can choose
+// another without finding the setting
+$('pbr-offer-confirm').addEventListener('click', async () => {
+  if (pbrDiscUsable(current?.pbr)) { $('pbr-offer').close(); action('makePbrModels'); return; }
+  $('pbr-offer-confirm').disabled = true;
+  try {
+    const choice = await choosePbrDisc();
+    if (choice?.ok) { $('pbr-offer').close(); return; }
+    if (!choice) return;
+    renderPbrCheck('pbr-offer-check', current?.pbr, { dismissible: false });
+    $('pbr-offer-confirm').textContent = 'Choose another file';
+    if (!$('pbr-offer').open) $('pbr-offer').showModal();
+  } finally { $('pbr-offer-confirm').disabled = false; }
 });
 $('randomizer-reroll').addEventListener('click', async () => {
   try {
