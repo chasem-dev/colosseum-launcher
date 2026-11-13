@@ -531,6 +531,8 @@
   }
   $('jukebox-pl-play').addEventListener('click', () => playPlaylist(lists.FAVORITES));
   $('jukebox-pl-shuffle').addEventListener('click', () => playPlaylist(lists.FAVORITES, true));
+  // the player's star, for the song it has
+  $('jukebox-star').addEventListener('click', event => toggleStar(event.currentTarget.dataset.id));
 
   // Ends the music and puts the player away: lets go of the sound device and of the disc.
   function close() {

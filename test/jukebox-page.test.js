@@ -36,3 +36,10 @@ test('a long song name wraps in its button instead of being cut off', () => {
   assert.match(rule, /white-space: normal/);          // buttons are nowrap by default
   assert.match(script, /button\.title = track\.name/);
 });
+
+test('every button in the player does something when pressed', () => {
+  const dock = html.slice(html.indexOf('id="jukebox-dock"'), html.indexOf('</section>', html.indexOf('id="jukebox-dock"')));
+  const buttons = [...dock.matchAll(/<button id="([^"]+)"/g)].map(match => match[1]);
+  assert.ok(buttons.includes('jukebox-star'));
+  for (const id of buttons) assert.match(script, new RegExp(`\\$\\('${id}'\\)\\.addEventListener\\('click'`), `${id} has no click handler`);
+});
