@@ -102,11 +102,13 @@ Beta has the newest launcher and the newest game before they are released, and i
 
 On Windows and Linux, **Add to Steam** on the main screen adds the game to your Steam library as a non-Steam game, with artwork from [SteamGridDB](https://www.steamgriddb.com), so it starts from Big Picture and Game Mode. The artwork is not part of the launcher: it downloads when you choose Add to Steam and is saved only in Steam's artwork folder. Steam closes for a moment while the launcher saves its shortcut. Your other non-Steam games stay as they are, and the launcher keeps a copy of Steam's list from before.
 
+Each game has its own shortcut. Choose Pokémon XD on the Play page and its Add to Steam adds **Pokémon XD: Gale of Darkness** next to Pokémon Colosseum, with its own artwork, and it opens the launcher on XD.
+
 Turn on **Skip Launcher** to have Steam start the game straight away. On a Steam Deck, the **Steam Deck** preset under **Settings → Graphics** suits its screen.
 
 ### Start the game from Steam or a shortcut
 
-**Skip Launcher** adds `--play` to the shortcut's launch options, and you can add it to any shortcut yourself. `--play` never downloads or builds anything. If the game needs setup, an update (with **Update automatically** on) or HD textures, or if it closes with an error, the launcher opens instead so you can see why.
+**Skip Launcher** adds `--play` to the shortcut's launch options, and you can add it to any shortcut yourself. `--play` starts Pokémon Colosseum; `--play=xd` (or `--game=xd --play`, as XD's shortcut has) starts Pokémon XD. `--game=xd` alone opens the launcher on XD. `--play` never downloads or builds anything. If the game needs setup, an update (with **Update automatically** on) or HD textures, or if it closes with an error, the launcher opens instead so you can see why.
 
 ### Crash reports
 
@@ -235,13 +237,13 @@ Every game version builds in a folder of its own, so a build keeps what it compi
 
 ### Versions and releases
 
-Every push to `main` also rebuilds the Beta (`refresh-beta.yml`, `build.yml`), which checks hourly for new commits on the port's branch. A pull request becomes a preview when **Build launcher** is run by hand with its number. **Game source** under Manage game builds from another port or decomp for testing.
+Every push to `main` also rebuilds the Beta (`refresh-beta.yml`, `build.yml`), which checks hourly for new commits on the port's branch. Beta builds Colosseum and Pokémon XD from that branch's newest commit, each with the decomp the commit names in its `tools/ci/linux-build.sh` (`DECOMP_REF` and `XD_DECOMP_REF`), so a room for both games pairs them. A pull request becomes a preview when **Build launcher** is run by hand with its number. **Game source** under Manage game builds from another port or decomp for testing.
 
 Each published Beta is announced in Discord when the `DISCORD_BETA_WEBHOOK` repository secret holds a channel webhook URL (in Discord: the channel's **Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL**, then `gh secret set DISCORD_BETA_WEBHOOK`). The message has the launcher and game versions, links to the release and both commits, and the notes added to Beta in `changelog.json` since the last Beta (all of them if the last Beta's notes can't be read). Without the secret, or if Discord is unreachable, Beta still publishes.
 
 Pushing a higher `version` in `package.json` to `main` releases it: `release.yml` makes the tag and a draft, packages all three systems and attaches the tool archives while it requires the pinned game to build everywhere (`game-build.yml`), then publishes. That build is skipped when the pull request merged for the release already passed it on every system with exactly the same files, so let its checks finish before merging for a faster release.
 
-`npm run update:game` selects the newest commit of the port's branch and the decomp and renderer commits it pins, bumps the version and drafts the changelog. Stable stays on the x86_64 game until then: `"rosetta": true` in `src/game-release.json` marks a game from before the native Apple Silicon build, and on that mark the launcher keeps Rosetta and Vulkan and CI expects x86_64. Beta's build drops the mark, and so does moving the pin, which brings Apple Silicon to Stable. See [AGENTS.md](AGENTS.md) for the changelog's rules.
+`npm run update:game` selects the newest commit of the port's branch and the decomp and renderer commits it pins, bumps the version and drafts the changelog. It moves Pokémon XD's pin (`src/xd-release.json`) to the same commit, with the `XD_DECOMP_REF` that commit names, because rooms for both games pair only builds of one port commit; commit `src/xd-release.json` with the rest. `npm test` fails for a release from 0.4.1 on whose XD pin isn't at Colosseum's commit. For a launcher-only release, `npm run update:game -- <the commit in src/game-release.json>` moves only XD there, without a version bump. Stable stays on the x86_64 game until then: `"rosetta": true` in `src/game-release.json` marks a game from before the native Apple Silicon build, and on that mark the launcher keeps Rosetta and Vulkan and CI expects x86_64. Beta's build drops the mark, and so does moving the pin, which brings Apple Silicon to Stable. See [AGENTS.md](AGENTS.md) for the changelog's rules.
 
 ### Launcher updates and Mac signing
 

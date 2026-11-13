@@ -2,8 +2,9 @@
 
 // What a commit of the port builds with: it names the decomp in tools/ci/linux-build.sh (Colosseum's DECOMP_REF, and
 // XD's XD_DECOMP_REF since the port builds XD). An older commit names the renderer there too, and the renderer names
-// its headers' repository as a submodule. Used by npm run update:game and, for Beta, by CI: Beta builds both games
-// from the same newest commit, so a room for both games pairs them.
+// its headers' repository as a submodule. Used by npm run update:game and, for Beta, by CI: both games build from one
+// commit, Beta's newest and a Stable release's pin alike, so a room for both games pairs them (rooms pair only builds
+// of the same port commit).
 //   node scripts/game-pins.js   the newest commit of game-release.json's branch, as GitHub Actions outputs
 const fs = require('node:fs');
 const os = require('node:os');
@@ -44,6 +45,19 @@ function rendererHeaders(repository, commit) {
   });
 }
 
+// XD's pin (src/xd-release.json) for Colosseum's (src/game-release.json): the same port commit, with the XD decomp
+// that commit names in its CI script, and Colosseum's version with "xd" before its number (2026.11.12.1 ->
+// 2026.11.12.xd1). A Stable release ships both games from one commit, which test/changelog.test.js checks.
+function xdReleaseFor(xd, game, xdDecomp) {
+  if (xd.repository !== game.repository || xd.branch !== game.branch)
+    throw new Error("src/xd-release.json must name game-release.json's repository and branch: both games build from one commit.");
+  if (!/^[a-f0-9]{40}$/.test(xdDecomp || ''))
+    throw new Error(`The port at ${game.commit} doesn't build XD: its tools/ci/linux-build.sh pins no XD_DECOMP_REF.`);
+  const version = String(game.version).match(/^(\d{4}\.\d{2}\.\d{2})\.(\d+)$/);
+  if (!version) throw new Error(`Colosseum's game version "${game.version}" is not YYYY.MM.DD.N.`);
+  return { ...xd, version: `${version[1]}.xd${version[2]}`, commit: game.commit, decomp: xdDecomp };
+}
+
 function newestCommit(repository, branch) {
   const commit = execFileSync('git', ['ls-remote', repository, `refs/heads/${branch}`], { encoding: 'utf8' }).split(/\s/)[0];
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error(`Could not find ${branch} in ${repository}.`);
@@ -63,4 +77,4 @@ if (require.main === module) {
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
-module.exports = { pinned, pinsAt, rendererHeaders, newestCommit };
+module.exports = { pinned, pinsAt, rendererHeaders, xdReleaseFor, newestCommit };

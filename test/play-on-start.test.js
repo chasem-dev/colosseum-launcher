@@ -27,7 +27,7 @@ function launcher(t, { portReady = true, binary = true, rom = true, current = tr
     : id === './game-version' ? { ...localRequire(id), isCurrent: () => current, recoverBuild: () => false } : localRequire(id),
   __dirname: path.dirname(filename), process, setTimeout, setInterval, module: { exports: {} } };
   vm.runInNewContext(`${fs.readFileSync(filename, 'utf8')}
-    module.exports = { loadConfig, directPlayBlocker, playDirectly, activityLog, config: () => config,
+    module.exports = { loadConfig, directPlayBlocker, playDirectly, chooseStartGame, activityLog, config: () => config,
       failure: () => directPlayFailure, setPlay: replacement => { play = replacement; } };`, context, { filename });
   const main = context.module.exports;
   main.loadConfig();
@@ -71,4 +71,28 @@ test('a game --play started that fails opens the launcher, which says why', asyn
   main.setPlay(async () => { throw new Error('The game crashed.'); });
   assert.equal(await main.playDirectly(), false);
   assert.equal(main.failure(), 'The game crashed.');
+});
+
+test("a Steam shortcut's game is chosen before it plays: --play=xd or --game=xd is XD, a bare --play Colosseum", t => {
+  const steam = require('../src/steam');
+  assert.deepEqual(steam.startOptions(['--no-sandbox', '--play']), { play: true, game: 'colosseum' });
+  assert.deepEqual(steam.startOptions(['--play=xd']), { play: true, game: 'xd' });
+  assert.deepEqual(steam.startOptions(['--game=xd', '--play']), { play: true, game: 'xd' });
+  assert.deepEqual(steam.startOptions(['--game=xd']), { play: false, game: 'xd' });
+  assert.deepEqual(steam.startOptions(['--no-sandbox']), { play: false, game: null });
+  const main = launcher(t);
+  assert.equal(main.config().game, 'colosseum');
+  main.chooseStartGame(steam.startOptions(['--play=xd']));
+  assert.equal(main.config().game, 'xd');
+  // a bare --play, as every shortcut from before XD has, goes back to Colosseum
+  main.chooseStartGame(steam.startOptions(['--play']));
+  assert.equal(main.config().game, 'colosseum');
+  // without --play or --game the launcher opens on the game chosen last
+  main.chooseStartGame(steam.startOptions(['--play=xd']));
+  main.chooseStartGame(steam.startOptions([]));
+  assert.equal(main.config().game, 'xd');
+  // a game the launcher doesn't have leaves the choice alone, and says so
+  main.chooseStartGame(steam.startOptions(['--game=emerald']));
+  assert.equal(main.config().game, 'xd');
+  assert.ok(main.activityLog.snapshot().some(entry => entry.text.includes('the launcher has no game "emerald"')));
 });

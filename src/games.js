@@ -23,6 +23,9 @@ const GAMES = {
     texturePack: require('./texture-pack.json'),
     // Colosseum's build needs main.dol from the disc only for the Windows icon (port.placeMainDol)
     needsMainDol: false,
+    // The Discord application its activity shows as (discord.js): Discord shows the application's name as the game
+    // being played, and its Rich Presence art assets are the image keys in presence.js
+    discordAppId: '1568804288413835405',
     features: FEATURES
   },
   xd: {
@@ -36,6 +39,9 @@ const GAMES = {
     texturePack: require('./xd-texture-pack.json'),
     // XD's port builds without the game's files too (its extracted data is only ever read from the disc's DOL)
     needsMainDol: false,
+    // XD's own Discord application, once it is made: paste its Application ID here as a string. Until then XD's
+    // activity goes through Colosseum's application (discordAppId below), so Discord says "Playing Pokémon Colosseum"
+    discordAppId: null,
     // fast-forward is the port's shared input code, XD skips its own movies, and its cameras widen with the frame (its
     // 2D stays 4:3, centred); its save goes to and from Dolphin as a .gci (gci-save.js); it prints its [presence] lines
     // (host/xd/presence.c); its text goes through HD text (host/hdtext.c); its online battles (host/xd/online.c) speak
@@ -62,6 +68,8 @@ function get(id) { return GAMES[normalizeId(id)]; }
 // The game a pin or a chosen game source builds: one without a game is Colosseum's, as every pin before XD was.
 function ofSource(source) { return get(source?.game); }
 function supports(id, feature) { return get(id).features.includes(feature); }
+// The Discord application a game's activity goes through: its own, or Colosseum's while it has none.
+function discordAppId(id) { return get(id).discordAppId || GAMES[DEFAULT].discordAppId; }
 // Every feature, and whether this game has it: for the renderer to show or hide what the game can use.
 function featureMap(id) { return Object.fromEntries(FEATURES.map(feature => [feature, supports(id, feature)])); }
 
@@ -81,8 +89,9 @@ function summary(id) {
 }
 
 // --- Preferences: what each game keeps of its own. The game chosen has these at the top level of the launcher's
-// config, as Colosseum always had; the others wait under `games`.
-const FIELDS = ['repo', 'rom', 'installRoot', 'previousInstall', 'completedSetup', 'gameSource'];
+// config, as Colosseum always had; the others wait under `games`. Each game has its own Steam shortcut, so Play's
+// one-time Add to Steam offer (steamOffered) and the offer to fix a shortcut (steamFixOffered) are each game's too.
+const FIELDS = ['repo', 'rom', 'installRoot', 'previousInstall', 'completedSetup', 'gameSource', 'steamOffered', 'steamFixOffered'];
 
 function checkoutPath(userData, id) { return path.join(userData, get(id).checkoutFolder); }
 
@@ -95,7 +104,9 @@ function readFields(raw, id, { defaultRepo, readSource = () => null } = {}) {
     installRoot: typeof saved.installRoot === 'string' ? saved.installRoot : null,
     previousInstall: saved.previousInstall && typeof saved.previousInstall === 'object' ? saved.previousInstall : null,
     completedSetup: Boolean(saved.completedSetup),
-    gameSource: readSource(saved.gameSource, id)
+    gameSource: readSource(saved.gameSource, id),
+    steamOffered: Boolean(saved.steamOffered),
+    steamFixOffered: Boolean(saved.steamFixOffered)
   };
 }
 
@@ -136,5 +147,5 @@ function allFields(config) {
   return { ...(config.games || {}), [chosen]: pickFields(config) };
 }
 
-module.exports = { FEATURES, GAMES, DEFAULT, FIELDS, ids, normalizeId, get, ofSource, supports, featureMap, identifyDisc, summary,
+module.exports = { FEATURES, GAMES, DEFAULT, FIELDS, ids, normalizeId, get, ofSource, supports, discordAppId, featureMap, identifyDisc, summary,
   checkoutPath, readFields, pickFields, loadGames, storedGames, switchGame, allFields };

@@ -99,8 +99,11 @@ const partialOutput = new Map();
 const sessionLog = createSessionLog(() => app.getPath('userData'), error =>
   logOutput(`Could not save the session log: ${error.message}`, 'launcher'));
 // `--play` (for a Steam shortcut's launch options) starts the game without the
-// launcher's window and quits when the game closes.
-const playOnStart = process.argv.includes('--play');
+// launcher's window and quits when the game closes. `--game=xd` (or `--play=xd`)
+// is the game it opens on and plays; a bare `--play` plays Colosseum, as Steam
+// shortcuts from before XD expect (steam.startOptions).
+const startOptions = steam.startOptions(process.argv.slice(1));
+const playOnStart = startOptions.play;
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 else if (portableRoot && app.isPackaged)
@@ -235,10 +238,6 @@ function loadConfig() {
     quickBattlesOn: true,
     // Only once Metal is on offer: a Mac still on a Rosetta game moves when its game turns native.
     movedToMetal: Boolean(saved.movedToMetal) || port.platformInfo().renderers[0] === 'metal',
-    // Whether Play has offered Add to Steam on SteamOS yet (it does once).
-    steamOffered: Boolean(saved.steamOffered),
-    // Whether the launcher has offered to fix a Steam shortcut without --no-sandbox.
-    steamFixOffered: Boolean(saved.steamFixOffered),
     // The newest launcher version whose changelog the player has been shown.
     changelogSeen: changelog.baseVersion(saved.changelogSeen),
     // Which wording of Beta's notes a Beta build last showed.
@@ -429,6 +428,8 @@ function launcherExe() {
 }
 
 const startedFromSteam = () => Boolean(process.env.SteamGameId || process.env.SteamAppId);
+// The game whose Steam shortcut started this launcher: one without a game is Colosseum's.
+const steamStartedGame = () => startOptions.game || games.DEFAULT;
 
 async function locateSteam() {
   const registryPath = process.platform === 'win32' ? await windowsSteamPath() : null;
@@ -454,31 +455,38 @@ const STEAM_LAUNCH_OPTIONS = process.platform === 'linux' ? '--no-sandbox' : '';
 const sandboxAlwaysOff = process.env.COLO_LAUNCHER_NO_SANDBOX === '1';
 delete process.env.COLO_LAUNCHER_NO_SANDBOX; // not passed on to the game or Steam
 
+// Each game has its own shortcut (steam.js), so the banner is the chosen game's.
 async function readSteamStatus() {
   const exe = launcherExe();
-  if (!exe) return { available: false, reason: process.platform === 'linux' && app.isPackaged
+  const id = config.game, name = steam.appNameFor(id);
+  if (!exe) return { available: false, name, reason: process.platform === 'linux' && app.isPackaged
     ? "Add to Steam isn't offered: the launcher isn't running from its AppImage." : null };
-  if (startedFromSteam()) {
+  if (startedFromSteam() && steamStartedGame() === id) {
     // Steam's shortcut started this launcher, so its options are ours.
     const needsFix = !sandboxAlwaysOff && steam.missingOptions(process.argv.slice(1).join(' '), STEAM_LAUNCH_OPTIONS);
-    return { available: false, inSteam: true, needsFix, reason: needsFix
+    return { available: false, inSteam: true, needsFix, name, reason: needsFix
       ? `Steam: the launcher was started from a Steam shortcut without ${STEAM_LAUNCH_OPTIONS}, so it won't open in Game Mode.`
-      : 'Steam: the launcher was started from Steam, so it is in your Steam library.' };
+      : `Steam: the launcher was started from ${name}'s shortcut in Steam, so it is in your Steam library.` };
   }
   const located = await locateSteam();
-  if (!located) return { available: false, reason: "Add to Steam isn't offered: no signed-in Steam was found on this computer." };
+  if (!located) return { available: false, name, reason: "Add to Steam isn't offered: no signed-in Steam was found on this computer." };
   if (!located.accounts.length)
-    return { available: false, reason: `Add to Steam isn't offered: nobody has signed in to Steam at ${located.root} yet.` };
-  const options = steam.shortcutLaunchOptions({ ...located, exe });
-  const inSteam = steam.hasShortcut({ ...located, exe });
+    return { available: false, name, reason: `Add to Steam isn't offered: nobody has signed in to Steam at ${located.root} yet.` };
+  const options = steam.shortcutLaunchOptions({ ...located, exe, game: id });
+  const inSteam = steam.hasShortcut({ ...located, exe, game: id });
+  if (startedFromSteam()) {
+    // Another game's shortcut started this launcher, and Steam can't close under it to add this one.
+    return { available: false, inSteam, name, reason: inSteam ? `Steam: ${name} is in your Steam library (${located.root}).`
+      : `Add to Steam isn't offered for ${name}: the launcher was started from ${steam.appNameFor(steamStartedGame())}'s shortcut in Steam. Open the launcher outside Steam to add it.` };
+  }
   const steamOS = onSteamOS();
   const needsFix = inSteam && !sandboxAlwaysOff && steam.missingOptions(options, STEAM_LAUNCH_OPTIONS);
-  return { available: true, inSteam, needsFix, skipLauncher: steam.skipsLauncher(options), steamOS,
+  return { available: true, inSteam, needsFix, skipLauncher: steam.skipsLauncher(options), steamOS, name,
     offer: steamOS && !inSteam && !config.steamOffered,
     offerFix: needsFix && !config.steamFixOffered,
-    reason: needsFix ? `Steam: the launcher's shortcut in Steam is missing ${STEAM_LAUNCH_OPTIONS}, so it won't open in Game Mode (${located.root}).`
-      : inSteam ? `Steam: the launcher is in your Steam library (${located.root}).`
-      : `Steam: the launcher isn't in your Steam library yet (${located.root}${steamOS ? ', SteamOS' : ''}), so Add to Steam is offered.` };
+    reason: needsFix ? `Steam: ${name}'s shortcut in Steam is missing ${STEAM_LAUNCH_OPTIONS}, so it won't open in Game Mode (${located.root}).`
+      : inSteam ? `Steam: ${name} is in your Steam library (${located.root}).`
+      : `Steam: ${name} isn't in your Steam library yet (${located.root}${steamOS ? ', SteamOS' : ''}), so Add to Steam is offered.` };
 }
 
 let steamReasonLogged = null;
@@ -491,14 +499,17 @@ async function steamStatus() {
   return status;
 }
 // Play offers Add to Steam on SteamOS only once, and opening the launcher
-// offers to fix a shortcut without --no-sandbox only once, whatever the player chooses.
+// offers to fix a shortcut without --no-sandbox only once, whatever the player
+// chooses: once for each game, as each has its own shortcut (games.FIELDS).
 function markSteamOffered(prompt) {
   config[prompt === 'fix' ? 'steamFixOffered' : 'steamOffered'] = true;
   saveConfig();
 }
 
-// `play` (Skip Launcher) adds `--play`, so Steam starts the game without the launcher's window.
+// Adds (or updates) the chosen game's shortcut. `play` (Skip Launcher) adds
+// `--play`, so Steam starts the game without the launcher's window.
 async function addToSteam({ play = false } = {}) {
+  const id = config.game, name = steam.appNameFor(id), pieces = steam.artworkFor(id);
   const exe = launcherExe();
   if (!exe) throw new Error(process.platform === 'linux' ? 'Add to Steam works from the launcher AppImage.' : 'Add to Steam works from the installed launcher on Windows and Linux.');
   if (startedFromSteam()) throw new Error('The launcher was started from Steam, so it is already in your Steam library.');
@@ -507,13 +518,13 @@ async function addToSteam({ play = false } = {}) {
   const { root, accounts } = located;
   if (!accounts.length) throw new Error('Sign in to Steam once, then try again.');
   log('Downloading Steam artwork from SteamGridDB…');
-  const artwork = await steam.downloadArtwork(downloadImage);
+  const artwork = await steam.downloadArtwork(downloadImage, pieces);
   const wasRunning = await steamRunning();
   const reopen = wasRunning && process.platform === 'win32';
   if (wasRunning) {
     const answer = await dialog.showMessageBox(window, {
       type: 'question', buttons: ['Cancel', 'Close Steam and add'], defaultId: 1, cancelId: 0,
-      message: 'Close Steam to add the launcher?',
+      message: `Close Steam to add ${name}?`,
       detail: `Steam picks up new non-Steam games only when it starts, so it closes for a moment${reopen ? ' and opens again afterwards' : '. Open it again once the launcher says it was added'}.`
     });
     if (answer.response !== 1) return { cancelled: true };
@@ -528,15 +539,15 @@ async function addToSteam({ play = false } = {}) {
     await waitForSteamToClose();
     log(`Steam's non-Steam games after Steam closed: ${steam.describeShortcuts(steam.snapshotShortcuts({ root, backUp: false }))}.`);
   }
-  const results = steam.addShortcut({ root, accounts, exe, startDir: path.dirname(exe), artwork, snapshot,
+  const results = steam.addShortcut({ root, accounts, exe, startDir: path.dirname(exe), game: id, artwork, snapshot,
     launchOptions: STEAM_LAUNCH_OPTIONS, play: Boolean(play) });
   const added = results.some(result => result.added);
   const images = Math.min(...results.map(result => result.artwork));
-  log(`${added ? 'Added' : 'Updated'} ${steam.APP_NAME} in Steam${play ? ' with Skip Launcher' : ''} (${images} of ${steam.ARTWORK.length} artwork images, ${root}).`);
+  log(`${added ? 'Added' : 'Updated'} ${name} in Steam${play ? ' with Skip Launcher' : ''} (${images} of ${pieces.length} artwork images, ${root}).`);
   for (const result of results)
     log(`Steam account ${result.account}: kept its ${result.kept} other non-Steam games${result.backup ? `; the list from before is saved as ${result.backup}` : ''}.`);
   if (reopen) shell.openExternal('steam://open/games').catch(() => {});
-  return { added, play: Boolean(play), name: steam.APP_NAME, artwork: images, total: steam.ARTWORK.length, reopened: reopen };
+  return { added, play: Boolean(play), name, artwork: images, total: pieces.length, reopened: reopen };
 }
 
 
@@ -1508,7 +1519,12 @@ function showPresence() {
 
 function startPresence(startedAt, isOnline) {
   if (!config.settings.discordPresence || !supports('discordPresence')) return;
-  discordPresence ||= discord.createPresence({ log });
+  // each game's own Discord application (games.discordAppId), so another game's connection is closed for it
+  const clientId = games.discordAppId(config.game);
+  if (discordPresence?.clientId !== clientId) {
+    discordPresence?.stop();
+    discordPresence = discord.createPresence({ clientId, log });
+  }
   presenceSession = { startedAt, game: null, online: isOnline };
   onPresence = line => {
     const latest = presence.parseLine(line);
@@ -1548,6 +1564,14 @@ function directPlayBlocker() {
   if (config.settings.autoUpdate && !game.isCurrent(config.repo, currentSource())) return 'a game update is ready.';
   if (!hdVisualsReady(config.repo, config.settings)) return 'HD visuals need to be set up.';
   return null;
+}
+
+// The game a Steam shortcut named (`--game=`, `--play=`, or Colosseum for a bare `--play`) is chosen before the
+// launcher opens or plays, as if the player had picked it on the Play page.
+function chooseStartGame(start = startOptions) {
+  if (!start.game || start.game === config.game) return;
+  if (!games.GAMES[start.game]) return log(`Opened on ${gameName()}: the launcher has no game "${start.game}".`);
+  selectGame(start.game);
 }
 
 // Plays with the launcher's settings, without downloading or building anything.
@@ -2652,6 +2676,7 @@ if (ownsInstance) app.whenReady().then(async () => {
   loadConfig();
   registerHandlers();
   protocol.handle(TEXTURE_SCHEME, hdSpriteResponse);
+  chooseStartGame();
   if (playOnStart && await playDirectly()) return app.quit();
   createWindow();
   // Only with the window: a launcher update installs on quit, which `--play` does as the game closes.

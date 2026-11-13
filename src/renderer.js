@@ -828,6 +828,8 @@ async function chooseGame(id) {
     wizardStep = null;
     if (result?.config) refresh(result);
     await sync();
+    // each game has its own Steam shortcut, so the banner follows the game
+    await refreshSteamBanner();
   } catch (error) { showError(error); }
   finally {
     choosingGame = null;
@@ -891,13 +893,15 @@ function stageGeometry() {
     play: { ...across(play), top: play.top - page.top },
     // the window's foot
     visibleBottom: viewport.getBoundingClientRect().bottom - page.top - scroll - 8,
-    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), bottom: bannerBox.bottom - page.top } : null,
+    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), top: bannerBox.top - page.top, bottom: bannerBox.bottom - page.top } : null,
     band: parseFloat(window.getComputedStyle(home).paddingTop) || 0,
     headlineHeight: $('home-headline').offsetHeight || 0,
     origin: { x: $('game-picker').getBoundingClientRect().left - shell.left, page: page.left - shell.left }
   };
 }
-function layoutPlayStage() {
+// full: measured with the banner whole (its second line), then shortened if the headline needs the room
+function layoutPlayStage(full = true) {
+  if (full) $('add-to-steam').classList.remove('compact');
   const geometry = stageGeometry();
   if (!geometry || !window.ColoPlayStage) return false;
   let places = window.ColoPlayStage.layout(geometry);
@@ -906,8 +910,17 @@ function layoutPlayStage() {
     const at = places.headline || { cx: places[geometry.active].cx };
     headline.style.setProperty('--x', px(at.cx - geometry.origin.page));
     if (places.headline) { headline.style.setProperty('--top', px(at.top)); headline.style.setProperty('--max', px(at.maxWidth)); }
+    else headline.style.setProperty('--max', '');
   };
   placeHeadline();
+  // setting up beside the chosen game's banner: the banner keeps only its title when the headline wouldn't fit in one line
+  const banner = $('add-to-steam');
+  if (geometry.panel && !banner.hidden) {
+    headline.style.maxWidth = 'none';
+    const wide = headline.offsetWidth;
+    headline.style.maxWidth = '';
+    if (full && places.headline && wide > places.headline.maxWidth) { banner.classList.add('compact'); return layoutPlayStage(false); }
+  }
   // the headline wraps to the width it is given, which moves the logo above it: once more with its new height
   if (places.headline && Math.abs((headline.offsetHeight || 0) - geometry.headlineHeight) > 1) {
     places = window.ColoPlayStage.layout({ ...geometry, headlineHeight: headline.offsetHeight || 0 });
@@ -1863,19 +1876,22 @@ async function refreshSteamBanner() {
   renderSteamBanner();
 }
 // One Steam dialog: from the banner (add, or update once in Steam), or offered
-// once by Play on SteamOS, which then plays whatever the player chooses.
+// once by Play on SteamOS, which then plays whatever the player chooses. Each
+// game has its own shortcut: the dialog is the chosen game's (steam.name).
 const STEAM_MODES = {
-  add: { kicker: 'Add to Steam', intro: 'Adds Pokémon Colosseum to your Steam library, with artwork.', cancel: 'Cancel', confirm: 'Add to Steam' },
-  update: { kicker: 'In your Steam library', intro: "It's already in Steam. Update it to refresh its artwork, or to turn Skip Launcher on or off.",
-    cancel: 'Cancel', confirm: 'Update in Steam' },
-  offer: { kicker: 'Play from Steam?', intro: "Add Pokémon Colosseum to your Steam library and start it from Game Mode like your other games. We'll only ask once: the Add to Steam banner on the home screen does it any time.",
-    cancel: 'Not now', confirm: 'Add to Steam & play' },
-  fix: { kicker: 'Fix for Game Mode', intro: "Pokémon Colosseum is in your Steam library, but its shortcut is missing the --no-sandbox launch option, so it won't open in Game Mode. Let the launcher fix it: it keeps the shortcut's play time, collections and controller layout, and adds the artwork.",
-    cancel: 'Not now', confirm: 'Fix shortcut' }
+  add: name => ({ kicker: 'Add to Steam', intro: `Adds ${name} to your Steam library, with artwork.`, cancel: 'Cancel', confirm: 'Add to Steam' }),
+  update: () => ({ kicker: 'In your Steam library', intro: "It's already in Steam. Update it to refresh its artwork, or to turn Skip Launcher on or off.",
+    cancel: 'Cancel', confirm: 'Update in Steam' }),
+  offer: name => ({ kicker: 'Play from Steam?', intro: `Add ${name} to your Steam library and start it from Game Mode like your other games. We'll only ask once: the Add to Steam banner on the home screen does it any time.`,
+    cancel: 'Not now', confirm: 'Add to Steam & play' }),
+  fix: name => ({ kicker: 'Fix for Game Mode', intro: `${name} is in your Steam library, but its shortcut is missing the --no-sandbox launch option, so it won't open in Game Mode. Let the launcher fix it: it keeps the shortcut's play time, collections and controller layout, and adds the artwork.`,
+    cancel: 'Not now', confirm: 'Fix shortcut' })
 };
 let playAfterSteam = false;
 function openSteamDialog(mode) {
-  const text = STEAM_MODES[mode];
+  const name = steam.name || chosenGame(current).name;
+  const text = STEAM_MODES[mode](name);
+  $('steam-add-title').textContent = name;
   $('steam-add-kicker').textContent = text.kicker;
   $('steam-add-intro').textContent = text.intro;
   $('steam-add-cancel').textContent = text.cancel;
