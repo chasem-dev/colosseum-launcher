@@ -10,9 +10,13 @@ const xdSave = require('./xd-save');
 
 // What can change, as the game's stamp holds it.
 const OPTIONS = { randomizerStarters: 1, randomizerShadow: 2, randomizerTrainers: 4, randomizerGifts: 8, randomizerSimilar: 16, randomizerNoLegendaries: 32,
-  randomizerPacks: 64 };
+  randomizerPacks: 64, randomizerNoRepeats: 128, randomizerBaseForms: 256 };
 const PARTS = 15;
 const PACKS = 64;   // Pokémon packs' own Pokémon too (src/pokemon-packs.js)
+// No evolution family twice among the starters and Shadow Pokémon, or in a trainer's team; and starters and Shadow
+// Pokémon only of a first form. Options from 256 on are the stamp's byte 7.
+const NO_REPEATS = 128;
+const BASE_FORMS = 256;
 // A pack's own Pokémon in the game's spoiler log: this much past its place in the species table, as it may share its base's number.
 const PACK_SPECIES = 0x10000;
 const GENERATIONS = { randomizerGen1: 1, randomizerGen2: 2, randomizerGen3: 4, randomizerGen4: 8 };
@@ -55,7 +59,8 @@ function normalize(input = {}) {
     randomizerTrainers: Boolean(input.randomizerTrainers), randomizerGifts: Boolean(input.randomizerGifts),
     randomizerSimilar: input.randomizerSimilar !== false, randomizerNoLegendaries: Boolean(input.randomizerNoLegendaries),
     randomizerGen1: input.randomizerGen1 !== false, randomizerGen2: input.randomizerGen2 !== false, randomizerGen3: input.randomizerGen3 !== false,
-    randomizerGen4: input.randomizerGen4 !== false, randomizerPacks: input.randomizerPacks !== false };
+    randomizerGen4: input.randomizerGen4 !== false, randomizerPacks: input.randomizerPacks !== false,
+    randomizerNoRepeats: Boolean(input.randomizerNoRepeats), randomizerBaseForms: Boolean(input.randomizerBaseForms) };
   if (!settings.randomizerGen1 && !settings.randomizerGen2 && !settings.randomizerGen3 && !settings.randomizerGen4)
     settings.randomizerGen1 = settings.randomizerGen2 = settings.randomizerGen3 = settings.randomizerGen4 = true;
   if (settings.randomizer && !settings.randomizerSeed) settings.randomizerSeed = newSeed();
@@ -75,8 +80,9 @@ const hasGen4 = (settings, laterGenerations) => Boolean(settings.randomizerGen4 
 // COLO_RANDOMIZER for these settings, or null when a new save should be the normal game. A run of only the fourth
 // generation without its Pokémon is a run of the game's own three. packPokemon: the player has Pokémon packs' Pokémon and
 // the game can choose them. Without them the run isn't one with packs, so it stays as it is when a pack is added later.
-function environmentValue(settings, { laterGenerations = false, packPokemon = false } = {}) {
-  const options = flags(settings, OPTIONS) & (packPokemon ? ~0 : ~PACKS);
+// noRepeats and baseForms: the game knows those options (a game before them would keep only the first eight bits).
+function environmentValue(settings, { laterGenerations = false, packPokemon = false, noRepeats = false, baseForms = false } = {}) {
+  const options = flags(settings, OPTIONS) & (packPokemon ? ~0 : ~PACKS) & (noRepeats ? ~0 : ~NO_REPEATS) & (baseForms ? ~0 : ~BASE_FORMS);
   if (!settings.randomizer || !settings.randomizerSeed || !(options & PARTS)) return null;
   let generations = flags(settings, GENERATIONS) & (hasGen4(settings, laterGenerations) ? GAME_GENERATIONS | GEN4 : GAME_GENERATIONS);
   if (!generations) generations = GAME_GENERATIONS;
@@ -86,8 +92,8 @@ function environmentValue(settings, { laterGenerations = false, packPokemon = fa
 // The run a save's unscrambled slot holds, or null for the normal game. at: where the stamp is (XD's moves).
 function runOf(plain, at = STAMP) {
   if (at < 0 || plain.length < at + 16 || plain.readUInt32BE(at) !== STAMP_MAGIC || plain[at + 4] !== STAMP_VERSION) return null;
-  const options = plain[at + 5], generations = plain[at + 6], seed = plain.readUInt32BE(at + 8);
-  const expected = (seed ^ CHECK ^ (options << 8) ^ generations) >>> 0;
+  const options = plain[at + 5] | plain[at + 7] << 8, generations = plain[at + 6], seed = plain.readUInt32BE(at + 8);
+  const expected = (seed ^ CHECK ^ (plain[at + 5] << 8) ^ generations ^ (plain[at + 7] << 16)) >>> 0;
   if (plain.readUInt32BE(at + 12) !== expected) return null;
   return { seed: seed.toString(16).toUpperCase().padStart(8, '0'), options, generations };
 }
@@ -149,4 +155,4 @@ function spoilerText(raw, species, packs = [], gameId = 'colosseum') {
 
 function spoilerSeed(raw) { return (String(raw).match(/^seed ([0-9A-F]{8})/) || [])[1] || null; }
 
-module.exports = { OPTIONS, GENERATIONS, PACKS, SPOILER_FILE, hasGen4, newSeed, normalizeSeed, normalize, environmentValue, runOf, readSave, createSaveReader, spoilerText, spoilerSeed };
+module.exports = { OPTIONS, GENERATIONS, PACKS, NO_REPEATS, BASE_FORMS, SPOILER_FILE, hasGen4, newSeed, normalizeSeed, normalize, environmentValue, runOf, readSave, createSaveReader, spoilerText, spoilerSeed };
