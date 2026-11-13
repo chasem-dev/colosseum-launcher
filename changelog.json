@@ -49,7 +49,8 @@
       "Pokémon XD: when the other player leaves an online battle while you choose, the battle ends and says so, instead of leaving your menu open.",
       "Pokémon XD: on the online team-pick screen, the stick and the keyboard's arrow keys pick Pokémon, and the buttons shown match your controller or keyboard.",
       "Pokémon XD: Quick moves work in VS MODE's Quick Battle: press Z, then A, B, X and Y pick moves.",
-      "Pokémon XD: under Platinum rules, a move's details in Quick Battle show whether it is PHYSICAL, SPECIAL or STATUS."
+      "Pokémon XD: under Platinum rules, a move's details in Quick Battle show whether it is PHYSICAL, SPECIAL or STATUS.",
+      "Pokémon XD: fixed the game crashing on Windows in battle when a Pokémon was sent out."
     ]
   },
   "releases": [
