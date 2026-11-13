@@ -1270,3 +1270,16 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .jukebox-pl-title[readonly] { border-color: transparent; background: transparent; }
 .jukebox-list[data-view] .jukebox-item > .jukebox-track { padding-right: 44px; }
 .jukebox-list[data-view] .jukebox-columns { padding-right: 44px; }
+
+/* Grid: square cards, the song's disc large at the top and its name and length below (the star in the corner) */
+.jukebox-list[data-view="grid"] { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.jukebox-list[data-view="grid"] .jukebox-item > .jukebox-track { aspect-ratio: 1 / 1; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; padding: 14px 12px 10px; text-align: center; border-radius: 12px; }
+.jukebox-list[data-view="grid"] .jukebox-chip { width: 58%; height: auto; aspect-ratio: 1 / 1; margin-bottom: 4px; filter: drop-shadow(0 2px 4px #32081a33); }
+.jukebox-list[data-view="grid"] .jukebox-track-name { flex: none; width: 100%; text-align: center; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.jukebox-list[data-view="grid"] .jukebox-track-length { margin-top: auto; }
+.jukebox-list[data-view="grid"] .jukebox-item > .jukebox-star { top: 6px; right: 6px; transform: none; }
+.jukebox-list[data-view="grid"] .jukebox-track.playing .disc-spin { animation-duration: 3.2s; }
+@media (prefers-reduced-motion: no-preference) {
+  .jukebox-list[data-view="grid"] .jukebox-track { transition: transform .12s ease, box-shadow .12s ease; }
+  .jukebox-list[data-view="grid"] .jukebox-track:hover { transform: translateY(-2px); box-shadow: 0 6px 16px #32081a1f; }
+}
