@@ -37,7 +37,12 @@
       "Pokémon XD: fixed the game crashing after you had moved between rooms and areas about 64 times in one session, such as when leaving a house in Agate Village.",
       "Pokémon XD: fixed the black band behind the name screen and the Continue screen stopping a few pixels short of the right edge.",
       "Pokémon XD: fixed moves such as Sludge Bomb and Shadow Ball playing with no effect: the sludge, the ball and the burst on the target show again.",
-      "Pokémon XD: in widescreen, the Pokémon summary's panels no longer drop back to 4:3 for a moment as you turn its pages, and with the HD textures on, the grey band beside the Pokémon is one shade and the dark blocks in the bottom right corner are gone."
+      "Pokémon XD: in widescreen, the Pokémon summary's panels no longer drop back to 4:3 for a moment as you turn its pages, and with the HD textures on, the grey band beside the Pokémon is one shade and the dark blocks in the bottom right corner are gone.",
+      "Pokémon XD: the randomizer's Pokémon packs option now works, so your packs' Pokémon can turn up in a randomized run.",
+      "Pokémon XD: the ending and the credits can be skipped with A or fast-forward, like the other movies.",
+      "Pokémon XD: fixed people's shadows in Realgam Tower being cut off in widescreen.",
+      "Pokémon XD: in four-trainer battles in widescreen, the second trainers' Poké Ball rows now sit at the screen edges under their panels.",
+      "Pokémon XD: fixed Pokémon and people shown in menus looking squeezed in widescreen, such as on the name screen, the Continue screen, the summary, the PC and the P★DA."
     ]
   },
   "releases": [
