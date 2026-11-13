@@ -248,8 +248,9 @@ test('preferences from before XD stay Colosseum\'s, and XD gets its own folder',
   const loaded = games.loadGames(old, { defaultRepo });
   assert.equal(loaded.game, 'colosseum');
   assert.deepEqual(games.pickFields(loaded), { repo: old.repo, rom: old.rom, installRoot: old.installRoot, previousInstall: old.previousInstall,
-    completedSetup: true, gameSource: null });
-  assert.deepEqual(loaded.games.xd, { repo: path.join('/data', 'game-xd'), rom: '', installRoot: null, previousInstall: null, completedSetup: false, gameSource: null });
+    completedSetup: true, gameSource: null, steamOffered: false, steamFixOffered: false });
+  assert.deepEqual(loaded.games.xd, { repo: path.join('/data', 'game-xd'), rom: '', installRoot: null, previousInstall: null, completedSetup: false,
+    gameSource: null, steamOffered: false, steamFixOffered: false });
   // A fresh launcher's Colosseum is where it always was
   assert.equal(games.loadGames({}, { defaultRepo }).repo, path.join('/data', 'game'));
 });
@@ -276,6 +277,21 @@ test('choosing XD brings up its fields and keeps Colosseum\'s at the top level o
   const back = games.switchGame(again, 'colosseum', { defaultRepo });
   assert.deepEqual([back.repo, back.rom, back.games.xd.rom], ['/c', '/c.iso', '/xd.iso']);
   assert.deepEqual(Object.keys(games.allFields(back)).sort(), ['colosseum', 'xd']);
+});
+
+test("Steam's offers from before XD stay Colosseum's, and XD's shortcut is offered on its own", () => {
+  const config = games.loadGames({ repo: '/c', steamOffered: true, steamFixOffered: true }, { defaultRepo });
+  assert.deepEqual([config.steamOffered, config.steamFixOffered], [true, true]);
+  const xd = games.switchGame(config, 'xd', { defaultRepo });
+  assert.deepEqual([xd.steamOffered, xd.steamFixOffered], [false, false], "XD's shortcut hasn't been offered yet");
+  xd.steamOffered = true;
+  const stored = games.storedGames(xd);
+  // an older launcher still reads Colosseum's at the top level
+  assert.deepEqual([stored.steamOffered, stored.steamFixOffered, stored.games.xd.steamOffered, stored.games.xd.steamFixOffered], [true, true, true, false]);
+  const back = games.switchGame(games.loadGames(JSON.parse(JSON.stringify(stored)), { defaultRepo }), 'colosseum', { defaultRepo });
+  assert.deepEqual([back.steamOffered, back.steamFixOffered, back.games.xd.steamOffered], [true, true, true]);
+  // a fresh launcher has offered neither
+  assert.deepEqual([games.loadGames({}, { defaultRepo }).steamOffered, games.loadGames({}, { defaultRepo }).games.xd.steamOffered], [false, false]);
 });
 
 test("a portable folder keeps XD's paths relative too", () => {

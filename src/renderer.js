@@ -828,6 +828,8 @@ async function chooseGame(id) {
     wizardStep = null;
     if (result?.config) refresh(result);
     await sync();
+    // each game has its own Steam shortcut, so the banner follows the game
+    await refreshSteamBanner();
   } catch (error) { showError(error); }
   finally {
     choosingGame = null;
@@ -1863,19 +1865,22 @@ async function refreshSteamBanner() {
   renderSteamBanner();
 }
 // One Steam dialog: from the banner (add, or update once in Steam), or offered
-// once by Play on SteamOS, which then plays whatever the player chooses.
+// once by Play on SteamOS, which then plays whatever the player chooses. Each
+// game has its own shortcut: the dialog is the chosen game's (steam.name).
 const STEAM_MODES = {
-  add: { kicker: 'Add to Steam', intro: 'Adds Pokémon Colosseum to your Steam library, with artwork.', cancel: 'Cancel', confirm: 'Add to Steam' },
-  update: { kicker: 'In your Steam library', intro: "It's already in Steam. Update it to refresh its artwork, or to turn Skip Launcher on or off.",
-    cancel: 'Cancel', confirm: 'Update in Steam' },
-  offer: { kicker: 'Play from Steam?', intro: "Add Pokémon Colosseum to your Steam library and start it from Game Mode like your other games. We'll only ask once: the Add to Steam banner on the home screen does it any time.",
-    cancel: 'Not now', confirm: 'Add to Steam & play' },
-  fix: { kicker: 'Fix for Game Mode', intro: "Pokémon Colosseum is in your Steam library, but its shortcut is missing the --no-sandbox launch option, so it won't open in Game Mode. Let the launcher fix it: it keeps the shortcut's play time, collections and controller layout, and adds the artwork.",
-    cancel: 'Not now', confirm: 'Fix shortcut' }
+  add: name => ({ kicker: 'Add to Steam', intro: `Adds ${name} to your Steam library, with artwork.`, cancel: 'Cancel', confirm: 'Add to Steam' }),
+  update: () => ({ kicker: 'In your Steam library', intro: "It's already in Steam. Update it to refresh its artwork, or to turn Skip Launcher on or off.",
+    cancel: 'Cancel', confirm: 'Update in Steam' }),
+  offer: name => ({ kicker: 'Play from Steam?', intro: `Add ${name} to your Steam library and start it from Game Mode like your other games. We'll only ask once: the Add to Steam banner on the home screen does it any time.`,
+    cancel: 'Not now', confirm: 'Add to Steam & play' }),
+  fix: name => ({ kicker: 'Fix for Game Mode', intro: `${name} is in your Steam library, but its shortcut is missing the --no-sandbox launch option, so it won't open in Game Mode. Let the launcher fix it: it keeps the shortcut's play time, collections and controller layout, and adds the artwork.`,
+    cancel: 'Not now', confirm: 'Fix shortcut' })
 };
 let playAfterSteam = false;
 function openSteamDialog(mode) {
-  const text = STEAM_MODES[mode];
+  const name = steam.name || chosenGame(current).name;
+  const text = STEAM_MODES[mode](name);
+  $('steam-add-title').textContent = name;
   $('steam-add-kicker').textContent = text.kicker;
   $('steam-add-intro').textContent = text.intro;
   $('steam-add-cancel').textContent = text.cancel;

@@ -87,6 +87,49 @@ test('Skip Launcher adds --play to the launch options, and turning it off remove
   assert.equal(field(root, 'shortcuts').length, 1);
 });
 
+test("each game has its own shortcut: XD's opens the launcher on XD, and Colosseum's stays as it was", () => {
+  const root = [[MAP, 'shortcuts', []]];
+  const options = { exe: '/home/deck/Apps/SMS-Launcher.AppImage', startDir: '/home/deck/Apps', launchOptions: '--no-sandbox', platform: 'linux' };
+  const colosseum = steam.upsertShortcut(root, { ...options, play: true });
+  const xd = steam.upsertShortcut(root, { ...options, game: 'xd', play: true });
+  assert.equal(xd.added, true);
+  assert.equal(field(root, 'shortcuts').length, 2);
+  assert.equal(field(colosseum.fields, 'appname'), 'Pokémon Colosseum');
+  assert.equal(field(colosseum.fields, 'LaunchOptions'), '--no-sandbox --play');
+  assert.equal(field(xd.fields, 'appname'), 'Pokémon XD: Gale of Darkness');
+  assert.equal(field(xd.fields, 'LaunchOptions'), '--no-sandbox --game=xd --play');
+  assert.notEqual(xd.appId, colosseum.appId, 'each has its own artwork');
+  // Skip Launcher off keeps XD's shortcut on XD, and each is found again by its game
+  assert.equal(field(steam.upsertShortcut(root, { ...options, game: 'xd', play: false }).fields, 'LaunchOptions'), '--no-sandbox --game=xd');
+  assert.equal(steam.upsertShortcut(root, { ...options, play: false }).fields, colosseum.fields);
+  assert.equal(field(colosseum.fields, 'LaunchOptions'), '--no-sandbox');
+  assert.equal(field(root, 'shortcuts').length, 2);
+  // a --play=xd typed by hand is XD's shortcut, and keeps starting XD as Skip Launcher goes on and off
+  const handMade = [[MAP, 'shortcuts', [[MAP, '0', [[INT32, 'appid', -5], [STRING, 'appname', 'XD'], [STRING, 'exe', `"${options.exe}"`],
+    [STRING, 'LaunchOptions', '--no-sandbox --play=xd']]]]]];
+  const found = steam.upsertShortcut(handMade, { ...options, game: 'xd', play: false });
+  assert.equal(found.added, false);
+  assert.equal(found.appId, -5 >>> 0);
+  assert.equal(field(found.fields, 'LaunchOptions'), '--game=xd --no-sandbox');
+  assert.equal(steam.upsertShortcut(handMade, { ...options, play: true }).added, true, "Colosseum's is a shortcut of its own");
+  assert.equal(steam.shortcutGame('--no-sandbox --play'), 'colosseum');
+  assert.equal(steam.shortcutGame('--play=xd'), 'xd');
+});
+
+test("each game's artwork comes from SteamGridDB as PNGs, with the suffixes Steam looks for", () => {
+  assert.equal(steam.artworkFor('colosseum'), steam.ARTWORK);
+  for (const id of ['colosseum', 'xd']) {
+    const pieces = steam.artworkFor(id);
+    assert.ok(pieces.some(piece => piece.suffix === 'p.png'), `${id} has a library capsule`);
+    for (const piece of pieces) {
+      assert.match(piece.url, /^https:\/\/cdn2\.steamgriddb\.com\/[a-z]+\/[0-9a-f]{32}\.png$/);
+      assert.ok(['p.png', '.png', '_hero.png', '_logo.png', '_icon.png'].includes(piece.suffix));
+    }
+  }
+  assert.equal(steam.appNameFor('xd'), 'Pokémon XD: Gale of Darkness');
+  assert.equal(steam.appNameFor('nothing'), steam.APP_NAME);
+});
+
 test('Steam is looked for where each system installs it', () => {
   const linux = steam.steamRoots({ platform: 'linux', home: '/home/deck' });
   assert.ok(linux.includes('/home/deck/.local/share/Steam'));
@@ -260,6 +303,12 @@ test('the banner knows when every account already has the launcher', t => {
   steam.addShortcut(options);
   assert.equal(steam.hasShortcut(options), true);
   assert.equal(steam.hasShortcut({ ...options, exe: 'C:\\Other\\SMS Launcher.exe' }), false);
+  // XD's shortcut is its own: Colosseum's doesn't count for it
+  assert.equal(steam.hasShortcut({ ...options, game: 'xd' }), false);
+  steam.addShortcut({ ...options, game: 'xd' });
+  assert.deepEqual([steam.hasShortcut({ ...options, game: 'xd' }), steam.hasShortcut(options)], [true, true]);
+  assert.equal(steam.shortcutLaunchOptions({ ...options, game: 'xd' }), '--game=xd');
+  assert.equal(steam.shortcutLaunchOptions(options), '');
   fs.writeFileSync(path.join(root, 'userdata', '222', 'config', 'shortcuts.vdf'), 'broken');
   assert.equal(steam.hasShortcut(options), false);
   assert.equal(steam.hasShortcut({ ...options, accounts: [] }), false);

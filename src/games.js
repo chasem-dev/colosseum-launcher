@@ -81,8 +81,9 @@ function summary(id) {
 }
 
 // --- Preferences: what each game keeps of its own. The game chosen has these at the top level of the launcher's
-// config, as Colosseum always had; the others wait under `games`.
-const FIELDS = ['repo', 'rom', 'installRoot', 'previousInstall', 'completedSetup', 'gameSource'];
+// config, as Colosseum always had; the others wait under `games`. Each game has its own Steam shortcut, so Play's
+// one-time Add to Steam offer (steamOffered) and the offer to fix a shortcut (steamFixOffered) are each game's too.
+const FIELDS = ['repo', 'rom', 'installRoot', 'previousInstall', 'completedSetup', 'gameSource', 'steamOffered', 'steamFixOffered'];
 
 function checkoutPath(userData, id) { return path.join(userData, get(id).checkoutFolder); }
 
@@ -95,7 +96,9 @@ function readFields(raw, id, { defaultRepo, readSource = () => null } = {}) {
     installRoot: typeof saved.installRoot === 'string' ? saved.installRoot : null,
     previousInstall: saved.previousInstall && typeof saved.previousInstall === 'object' ? saved.previousInstall : null,
     completedSetup: Boolean(saved.completedSetup),
-    gameSource: readSource(saved.gameSource, id)
+    gameSource: readSource(saved.gameSource, id),
+    steamOffered: Boolean(saved.steamOffered),
+    steamFixOffered: Boolean(saved.steamFixOffered)
   };
 }
 

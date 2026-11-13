@@ -102,11 +102,13 @@ Beta has the newest launcher and the newest game before they are released, and i
 
 On Windows and Linux, **Add to Steam** on the main screen adds the game to your Steam library as a non-Steam game, with artwork from [SteamGridDB](https://www.steamgriddb.com), so it starts from Big Picture and Game Mode. The artwork is not part of the launcher: it downloads when you choose Add to Steam and is saved only in Steam's artwork folder. Steam closes for a moment while the launcher saves its shortcut. Your other non-Steam games stay as they are, and the launcher keeps a copy of Steam's list from before.
 
+Each game has its own shortcut. Choose Pokémon XD on the Play page and its Add to Steam adds **Pokémon XD: Gale of Darkness** next to Pokémon Colosseum, with its own artwork, and it opens the launcher on XD.
+
 Turn on **Skip Launcher** to have Steam start the game straight away. On a Steam Deck, the **Steam Deck** preset under **Settings → Graphics** suits its screen.
 
 ### Start the game from Steam or a shortcut
 
-**Skip Launcher** adds `--play` to the shortcut's launch options, and you can add it to any shortcut yourself. `--play` never downloads or builds anything. If the game needs setup, an update (with **Update automatically** on) or HD textures, or if it closes with an error, the launcher opens instead so you can see why.
+**Skip Launcher** adds `--play` to the shortcut's launch options, and you can add it to any shortcut yourself. `--play` starts Pokémon Colosseum; `--play=xd` (or `--game=xd --play`, as XD's shortcut has) starts Pokémon XD. `--game=xd` alone opens the launcher on XD. `--play` never downloads or builds anything. If the game needs setup, an update (with **Update automatically** on) or HD textures, or if it closes with an error, the launcher opens instead so you can see why.
 
 ### Crash reports
 
