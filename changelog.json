@@ -45,7 +45,15 @@
       "Pokémon XD: fixed Pokémon and people shown in menus looking squeezed in widescreen, such as on the name screen, the Continue screen, the summary, the PC and the P★DA.",
       "Pokémon XD: online battles can play by Pokémon Platinum's battle rules with a Generation 4 party, against another XD player or a Colosseum player in a room for both games.",
       "Pokémon XD: while you wait online for a challenger, the game shows its menu backdrop and Waiting in room with your room code, instead of a black screen.",
-      "Pokémon XD: when the other player leaves an online battle while you choose, the battle ends and says so, instead of leaving your menu open."
+      "Pokémon XD: when the other player leaves an online battle while you choose, the battle ends and says so, instead of leaving your menu open.",
+      "Pokémon XD: on the online team-pick screen, the stick and the keyboard's arrow keys pick Pokémon, and the buttons shown match your controller or keyboard.",
+      "Pokémon XD: Quick moves work in VS MODE's Quick Battle: press Z, then A, B, X and Y pick moves.",
+      "Pokémon XD: under Platinum rules, a move's details in Quick Battle show whether it is PHYSICAL, SPECIAL or STATUS.",
+      "Pokémon XD: the randomizer's Pokémon packs option now works, so your packs' Pokémon can turn up in a randomized run.",
+      "Pokémon XD: the ending and the credits can be skipped with A or fast-forward, like the other movies.",
+      "Pokémon XD: fixed people's shadows in Realgam Tower being cut off in widescreen.",
+      "Pokémon XD: in four-trainer battles in widescreen, the second trainers' Poké Ball rows now sit at the screen edges under their panels.",
+      "Pokémon XD: fixed Pokémon models in menus, such as the summary screen, looking squeezed in widescreen."
     ]
   },
   "releases": [
