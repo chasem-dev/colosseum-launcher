@@ -29,7 +29,9 @@
       "Pokémon XD: fixed the game crashing as it started on some Linux PCs, with some graphics drivers and overlays.",
       "Pokémon XD: fixed the game crashing in battle while it loaded a Pokémon or a move, such as when a Generation 4 Pokémon used Quick Attack.",
       "Pokémon XD: fixed Pokémon and trainers disappearing in battles with Generation 4 Pokémon, leaving only a shadow or part of a trainer's hair.",
-      "Pokémon XD: fixed the game staying on a black screen as it started on Windows."
+      "Pokémon XD: fixed the game staying on a black screen as it started on Windows.",
+      "Pokémon XD: fixed the game freezing on a dimmed screen when you saved in some buildings, such as the house where you get an evolution stone and the diner in Gateon Port.",
+      "Pokémon XD: fixed the game crashing when you opened Pokémon Storage at a PC. Generation 4 Pokémon and Pokémon from packs show as the Pokémon they stand in for in the boxes."
     ]
   },
   "releases": [
