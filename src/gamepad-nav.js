@@ -9,6 +9,12 @@
   const BUTTONS = { confirm: 0, back: 1, alternate: 2, previous: 4, next: 5, view: 8, menu: 9, up: 12, down: 13, left: 14, right: 15 };
   const DIRECTIONS = ['up', 'down', 'left', 'right'];
   const FOCUSABLE = 'button, select, input:not([type="hidden"]), textarea, summary, a[href], [tabindex]:not([tabindex="-1"])';
+  const TYPED = ['text', 'search', 'email', 'url', 'tel', 'password', 'number'];
+
+  // A field that takes typing. Focus alone on one opens Steam's on-screen keyboard on a Steam Deck.
+  function typed(element) {
+    return Boolean(element) && (element.tagName === 'TEXTAREA' || (element.tagName === 'INPUT' && TYPED.includes(element.type || 'text')));
+  }
 
   function pressed(gamepad, index) {
     const button = gamepad.buttons[index];
@@ -96,10 +102,30 @@
     const candidates = () => [...scope().querySelectorAll(FOCUSABLE)].filter(usable);
 
     function setActive(active) { document.body.classList.toggle('gamepad-active', active); }
-    document.addEventListener('pointerdown', () => setActive(false), true);
+
+    // A text field the controller reaches is read-only until A picks it, so passing over one (or a page
+    // focusing its search box) doesn't open Steam's on-screen keyboard. It takes typing again when A is
+    // pressed on it, when it is touched or clicked, and once focus leaves it.
+    function hold(element) {
+      if (!typed(element) || element.readOnly || 'gamepadTyping' in element.dataset) return;
+      element.readOnly = true;
+      element.dataset.gamepadHeld = '';
+      element.addEventListener('blur', () => release(element), { once: true });
+    }
+    function release(element) {
+      if (!element || !('gamepadHeld' in element.dataset)) return false;
+      delete element.dataset.gamepadHeld;
+      element.readOnly = false;
+      return true;
+    }
+    const active = () => document.body.classList.contains('gamepad-active');
+    document.addEventListener('focusin', event => { if (active()) hold(event.target); }, true);
+
+    document.addEventListener('pointerdown', event => { setActive(false); release(event.target); }, true);
     document.addEventListener('mousemove', event => { if (event.movementX || event.movementY) setActive(false); }, true);
 
     function focus(element) {
+      hold(element);
       element.focus({ preventScroll: true });
       region(element).scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
@@ -155,6 +181,13 @@
         if (index >= 0) focus(others[index]);
       } else if (name === 'confirm') {
         if (focused.tagName === 'SELECT') cycle(focused, 1);
+        else if (release(focused)) {
+          // Focused afresh, so the on-screen keyboard sees a field to type in; typing lasts until focus leaves.
+          focused.blur();
+          focused.dataset.gamepadTyping = '';
+          focused.addEventListener('blur', () => delete focused.dataset.gamepadTyping, { once: true });
+          focused.focus({ preventScroll: true });
+        }
         else focused.click();
       } else if (name === 'alternate' && focused?.tagName === 'SELECT') cycle(focused, -1);
       else actions[name]?.();
@@ -179,7 +212,7 @@
     wake();
   }
 
-  const api = { heldInputs, scrollAxis, createRepeater, nextInDirection, start };
+  const api = { heldInputs, scrollAxis, createRepeater, nextInDirection, typed, start };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.coloGamepadNav = api;
 })(typeof globalThis === 'object' ? globalThis : this);

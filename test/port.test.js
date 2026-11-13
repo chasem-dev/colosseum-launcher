@@ -434,3 +434,15 @@ test('a playable install is the one with a game built', t => {
   assert.equal(port.playableInstall({ repo: root, settings: {} }).repo, root);
   assert.equal(port.playableInstall({}), null);
 });
+
+test('the game starts without Steam\'s on-screen keyboard, unless the player asks for it', () => {
+  const settings = port.normalizeSettings({});
+  assert.equal(port.buildEnvironment(settings, '/disc.iso', '/game').SDL_ENABLE_SCREEN_KEYBOARD, '0');
+  const saved = process.env.SDL_ENABLE_SCREEN_KEYBOARD;
+  process.env.SDL_ENABLE_SCREEN_KEYBOARD = '1';
+  try {
+    assert.equal(port.buildEnvironment(settings, '/disc.iso', '/game').SDL_ENABLE_SCREEN_KEYBOARD, '1');
+  } finally {
+    if (saved === undefined) delete process.env.SDL_ENABLE_SCREEN_KEYBOARD; else process.env.SDL_ENABLE_SCREEN_KEYBOARD = saved;
+  }
+});
