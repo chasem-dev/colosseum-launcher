@@ -303,7 +303,7 @@ test("a portable folder keeps XD's paths relative too", () => {
 });
 
 // main.js with Electron stubbed, as the launcher loads and saves its preferences.
-function launcher(t, saved) {
+function launcher(t, saved, modules = {}) {
   const root = temporary(t, 'colo xd main-');
   if (saved) fs.writeFileSync(path.join(root, 'preferences.json'), JSON.stringify(saved));
   const filename = path.resolve(__dirname, '../src/main.js');
@@ -311,15 +311,49 @@ function launcher(t, saved) {
   const electron = { ipcMain: { handle() {} }, app: { requestSingleInstanceLock: () => true, commandLine: { appendSwitch() {} }, on() {},
     whenReady: () => ({ then() {} }), getPath: () => root, getVersion: () => '0.1.3', isPackaged: false },
   BrowserWindow: class {}, dialog: {}, shell: {}, clipboard: {}, net: {}, screen: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} } };
-  const context = { require: id => id === 'electron' ? electron : localRequire(id), __dirname: path.dirname(filename), process, setTimeout, setInterval,
-    module: { exports: {} } };
+  const context = { require: id => id === 'electron' ? electron : modules[id] || localRequire(id), __dirname: path.dirname(filename), process, setTimeout,
+    setInterval, module: { exports: {} } };
   vm.runInNewContext(`${fs.readFileSync(filename, 'utf8')}
-    module.exports = { loadConfig, saveConfig, currentSource, config: () => config, choose: id => { config = games.switchGame(config, id, gameFieldOptions); saveConfig(); } };`,
+    module.exports = { loadConfig, saveConfig, currentSource, startPresence, stopPresence, config: () => config,
+      choose: id => { config = games.switchGame(config, id, gameFieldOptions); saveConfig(); } };`,
   context, { filename });
   const main = context.module.exports;
   main.loadConfig();
   return { main, root, saved: () => JSON.parse(fs.readFileSync(path.join(root, 'preferences.json'), 'utf8')) };
 }
+
+test("each game's Discord activity goes through its own Discord application, XD's through Colosseum's until it has one", t => {
+  assert.equal(games.discordAppId('colosseum'), '1568804288413835405');
+  assert.equal(require('../src/discord').CLIENT_ID, games.discordAppId('colosseum'));
+  const own = games.GAMES.xd.discordAppId;
+  assert.ok(own === null || /^\d{17,20}$/.test(own), "XD's application ID is Discord's number, as a string");
+  assert.equal(games.discordAppId('xd'), own || games.discordAppId('colosseum'));
+  // the launcher connects with the chosen game's application, and again when the game changes
+  const made = [];
+  const fakeDiscord = { createPresence: ({ clientId }) => {
+    const client = { clientId, stopped: false, set() {}, stop() { client.stopped = true; } };
+    made.push(client);
+    return client;
+  } };
+  const { main } = launcher(t, { settings: { discordPresence: true } }, { './discord': fakeDiscord });
+  main.config().settings.discordPresence = true;
+  main.startPresence(1, false);
+  main.stopPresence();
+  main.startPresence(2, false);
+  assert.equal(made.length, 1, 'the same game keeps its connection');
+  main.choose('xd');
+  main.startPresence(3, false);
+  assert.deepEqual(made.map(client => client.clientId), [games.discordAppId('colosseum'), games.discordAppId('xd')].filter((id, i, all) => all.indexOf(id) === i));
+  // with XD's own application, Colosseum's connection is closed for it
+  const fakeGames = { ...games, discordAppId: id => (id === 'xd' ? '123456789012345678' : games.discordAppId(id)) };
+  made.length = 0;
+  const other = launcher(t, { settings: { discordPresence: true } }, { './discord': fakeDiscord, './games': fakeGames }).main;
+  other.config().settings.discordPresence = true;
+  other.startPresence(1, false);
+  other.choose('xd');
+  other.startPresence(2, false);
+  assert.deepEqual(made.map(client => [client.clientId, client.stopped]), [['1568804288413835405', true], ['123456789012345678', false]]);
+});
 
 test('the launcher loads an existing Colosseum setup unchanged, and saves XD beside it', t => {
   const { main, root, saved } = launcher(t, { repo: '/games/Colosseum Game', rom: '/discs/colosseum.iso', completedSetup: true, installId: '11111111-1111-4111-8111-111111111111' });

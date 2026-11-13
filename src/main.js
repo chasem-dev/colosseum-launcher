@@ -1519,7 +1519,12 @@ function showPresence() {
 
 function startPresence(startedAt, isOnline) {
   if (!config.settings.discordPresence || !supports('discordPresence')) return;
-  discordPresence ||= discord.createPresence({ log });
+  // each game's own Discord application (games.discordAppId), so another game's connection is closed for it
+  const clientId = games.discordAppId(config.game);
+  if (discordPresence?.clientId !== clientId) {
+    discordPresence?.stop();
+    discordPresence = discord.createPresence({ clientId, log });
+  }
   presenceSession = { startedAt, game: null, online: isOnline };
   onPresence = line => {
     const latest = presence.parseLine(line);
