@@ -35,7 +35,8 @@
       "Pokémon XD: fixed the game freezing on a dimmed screen when you saved in some buildings, such as the house where you get an evolution stone and the diner in Gateon Port.",
       "Pokémon XD: fixed the game crashing when you opened Pokémon Storage at a PC. Generation 4 Pokémon and Pokémon from packs show as the Pokémon they stand in for in the boxes.",
       "Pokémon XD: fixed the game crashing after you had moved between rooms and areas about 64 times in one session, such as when leaving a house in Agate Village.",
-      "Pokémon XD: fixed the black band behind the name screen and the Continue screen stopping a few pixels short of the right edge."
+      "Pokémon XD: fixed the black band behind the name screen and the Continue screen stopping a few pixels short of the right edge.",
+      "Pokémon XD: fixed moves such as Sludge Bomb and Shadow Ball playing with no effect: the sludge, the ball and the burst on the target show again."
     ]
   },
   "releases": [
