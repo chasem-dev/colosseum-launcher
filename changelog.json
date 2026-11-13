@@ -28,7 +28,8 @@
       "Pokémon XD: fixed walls and furniture in the HQ lab popping in and the room looking squeezed at the 16:10 screen format.",
       "Pokémon XD: fixed the game crashing as it started on some Linux PCs, with some graphics drivers and overlays.",
       "Pokémon XD: fixed the game crashing in battle while it loaded a Pokémon or a move, such as when a Generation 4 Pokémon used Quick Attack.",
-      "Pokémon XD: fixed Pokémon and trainers disappearing in battles with Generation 4 Pokémon, leaving only a shadow or part of a trainer's hair."
+      "Pokémon XD: fixed Pokémon and trainers disappearing in battles with Generation 4 Pokémon, leaving only a shadow or part of a trainer's hair.",
+      "Pokémon XD: fixed the game staying on a black screen as it started on Windows."
     ]
   },
   "releases": [
