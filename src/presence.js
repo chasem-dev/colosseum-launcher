@@ -25,13 +25,24 @@ const PLACE_IMAGES = {
   'SNAGEM HIDEOUT': 'snagem_hideout',
   'ORRE COLOSSEUM': 'orre_colosseum'
 };
+// XD's place names (as its save screen shows them) -> the pictures of XD's own Discord application (games.js
+// discordAppId), used only once XD has one: Colosseum's application has none of XD's own places.
+const XD_PLACE_IMAGES = {
+  'OUTSKIRT STAND': 'outskirt_stand', 'PHENAC CITY': 'phenac_city', 'PYRITE TOWN': 'pyrite_town', 'AGATE VILLAGE': 'agate_village',
+  'MT. BATTLE': 'mt_battle', 'REALGAM TOWER': 'realgam_tower', 'SNAGEM HIDEOUT': 'snagem_hideout', 'ORRE COLOSSEUM': 'orre_colosseum',
+  'GATEON PORT': 'gateon_port', 'POKéMON HQ LAB': 'hq_lab', 'CIPHER LAB': 'cipher_lab', 'CIPHER KEY LAIR': 'cipher_key_lair',
+  'CITADARK ISLE': 'citadark_isle', 'S.S. LIBRA': 'ss_libra', "KAMINKO'S HOUSE": 'kaminkos_house',
+  ROCK: 'poke_spot', OASIS: 'poke_spot', CAVE: 'poke_spot'
+};
 // The floor table's areas, for a place not named above.
 const AREA_IMAGES = { 1: 'outskirt_stand', 2: 'phenac_city', 3: 'pyrite_town', 4: 'agate_village', 5: 'the_under',
   6: 'shadow_lab', 7: 'mt_battle', 8: 'realgam_tower', 10: 'snagem_hideout' };
 // Place names the game shortens to fit its save screen.
 const PLACE_NAMES = {
   'PYRITE BLDG': 'Pyrite Building', "MIROR'S HIDEOUT": "Miror B.'s Hideout", 'FRONT OF LAB': 'Outside the Lab',
-  'REALGAMTWR DOME': 'Realgam Tower Dome', 'REALGAMTWR LOBBY': 'Realgam Tower Lobby', 'MT.BTL COLOSSEUM': 'Mt. Battle Colosseum'
+  'REALGAMTWR DOME': 'Realgam Tower Dome', 'REALGAMTWR LOBBY': 'Realgam Tower Lobby', 'MT.BTL COLOSSEUM': 'Mt. Battle Colosseum',
+  // XD's: the Poke Spots are named by their kind alone
+  'POKéMON HQ LAB': 'Pokémon HQ Lab', ROCK: 'Rock Poké Spot', OASIS: 'Oasis Poké Spot', CAVE: 'Cave Poké Spot'
 };
 
 // A game output line -> its presence, or null for any other line.
@@ -54,7 +65,11 @@ function titleCase(text) {
 function placeName(place) { return PLACE_NAMES[place] || titleCase(place); }
 
 // XD's areas are numbered its own way: only a place's own name picks its picture there (several are in both games)
-function placeImage(game, areas = true) { return PLACE_IMAGES[game?.place] || (areas ? AREA_IMAGES[game?.area] : null) || null; }
+// xdArt: XD's own application's pictures (XD_PLACE_IMAGES)
+function placeImage(game, areas = true, xdArt = false) {
+  if (xdArt) return XD_PLACE_IMAGES[game?.place] || null;
+  return PLACE_IMAGES[game?.place] || (areas ? AREA_IMAGES[game?.area] : null) || null;
+}
 
 // Discord rejects texts shorter than 2 or longer than 128 characters.
 function fit(text) {
@@ -65,8 +80,9 @@ function fit(text) {
 
 // The latest game presence and the session -> a Discord activity. `online` is an online battle's
 // opponent, as the room names them: the launcher knows that one better than the game. `gameName` is the game being
-// played (Colosseum's unless given), `areaImages` whether the floor table's area numbers are Colosseum's.
-function activity(game, { startedAt, online = null, gameName = GAME, areaImages = true } = {}) {
+// played (Colosseum's unless given), `areaImages` whether the floor table's area numbers are Colosseum's, `xdArt` whether
+// the application is XD's own (its pictures are XD_PLACE_IMAGES).
+function activity(game, { startedAt, online = null, gameName = GAME, areaImages = true, xdArt = false } = {}) {
   const result = {
     details: undefined,
     state: undefined,
@@ -83,7 +99,7 @@ function activity(game, { startedAt, online = null, gameName = GAME, areaImages 
   // A game without host/presence.c never says more than this.
   if (!game) return clean(result);
   const place = game.place ? placeName(game.place) : '';
-  const image = placeImage(game, areaImages);
+  const image = placeImage(game, areaImages, xdArt);
   const lead = game.story && game.lead && game.level ? `Lead: ${titleCase(game.lead)}, Lv. ${game.level}` : '';
   const opponent = game.opponent ? `Battling ${titleCase(game.opponent)}` : 'In a battle';
   if (game.mode === 'battle') {
@@ -113,4 +129,4 @@ function clean(result) {
   return JSON.parse(JSON.stringify(result));
 }
 
-module.exports = { LAUNCHER_URL, DISCORD_URL, PREFIX, PLACE_IMAGES, AREA_IMAGES, parseLine, isPresenceLine, titleCase, activity };
+module.exports = { LAUNCHER_URL, DISCORD_URL, PREFIX, PLACE_IMAGES, XD_PLACE_IMAGES, AREA_IMAGES, parseLine, isPresenceLine, titleCase, activity };

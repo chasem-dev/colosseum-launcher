@@ -101,3 +101,21 @@ test('XD\'s activity names XD, and only a place\'s own name picks its picture (i
   const menu = presence.activity({ mode: 'menu', floor: 921, area: 14, place: '' }, xd);
   assert.equal(menu.assets.large_text, 'Pokémon XD: Gale of Darkness');
 });
+
+test('with an application of its own, XD shows its own pictures for its places, and the Poke Spots by name', () => {
+  const xd = { gameName: 'Pokémon XD: Gale of Darkness', areaImages: false, xdArt: true };
+  const port = presence.activity({ mode: 'field', story: 1, floor: 0x90, area: 6, place: 'GATEON PORT' }, xd);
+  assert.equal(port.assets.large_image, 'gateon_port');
+  const lab = presence.activity({ mode: 'field', story: 1, floor: 0x8d, area: 5, place: 'POKéMON HQ LAB' }, xd);
+  assert.equal(lab.details, 'Pokémon HQ Lab');
+  assert.equal(lab.assets.large_image, 'hq_lab');
+  const spot = presence.activity({ mode: 'field', story: 1, floor: 0x5a, area: 17, place: 'ROCK' }, xd);
+  assert.equal(spot.details, 'Rock Poké Spot');
+  assert.equal(spot.assets.large_image, 'poke_spot');
+  // without it (Colosseum's application), none of XD's own pictures
+  const through = presence.activity({ mode: 'field', story: 1, floor: 0x90, area: 6, place: 'GATEON PORT' }, { ...xd, xdArt: false });
+  assert.equal(through.assets.large_image, 'logo');
+  // every key is listed for upload
+  const listed = fs.readFileSync(path.join(__dirname, '..', 'docs', 'discord-art.md'), 'utf8').split('## Pokémon XD')[1];
+  for (const key of new Set(Object.values(presence.XD_PLACE_IMAGES))) assert.ok(listed.includes(`\`${key}\``), `${key} is not in XD's list`);
+});
