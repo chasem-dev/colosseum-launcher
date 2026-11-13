@@ -55,7 +55,8 @@
       "Pokémon XD: fixed the game crashing on Windows in battle when a Pokémon was sent out.",
       "Shader warm-up works now, in Colosseum and in XD: the game builds the effects it is known to use before it draws them, all of them in the background from the logos on with Metal and Vulkan, so new places and battles no longer stutter the first time you play on a computer.",
       "Online: a spectator's game plays the battle as the players' games do, and while the players choose, its text box says Players are selecting moves... (or which player is choosing a Pokémon after a faint), in Colosseum and Pokémon XD.",
-      "The bag and shops list a TM by the move it teaches, such as THUNDERBOLT, instead of TM24, and while one is selected its number shows in a tab above the description box. This works in Colosseum and XD."
+      "The bag and shops list a TM by the move it teaches, such as THUNDERBOLT, instead of TM24, and while one is selected its number shows in a tab above the description box. This works in Colosseum and XD.",
+      "Fixed setting up the game on Windows stopping with \"'NoneType' object has no attribute 'splitlines'\" when a build tool printed letters Windows' code page couldn't read, such as an accented name in the folder path."
     ]
   },
   "releases": [
