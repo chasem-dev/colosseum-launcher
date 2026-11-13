@@ -31,3 +31,34 @@ The pictures are frames of the port itself at 4x with the HD texture pack and 16
 square. The towns are the game's own camera sweep on a first visit: start the game with
 `COLO_BOOT_FLOOR=<floor>@700`, no buttons pressed, and dump frames 800 to 1200 (`SMS_GX_DUMP_*`).
 `COLO_PRESENCE_FLOORS=1` lists every floor with its area and place.
+
+## Pokémon XD
+
+XD has a Discord application of its own once its ID is in `src/games.js` (`discordAppId` in the `xd` entry); until
+then XD's activity goes through Colosseum's application, with Colosseum's pictures for the places both games share
+and XD's title for the rest. Upload these to XD's application, 1024 × 1024. Like Colosseum's, they are frames of the
+port at 4x with XD's HD texture pack and 16:9 widescreen, cropped square; `logo` is XD's title screen.
+
+| Key | Shown for |
+| --- | --- |
+| `logo` | XD's title screen, menus, movies |
+| `launcher` | the small picture in the corner, always |
+| `outskirt_stand` | Outskirt Stand |
+| `phenac_city` | Phenac City |
+| `pyrite_town` | Pyrite Town |
+| `agate_village` | Agate Village |
+| `mt_battle` | Mt. Battle |
+| `realgam_tower` | Realgam Tower |
+| `snagem_hideout` | Snagem Hideout |
+| `orre_colosseum` | Orre Colosseum and online battles |
+| `gateon_port` | Gateon Port |
+| `hq_lab` | the Pokémon HQ Lab |
+| `cipher_lab` | the Cipher Lab |
+| `cipher_key_lair` | Cipher Key Lair |
+| `citadark_isle` | Citadark Isle |
+| `ss_libra` | the S.S. Libra |
+| `kaminkos_house` | Kaminko's House |
+| `poke_spot` | the Rock, Oasis and Cave Poké Spots |
+
+`XD_PLACE_IMAGES` in `src/presence.js` maps XD's place names to these keys. XD's floor table numbers its areas its
+own way, so only a place's name picks a picture.

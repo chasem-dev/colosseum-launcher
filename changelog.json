@@ -18,7 +18,8 @@
       "Online: Beta now builds Colosseum and Pokémon XD from the same newest game, so players of either game can join a room for both games.",
       "Battle Revolution assets: the launcher checks the disc file you choose straight away. A file that isn't Pokémon Battle Revolution, such as your Colosseum disc, another Wii game or a ZIP, is turned down with the reason in a banner under Settings → Gameplay and in the Generation 4 prompt, instead of failing minutes into making the assets, and a copy that looks cut short gets a warning. A wrong disc chosen before shows a banner on the Play page too.",
       "Pokémon XD: with HD textures on, the name screen's title bar is an even dark grey, as it is without the pack, instead of getting darker toward its right end. The launcher takes that one texture out of the installed pack, so nothing needs downloading again.",
-      "Add to Steam: Pokémon XD gets a Steam shortcut of its own, with its own name and artwork, that starts XD. Choose XD on the Play page and select its Add to Steam banner, which now sits on the chosen game's side. A Colosseum shortcut with Skip Launcher now always starts Colosseum, whichever game you chose last in the launcher."
+      "Add to Steam: Pokémon XD gets a Steam shortcut of its own, with its own name and artwork, that starts XD. Choose XD on the Play page and select its Add to Steam banner, which now sits on the chosen game's side. A Colosseum shortcut with Skip Launcher now always starts Colosseum, whichever game you chose last in the launcher.",
+      "Discord: Pokémon XD's activity names the Pokémon HQ Lab and the Rock, Oasis and Cave Poké Spots properly."
     ],
     "game": [
       "Frame rate: Pokémon XD's overworld and battles run at 60 fps too, where they used to stay at 30, at the original game's speed. Choose 30 or 60 fps under Frame rate in Settings.",

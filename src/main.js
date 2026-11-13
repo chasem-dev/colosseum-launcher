@@ -1514,7 +1514,7 @@ function showPresence() {
   const { startedAt, game: latest, online: isOnline } = presenceSession;
   const game = activeGame();
   discordPresence.set(presence.activity(latest, { startedAt, online: isOnline ? { opponent: battle?.opponent || null } : null,
-    gameName: game.name, areaImages: game.id === 'colosseum' }));
+    gameName: game.name, areaImages: game.id === 'colosseum', xdArt: game.id === 'xd' && Boolean(game.discordAppId) }));
 }
 
 function startPresence(startedAt, isOnline) {
