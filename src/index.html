@@ -134,8 +134,9 @@
         <div id="jukebox-tabs" class="jukebox-tabs" role="tablist" aria-label="Kind of sound" hidden>
           <button id="jukebox-tab-music" class="jukebox-tab" role="tab" type="button" aria-selected="true">Music</button>
           <button id="jukebox-tab-sfx" class="jukebox-tab" role="tab" type="button" aria-selected="false">Sound effects</button>
+          <button id="jukebox-tab-playlists" class="jukebox-tab" role="tab" type="button" aria-selected="false">Playlists</button>
         </div>
-        <div class="jukebox-tools">
+        <div id="jukebox-tools" class="jukebox-tools">
           <input id="jukebox-search" class="jukebox-search" type="search" placeholder="Search" aria-label="Search the list" autocomplete="off" spellcheck="false">
           <div id="jukebox-filters" class="jukebox-filters" role="group" aria-label="Show"></div>
           <span id="jukebox-count" class="jukebox-count" role="status"></span>
@@ -151,6 +152,27 @@
         </div>
         <div class="jukebox-body">
           <div id="jukebox-list" class="jukebox-list" aria-label="Songs"></div>
+          <div id="jukebox-playlists" class="jukebox-playlists" hidden>
+            <aside class="jukebox-pl-side" aria-label="Your playlists">
+              <div id="jukebox-pl-list" class="jukebox-pl-list"></div>
+              <form id="jukebox-pl-new" class="jukebox-pl-new">
+                <input id="jukebox-pl-name" type="text" maxlength="60" placeholder="New playlist's name" aria-label="New playlist's name" autocomplete="off">
+                <button type="submit" class="subtle">Create</button>
+              </form>
+            </aside>
+            <section id="jukebox-pl-main" class="jukebox-pl-main" aria-label="Playlist">
+              <div class="jukebox-pl-head">
+                <input id="jukebox-pl-title" class="jukebox-pl-title" type="text" maxlength="60" aria-label="Playlist's name" autocomplete="off">
+                <span id="jukebox-pl-count" class="jukebox-count"></span>
+                <button id="jukebox-pl-play" type="button" class="solid">Play</button>
+                <button id="jukebox-pl-shuffle" type="button" class="subtle">Shuffle</button>
+                <button id="jukebox-pl-delete" type="button" class="subtle">Delete</button>
+              </div>
+              <ol id="jukebox-pl-songs" class="jukebox-pl-songs"></ol>
+              <p id="jukebox-pl-empty" class="helper">This playlist is empty. Right-click a song in Music or Sound effects, or use the player's Add to playlist button, to add it here.</p>
+            </section>
+            <p id="jukebox-pl-none" class="helper jukebox-pl-none">You have no playlists yet. Make one here, or right-click any song and choose New playlist.</p>
+          </div>
           <p id="jukebox-nomatch" class="helper" hidden>Nothing matches that search.</p>
           <p id="jukebox-empty" class="helper" hidden>The list of songs isn't available yet.</p>
         </div>
@@ -413,6 +435,7 @@
       </div>
       </section>
     </main>
+    <div id="jukebox-menu" class="jukebox-menu" role="menu" aria-label="Add to playlist" hidden></div>
     <section id="jukebox-dock" class="jukebox-dock" aria-label="Music player" hidden>
       <div class="jukebox-progress"><span id="jukebox-time" class="jukebox-clock">0:00</span><input id="jukebox-seek" type="range" min="0" max="1000" value="0" aria-label="Position in the song" disabled><span id="jukebox-length" class="jukebox-clock">0:00</span></div>
       <div class="jukebox-title"><span id="jukebox-disc" class="jukebox-disc" aria-hidden="true"></span><div class="jukebox-now"><strong id="jukebox-now">Nothing playing</strong><span id="jukebox-status" role="status"></span></div></div>
@@ -421,6 +444,7 @@
         <button id="jukebox-toggle" class="solid" aria-label="Play" title="Play or pause">Play</button>
         <button id="jukebox-stop" class="subtle" aria-label="Stop" title="Stop"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1"/></svg></button>
         <button id="jukebox-next" class="subtle" aria-label="Next song" title="Next song"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12M4 4.5v11l8-5.5z"/></svg></button>
+        <button id="jukebox-add" class="subtle" aria-label="Add to playlist" title="Add this song to a playlist" aria-haspopup="menu"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h9M3 9.5h9M3 14h5M15 11v7M11.5 14.5h7"/></svg></button>
         <label class="jukebox-loop"><input id="jukebox-loop" type="checkbox"><span>Loop</span></label>
         <label class="jukebox-volume"><span>Volume</span><input id="jukebox-volume" type="range" min="0" max="100" value="100" aria-label="Volume"></label>
         <button id="jukebox-close" class="subtle jukebox-close" aria-label="Close the music player" title="Close the music player (stops the music)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
@@ -547,6 +571,7 @@
   <script src="team-builder.js"></script>
   <script src="online-page.js"></script>
   <script src="jukebox-cover.js"></script>
+  <script src="jukebox-playlists.js"></script>
   <script src="jukebox-page.js"></script>
 </body>
 </html>

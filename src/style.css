@@ -1196,3 +1196,55 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
   .jukebox-list[data-view="compact"] .jukebox-track, .jukebox-list[data-view="compact"] .jukebox-columns { grid-template-columns: minmax(0, 1fr) 56px; }
   .jukebox-list[data-view] .jukebox-track-type, .jukebox-columns [data-sort="type"] { display: none; }
 }
+
+/* Playlists: the player's own, on the left; the chosen one's songs on the right */
+.jukebox-tab[hidden] { display: none; }
+.jukebox-tools[hidden], .jukebox-list[hidden] { display: none; }
+.jukebox-playlists { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.jukebox-playlists[hidden] { display: none; }
+.jukebox-pl-side { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; }
+.jukebox-pl-list { display: flex; flex-direction: column; gap: 4px; }
+.jukebox-pl-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 8px 12px; border: 1px solid var(--jk-line); border-radius: 8px; background: var(--jk-panel); color: inherit; font: inherit; font-size: 13px; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.jukebox-pl-item:hover { background: var(--jk-hover); }
+.jukebox-pl-item[aria-current="true"] { background: var(--jk-selected); border-color: var(--jk-accent); }
+.jukebox-pl-item.playing span:first-child::before { content: "\266A  "; color: var(--jk-accent); }
+.jukebox-pl-new, .jukebox-menu-new { display: flex; gap: 6px; }
+.jukebox-pl-new input, .jukebox-menu-new input, .jukebox-pl-title { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--jk-line); border-radius: 8px; background: var(--jk-panel); color: var(--jk-text); font: inherit; font-size: 13px; }
+.jukebox-pl-main[hidden], .jukebox-pl-none[hidden] { display: none; }
+.jukebox-pl-none { grid-column: 2; }
+.jukebox-pl-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.jukebox-pl-title { flex: 1 1 200px; font-size: 16px; font-weight: 700; }
+.jukebox-pl-head .jukebox-count { margin-left: 0; }
+.jukebox-pl-songs { list-style: none; margin: 0; padding: 0; border: 1px solid var(--jk-line); border-radius: 8px; background: var(--jk-panel); counter-reset: song; }
+.jukebox-pl-songs:empty { display: none; }
+.jukebox-pl-song { display: grid; grid-template-columns: minmax(0, 1fr) 110px 56px auto; gap: 12px; align-items: center; padding: 4px 8px 4px 14px; border-bottom: 1px solid var(--jk-line); cursor: grab; counter-increment: song; }
+.jukebox-pl-song:last-child { border-bottom: 0; }
+.jukebox-pl-song.dragging { opacity: .45; }
+.jukebox-pl-song.selected { box-shadow: inset 3px 0 0 var(--jk-accent); }
+.jukebox-pl-song.missing .jukebox-track-name { color: var(--jk-muted); font-style: italic; }
+.jukebox-pl-name { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
+.jukebox-pl-name::before { content: counter(song); min-width: 20px; color: var(--jk-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.jukebox-pl-song.playing .jukebox-pl-name::before { content: "\266A"; color: var(--jk-accent); }
+.jukebox-pl-name:disabled { cursor: default; }
+.jukebox-pl-song .jukebox-track-type { display: block; font-size: 12px; color: var(--jk-muted); }
+.jukebox-pl-song .jukebox-track-length { text-align: right; }
+.jukebox-pl-tools { display: inline-flex; gap: 2px; }
+.jukebox-pl-tools button { min-width: 28px; padding: 3px 6px; font-size: 13px; line-height: 1.2; }
+.jukebox-pl-name:focus-visible, .jukebox-pl-item:focus-visible { outline: 2px solid var(--jk-accent); outline-offset: 1px; }
+/* The Add to playlist menu */
+.jukebox-menu { position: fixed; z-index: 50; min-width: 220px; max-width: 300px; max-height: 60vh; overflow-y: auto; padding: 6px; border: 1px solid var(--jk-line); border-radius: 10px; background: var(--jk-panel); color: var(--jk-text); box-shadow: 0 10px 30px #32081a40; display: flex; flex-direction: column; gap: 2px; --jk-line: #e8dfe8; --jk-panel: #fff; --jk-muted: #7f6476; --jk-hover: #f5f0f6; --jk-selected: #f3e6f1; --jk-accent: #841d74; --jk-text: #2b1022; }
+.dark .jukebox-menu { --jk-line: #5e2d48; --jk-panel: #3a1427; --jk-muted: #c8abc0; --jk-hover: #4b1d35; --jk-selected: #5a2342; --jk-accent: #ffc75a; --jk-text: #fbeff8; }
+.jukebox-menu[hidden] { display: none; }
+.jukebox-menu-title { padding: 4px 8px 6px; font-size: 11px; font-weight: 700; color: var(--jk-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jukebox-menu [role="menuitemcheckbox"] { display: flex; gap: 8px; padding: 7px 8px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 13px; text-align: left; white-space: normal; }
+.jukebox-menu [role="menuitemcheckbox"]::before { content: ""; flex: none; width: 14px; text-align: center; color: var(--jk-accent); }
+.jukebox-menu [role="menuitemcheckbox"][aria-checked="true"]::before { content: "\2713"; }
+.jukebox-menu [role="menuitemcheckbox"]:hover, .jukebox-menu [role="menuitemcheckbox"]:focus-visible { background: var(--jk-hover); outline: none; }
+.jukebox-menu-new { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--jk-line); }
+@media (max-width: 720px) {
+  .jukebox-playlists { grid-template-columns: 1fr; }
+  .jukebox-pl-side { position: static; }
+  .jukebox-pl-none { grid-column: 1; }
+  .jukebox-pl-song { grid-template-columns: minmax(0, 1fr) 48px auto; }
+  .jukebox-pl-song .jukebox-track-type { display: none; }
+}

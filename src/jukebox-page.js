@@ -17,10 +17,15 @@
 
   let tracks = null, loading = null, current = null, busy = false, notice = '', tab = 'music', query = '', filter = 'all';
   let state = { playing: null, paused: false, volume: 100 };
+  // The player's playlists (jukebox-playlists.js), the one open in the Playlists tab, and the one playing: { id, name, order (song
+  // ids), at, shuffled } while songs play from a playlist, when previous, next and a song's end go through it alone.
+  const lists = window.coloJukeboxPlaylists;
+  let playlists = [], chosen = null, queue = null;
   let context = null, gain = null, active = null, token = 0;
   const songs = new Map();   // id -> { buffer, loop }, oldest first
   // Music or a sound effect: each has its tab, and the previous and next buttons stay among those of the same kind.
   const kindOf = track => (track?.kind === 'sfx' ? 'sfx' : 'music');
+  const TABS = ['music', 'sfx', 'playlists'];
   const pool = () => {
     if (!tracks) return [];
     const kind = current ? kindOf(tracks.find(each => each.id === current)) : tab;
@@ -90,9 +95,14 @@
   function render() {
     const list = $('jukebox-list');
     const hasEffects = Boolean(tracks?.some(each => kindOf(each) === 'sfx'));
-    if (!hasEffects) tab = 'music';
-    $('jukebox-tabs').hidden = !hasEffects;
-    for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).setAttribute('aria-selected', String(tab === kind));
+    if (!hasEffects && tab === 'sfx') tab = 'music';
+    $('jukebox-tabs').hidden = !tracks;
+    $('jukebox-tab-sfx').hidden = !hasEffects;
+    for (const kind of TABS) $(`jukebox-tab-${kind}`).setAttribute('aria-selected', String(tab === kind));
+    const onPlaylists = tab === 'playlists';
+    $('jukebox-tools').hidden = $('jukebox-list').hidden = onPlaylists;
+    $('jukebox-playlists').hidden = !onPlaylists;
+    if (onPlaylists) { $('jukebox-nomatch').hidden = true; renderPlaylists(); }
     if (!filtersFor().some(([id]) => id === filter)) filter = 'all';
     const options = filtersFor();
     const bar = $('jukebox-filters');
@@ -110,11 +120,11 @@
     }
     bar.hidden = options.length < 2;
     for (const chip of bar.children) chip.setAttribute('aria-pressed', String(chip.dataset.filter === filter));
-    const view = views[tab];
+    const view = views[tab] ?? 'grid';
     for (const button of $('jukebox-views').children) button.setAttribute('aria-pressed', String(button.dataset.view === view));
     $('jukebox-sort').value = sort;
     const shown = `${tab}:${filter}:${query}:${sort}:${view}:${tracks?.length}`;
-    if (tracks && list.dataset.rendered !== shown) {
+    if (tracks && !onPlaylists && list.dataset.rendered !== shown) {
       const items = view === 'grid' ? [] : [columns(view)];
       let group = null;
       const visible = ordered(tracks.filter(each => kindOf(each) === tab && matches(each)));
@@ -181,7 +191,9 @@
     const disc = $('jukebox-disc');
     if (disc.dataset.id !== (track?.id ?? '')) { disc.innerHTML = track ? window.coloJukeboxCover.disc(track) : ''; disc.dataset.id = track?.id ?? ''; }
     disc.classList.toggle('spinning', Boolean(state.playing) && !state.paused);
-    $('jukebox-status').textContent = notice || (busy ? 'Preparing the song…' : state.playing ? (state.paused ? 'Paused' : 'Playing') : current ? 'Ready' : '');
+    const where = queue ? ` · ${queue.name}, ${queue.at + 1} of ${queue.order.length}${queue.shuffled ? ', shuffled' : ''}` : '';
+    $('jukebox-status').textContent = notice || ((busy ? 'Preparing the song…' : state.playing ? (state.paused ? 'Paused' : 'Playing') : current ? 'Ready' : '') + where);
+    $('jukebox-add').disabled = !current;
     const playing = Boolean(state.playing) && !state.paused;
     $('jukebox-toggle').textContent = playing ? 'Pause' : state.paused ? 'Resume' : 'Play';
     $('jukebox-toggle').setAttribute('aria-label', $('jukebox-toggle').textContent);
@@ -254,7 +266,8 @@
     if (!keepPaused) await ctx.resume();
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    if (loop) { source.loopStart = loop.start; source.loopEnd = loop.end; source.loop = $('jukebox-loop').checked; }
+    // in a playlist a song plays through once, and Loop starts the playlist again after its last
+    if (loop) { source.loopStart = loop.start; source.loopEnd = loop.end; source.loop = $('jukebox-loop').checked && !queue; }
     source.connect(gain);
     source.onended = () => { if (active?.source === source) { active = null; state = { ...state, playing: null, paused: false }; render(); finished(); } };
     // the length shown is the list's (the song played once), not the buffer's: that has the seconds the sound takes to die away after it
@@ -273,7 +286,7 @@
     if (!found) return;
     const paused = state.paused, old = active.source;
     let at = Math.max(0, Math.min(active.duration - 0.05, seconds));
-    if (found.loop && $('jukebox-loop').checked && at >= found.loop.end) at = found.loop.start;
+    if (found.loop && $('jukebox-loop').checked && !queue && at >= found.loop.end) at = found.loop.start;
     old.onended = null;
     try { old.stop(); } catch (_) { /* already over */ }
     old.disconnect();
@@ -282,7 +295,9 @@
     render();
   }
 
-  async function play(id) {
+  // fromQueue: the song is the playlist's next; a song picked from a list ends playing from the playlist
+  async function play(id, fromQueue = false) {
+    if (!fromQueue) queue = null;
     const mine = ++token;
     current = id;
     notice = '';
@@ -328,6 +343,10 @@
 
   function step(offset) {
     if (!tracks?.length) return;
+    if (queue) {
+      queue.at = (queue.at + offset + queue.order.length) % queue.order.length;
+      return play(queue.order[queue.at], true);
+    }
     const list = pool(), at = index();
     if (!list.length) return;
     return play(list[(at < 0 ? (offset > 0 ? 0 : list.length - 1) : (at + offset + list.length) % list.length)].id);
@@ -335,6 +354,15 @@
 
   // A song that played through on its own: the same one again when looping, else the next, and the list's end stops.
   function finished() {
+    if (queue) {
+      if (queue.at < queue.order.length - 1) { queue.at++; return play(queue.order[queue.at], true); }
+      if (!$('jukebox-loop').checked) return;
+      const playlist = playlists.find(each => each.id === queue.id);
+      const again = playlist ? lists.order(playlist, has, queue.shuffled) : queue.order;
+      if (!again.length) return;
+      queue = { ...queue, order: again, at: 0 };
+      return play(again[0], true);
+    }
     if ($('jukebox-loop').checked) return play(current);
     // a sound effect is played once, and again only when Loop is on; it does not go on to the next
     const list = pool(), at = index();
@@ -342,7 +370,8 @@
   }
 
   function load() {
-    loading ||= window.colo.jukeboxTracks().then(list => { tracks = list; render(); })
+    loading ||= Promise.all([window.colo.jukeboxTracks(), window.colo.jukeboxPlaylists().catch(() => [])])
+      .then(([list, saved]) => { tracks = list; playlists = saved; if (!playlists.some(each => each.id === chosen)) chosen = playlists[0]?.id ?? null; render(); })
       .catch(error => { loading = null; notice = message(error); render(); });
     return loading;
   }
@@ -355,14 +384,14 @@
   $('jukebox-sort').addEventListener('change', event => setSort(event.target.value));
   for (const button of $('jukebox-views').children) button.addEventListener('click', () => { views[tab] = button.dataset.view; store(`jukebox-view-${tab}`, views[tab]); render(); });
   $('jukebox-search').addEventListener('input', event => { query = event.target.value.trim(); render(); });
-  for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).addEventListener('click', () => { tab = kind; filter = 'all'; render(); });
+  for (const kind of TABS) $(`jukebox-tab-${kind}`).addEventListener('click', () => { tab = kind; filter = 'all'; closeMenu(); render(); });
   $('jukebox-previous').addEventListener('click', () => step(-1));
   $('jukebox-next').addEventListener('click', () => step(1));
   $('jukebox-volume').addEventListener('input', event => volume(event.target.value));
   // A song with a loop point of its own repeats it only while Loop is on: turned off, it goes on to its end.
   // (Its place is worked out first, since where the sound is depends on whether it was wrapping.)
   $('jukebox-loop').addEventListener('change', event => {
-    if (!active?.loop) return;
+    if (!active?.loop || queue) return;
     active.offset = position();
     active.startedAt = context.currentTime;
     active.source.loop = event.target.checked;
@@ -376,8 +405,216 @@
     if (active) seek(event.target.value / 1000 * active.shown);
   });
 
+  // --- Playlists ------------------------------------------------------------------------------------------------------------
+
+  const has = id => Boolean(tracks?.some(each => each.id === id));
+  const trackOf = id => tracks?.find(each => each.id === id);
+  // A change to the playlists: shown at once, then saved; what the launcher kept is what stays.
+  function savePlaylists(next) {
+    playlists = next;
+    if (!playlists.some(each => each.id === chosen)) chosen = playlists[0]?.id ?? null;
+    render();
+    window.colo.jukeboxSavePlaylists(next).then(kept => { playlists = kept; render(); })
+      .catch(error => { notice = `The playlists could not be saved: ${message(error)}`; render(); });
+  }
+  function newPlaylist(name, song = null) {
+    const made = lists.create(playlists, name);
+    if (!made.id) return null;
+    savePlaylists(song ? lists.add(made.list, made.id, song) : made.list);
+    return made.id;
+  }
+  // Play a playlist from one of its songs (its place in the order played), or shuffled.
+  function playPlaylist(id, shuffled = false, from = null) {
+    const playlist = playlists.find(each => each.id === id);
+    const order = playlist ? lists.order(playlist, has, shuffled) : [];
+    if (!order.length) return;
+    const at = from === null ? 0 : Math.max(0, order.indexOf(from));
+    queue = { id, name: playlist.name, order, at, shuffled };
+    return play(order[at], true);
+  }
+
+  let confirmDelete = 0;   // when Delete was first pressed: a second press within a few seconds deletes
+  function renderPlaylists() {
+    const side = $('jukebox-pl-list');
+    side.replaceChildren(...playlists.map(each => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'jukebox-pl-item';
+      if (each.id === chosen) button.setAttribute('aria-current', 'true');
+      const name = document.createElement('span');
+      name.textContent = each.name;
+      const count = document.createElement('span');
+      count.className = 'jukebox-track-length';
+      count.textContent = String(each.songs.length);
+      button.append(name, count);
+      if (queue?.id === each.id) button.classList.add('playing');
+      button.addEventListener('click', () => { chosen = each.id; confirmDelete = 0; render(); });
+      return button;
+    }));
+    const playlist = playlists.find(each => each.id === chosen);
+    $('jukebox-pl-none').hidden = playlists.length > 0;
+    $('jukebox-pl-main').hidden = !playlist;
+    if (!playlist) return;
+    const title = $('jukebox-pl-title');
+    if (document.activeElement !== title) title.value = playlist.name;
+    const playable = playlist.songs.filter(has);
+    $('jukebox-pl-count').textContent = playable.length === playlist.songs.length ? `${playlist.songs.length}` : `${playable.length} of ${playlist.songs.length} on this disc`;
+    $('jukebox-pl-play').disabled = $('jukebox-pl-shuffle').disabled = !playable.length;
+    $('jukebox-pl-delete').textContent = confirmDelete && Date.now() - confirmDelete < 4000 ? 'Delete it?' : 'Delete';
+    $('jukebox-pl-empty').hidden = playlist.songs.length > 0;
+    const songs = $('jukebox-pl-songs');
+    songs.replaceChildren(...playlist.songs.map((id, index) => {
+      const track = trackOf(id), row = document.createElement('li');
+      row.className = 'jukebox-pl-song';
+      row.draggable = true;
+      row.dataset.index = String(index);
+      if (!track) row.classList.add('missing');
+      if (id === current) row.classList.add('selected');
+      if (id === state.playing && !state.paused) row.classList.add('playing');
+      const name = document.createElement('button');
+      name.type = 'button';
+      name.className = 'jukebox-pl-name';
+      if (track) {
+        const chip = document.createElement('span');
+        chip.className = 'jukebox-chip';
+        chip.setAttribute('aria-hidden', 'true');
+        chip.innerHTML = window.coloJukeboxCover.disc(track);
+        name.append(chip);
+      }
+      const text = document.createElement('span');
+      text.className = 'jukebox-track-name';
+      text.textContent = track ? track.name : 'A song this disc does not have';
+      name.append(text);
+      name.disabled = !track;
+      name.addEventListener('click', () => playPlaylist(playlist.id, false, id));
+      const type = document.createElement('span');
+      type.className = 'jukebox-track-type';
+      type.textContent = track ? typeOf(track) : '';
+      const length = document.createElement('span');
+      length.className = 'jukebox-track-length';
+      length.textContent = typeof track?.seconds === 'number' ? lengthText(track.seconds) : '';
+      const tools = document.createElement('span');
+      tools.className = 'jukebox-pl-tools';
+      for (const [label, glyph, act, off] of [
+        ['Move up', '\u2191', () => savePlaylists(lists.move(playlists, playlist.id, index, index - 1)), index === 0],
+        ['Move down', '\u2193', () => savePlaylists(lists.move(playlists, playlist.id, index, index + 1)), index === playlist.songs.length - 1],
+        ['Remove from the playlist', '\u00d7', () => savePlaylists(lists.drop(playlists, playlist.id, id)), false]]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'subtle';
+        button.textContent = glyph;
+        button.title = label;
+        button.setAttribute('aria-label', `${label}: ${track?.name ?? 'missing song'}`);
+        button.disabled = off;
+        button.addEventListener('click', act);
+        tools.append(button);
+      }
+      row.append(name, type, length, tools);
+      // dragging a row to another place
+      row.addEventListener('dragstart', event => { event.dataTransfer.setData('text/plain', String(index)); event.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      row.addEventListener('dragover', event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; });
+      row.addEventListener('drop', event => {
+        event.preventDefault();
+        const from = Number(event.dataTransfer.getData('text/plain'));
+        if (Number.isInteger(from)) savePlaylists(lists.move(playlists, playlist.id, from, index));
+      });
+      return row;
+    }));
+  }
+
+  $('jukebox-pl-new').addEventListener('submit', event => {
+    event.preventDefault();
+    const field = $('jukebox-pl-name'), id = newPlaylist(field.value);
+    if (id) { chosen = id; field.value = ''; render(); }
+  });
+  $('jukebox-pl-title').addEventListener('change', event => savePlaylists(lists.rename(playlists, chosen, event.target.value)));
+  $('jukebox-pl-title').addEventListener('keydown', event => { if (event.key === 'Enter') event.target.blur(); });
+  $('jukebox-pl-play').addEventListener('click', () => playPlaylist(chosen));
+  $('jukebox-pl-shuffle').addEventListener('click', () => playPlaylist(chosen, true));
+  $('jukebox-pl-delete').addEventListener('click', () => {
+    if (confirmDelete && Date.now() - confirmDelete < 4000) { confirmDelete = 0; savePlaylists(lists.remove(playlists, chosen)); return; }
+    confirmDelete = Date.now();
+    render();
+    setTimeout(render, 4100);
+  });
+
+  // The Add to playlist menu: a song's playlists to tick, and a new one to make with it. Opened by right-clicking a song, or by
+  // the player's button for the song it has.
+  const menu = $('jukebox-menu');
+  let menuFor = null, menuOpener = null;
+  function closeMenu() {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    menuFor = null;
+    menuOpener?.focus?.();
+    menuOpener = null;
+  }
+  function fillMenu() {
+    const items = [];
+    const heading = document.createElement('div');
+    heading.className = 'jukebox-menu-title';
+    heading.textContent = trackOf(menuFor)?.name ?? '';
+    items.push(heading);
+    for (const each of playlists) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.setAttribute('role', 'menuitemcheckbox');
+      const inIt = each.songs.includes(menuFor);
+      item.setAttribute('aria-checked', String(inIt));
+      item.textContent = each.name;
+      item.addEventListener('click', () => { savePlaylists(inIt ? lists.drop(playlists, each.id, menuFor) : lists.add(playlists, each.id, menuFor)); fillMenu(); });
+      items.push(item);
+    }
+    const form = document.createElement('form');
+    form.className = 'jukebox-menu-new';
+    const field = document.createElement('input');
+    field.type = 'text';
+    field.maxLength = lists.LONGEST_NAME;
+    field.placeholder = 'New playlist';
+    field.setAttribute('aria-label', 'New playlist with this song');
+    const add = document.createElement('button');
+    add.type = 'submit';
+    add.className = 'subtle';
+    add.textContent = 'Create';
+    form.append(field, add);
+    form.addEventListener('submit', event => { event.preventDefault(); if (newPlaylist(field.value, menuFor)) { fillMenu(); } });
+    items.push(form);
+    menu.replaceChildren(...items);
+  }
+  // x, y: where it opens (it is moved to stay in the window); above: it opens upward from y, as from the player
+  function openMenu(id, x, y, opener, above = false) {
+    if (!trackOf(id)) return;
+    menuFor = id;
+    menuOpener = opener;
+    fillMenu();
+    menu.hidden = false;
+    const box = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - box.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(above ? y - box.height - 6 : y, innerHeight - box.height - 8))}px`;
+    (menu.querySelector('[role=menuitemcheckbox]') ?? menu.querySelector('input'))?.focus();
+  }
+  $('jukebox-list').addEventListener('contextmenu', event => {
+    const button = event.target.closest('.jukebox-track');
+    if (!button) return;
+    event.preventDefault();
+    const box = button.getBoundingClientRect();
+    // from the keyboard (the context menu key) there is no pointer: the menu opens at the song
+    const x = event.clientX || box.left + 12, y = event.clientY || box.bottom;
+    openMenu(button.dataset.id, x, y, button);
+  });
+  $('jukebox-add').addEventListener('click', event => {
+    if (!menu.hidden) return closeMenu();
+    const box = event.currentTarget.getBoundingClientRect();
+    openMenu(current, box.left, box.top, event.currentTarget, true);
+  });
+  document.addEventListener('mousedown', event => { if (!menu.hidden && !menu.contains(event.target) && event.target.closest('#jukebox-add') === null) closeMenu(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !menu.hidden) { event.preventDefault(); closeMenu(); } });
+
   // Ends the music and puts the player away: lets go of the sound device and of the disc.
   function close() {
+    queue = null;
+    closeMenu();
     token++;
     busy = false;
     silence();
@@ -401,6 +638,8 @@
       tracks = null;
       loading = null;
       tab = 'music';
+      playlists = [];
+      chosen = queue = null;
       query = '';
       filter = 'all';
       $('jukebox-search').value = '';
