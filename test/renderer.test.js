@@ -332,7 +332,8 @@ test('turning on Generation 4 Pokémon asks for the Battle Revolution disc, and 
   const ui = await renderer(data);
   ui.window.colo.choosePbrDisc = async () => {
     ui.calls.push('choosePbrDisc');
-    data.pbr = { ...data.pbr, disc: '/games/pbr.rvz', discFound: true };
+    data.pbr = { ...data.pbr, disc: '/games/pbr.rvz', discFound: true,
+      choice: { ok: true, file: '/games/pbr.rvz', message: 'The North American release of Pokémon Battle Revolution (RPBE01, RVZ).', at: 1 } };
     return data;
   };
   ui.window.colo.makePbrModels = async () => { ui.calls.push('makePbrModels'); return data; };
@@ -342,9 +343,49 @@ test('turning on Generation 4 Pokémon asks for the Battle Revolution disc, and 
   assert.equal(ui.elements.get('pbr-offer-confirm').textContent, 'Choose disc');
   assert.match(ui.elements.get('pbr-offer-lead').textContent, /your own Wii disc/);
   await ui.click('pbr-offer-confirm');
-  await new Promise(setImmediate);
+  for (let i = 0; i < 4; i++) await new Promise(setImmediate);
   assert.equal(ui.elements.get('pbr-offer').open, false);
   assert.deepEqual(ui.calls.filter(call => typeof call === 'string'), ['choosePbrDisc', 'makePbrModels']);
+  assert.equal(ui.elements.get('pbr-check').hidden, false);
+  assert.equal(ui.elements.get('pbr-check-title').textContent, 'Battle Revolution disc found');
+});
+
+// A file that isn't Battle Revolution: the offer stays open and says why, nothing is made, and Settings says so too
+test('a wrong disc file keeps the offer open with the reason in a banner, and makes nothing', async () => {
+  const data = gen4State();
+  const ui = await renderer(data);
+  const reason = 'That\'s Pokémon Colosseum (GC6E01), a GameCube disc. Pokémon Battle Revolution is a Wii disc.';
+  ui.window.colo.choosePbrDisc = async () => {
+    ui.calls.push('choosePbrDisc');
+    data.pbr = { ...data.pbr, choice: { ok: false, file: '/games/Pokemon Colosseum (USA).iso', message: reason, at: 2 } };
+    return data;
+  };
+  ui.window.colo.makePbrModels = async () => { ui.calls.push('makePbrModels'); return data; };
+  await turnOnGen4(ui);
+  assert.equal(ui.elements.get('pbr-offer-check').hidden, true);
+  await ui.click('pbr-offer-confirm');
+  for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+  assert.equal(ui.elements.get('pbr-offer').open, true);
+  assert.equal(ui.elements.get('pbr-offer-check').hidden, false);
+  assert.equal(ui.elements.get('pbr-offer-check-title').textContent, 'Pokemon Colosseum (USA).iso can\'t be used');
+  assert.equal(ui.elements.get('pbr-offer-check-detail').textContent, reason);
+  assert.equal(ui.elements.get('pbr-offer-confirm').textContent, 'Choose another file');
+  assert.equal(ui.elements.get('pbr-check').hidden, false);
+  assert.equal(ui.elements.get('pbr-check-detail').textContent, reason);
+  assert.deepEqual(ui.calls.filter(call => typeof call === 'string'), ['choosePbrDisc']);
+  await ui.click('pbr-check-close');
+  assert.equal(ui.elements.get('pbr-check').hidden, true);
+});
+
+// One chosen before the launcher checked: the Play page and Settings say it can't be used, and Make assets is off
+test('a kept disc that is not Battle Revolution is flagged on Play and in Settings', async () => {
+  const ui = await renderer(gen4State({ disc: '/games/other.iso', discFound: true, discProblem: 'That\'s "Wii Sports" (RSPE01), not Pokémon Battle Revolution.' }));
+  assert.equal(ui.elements.get('pbr-banner').hidden, false);
+  assert.equal(ui.elements.get('pbr-banner-title').textContent, 'Your Battle Revolution disc can\'t be used');
+  assert.equal(ui.elements.get('pbr-banner-make').textContent, 'Open Settings');
+  assert.equal(ui.elements.get('pbr-check').hidden, false);
+  assert.match(ui.elements.get('pbr-check-detail').textContent, /^other\.iso: That's "Wii Sports"/);
+  assert.equal(ui.elements.get('make-pbr-models').disabled, true);
 });
 
 test('a disc chosen before is offered straight away, and nothing is asked once every model is made', async () => {
