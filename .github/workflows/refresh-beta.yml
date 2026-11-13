@@ -6,7 +6,9 @@ name: Refresh Beta
 #     tests or workflows alone in either; put [skip ci] in a launcher commit
 #     message to skip the push build);
 #   - Actions > Refresh Beta > Run workflow rebuilds it right away.
-# The build itself is build.yml with "beta".
+# The build itself is build.yml with "beta". Pokémon XD (src/xd-release.json) is
+# on the same repository and branch (scripts/game-pins.js checks), so the game's
+# branch moving rebuilds both games, from the same newest commit.
 on:
   push:
     branches: [main]

@@ -223,6 +223,17 @@ test("XD checks out the port's XD commit with its own decomp in deps/pkmn-xd", {
   assert.notEqual(path.dirname(game.snapshotPath(games.checkoutPath(home, 'colosseum'))), path.dirname(game.snapshotPath(root, pinned)));
 });
 
+test("a Stable release pins XD at Colosseum's port commit, with the XD decomp that commit names", () => {
+  const { xdReleaseFor } = require('../scripts/game-pins');
+  const colosseum = { ...game.release, version: '2026.11.13.2', commit: 'a'.repeat(40) };
+  const next = xdReleaseFor(xdRelease, colosseum, 'b'.repeat(40));
+  assert.deepEqual(next, { ...xdRelease, version: '2026.11.13.xd2', commit: 'a'.repeat(40), decomp: 'b'.repeat(40) });
+  assert.match(next.version, /^\d{4}\.\d{2}\.\d{2}\.xd\d+$/, "the form XD's pin always has");
+  assert.throws(() => xdReleaseFor(xdRelease, colosseum, ''), /doesn't build XD: .*XD_DECOMP_REF/);
+  assert.throws(() => xdReleaseFor({ ...xdRelease, branch: 'other' }, colosseum, 'b'.repeat(40)), /repository and branch/);
+  assert.throws(() => xdReleaseFor(xdRelease, { ...colosseum, version: 'ci' }, 'b'.repeat(40)), /YYYY\.MM\.DD\.N/);
+});
+
 test("a custom source for XD takes XD's decomp from the port's CI script, or keeps its pin's, and says it is XD's", async () => {
   const override = gameSource.normalizeOverride({ port: { ref: 'a'.repeat(40) } }, xdRelease);
   assert.equal(override.port.repository, xdRelease.repository);
