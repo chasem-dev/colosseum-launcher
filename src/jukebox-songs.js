@@ -57,13 +57,10 @@ function read(disc) {
   return [...arrange(readTracks(disc)), ...readEffects(disc)];
 }
 
-// The sound effects (jukebox-effects.js), for the page's second tab; XD's disc has none listed here.
+// The sound effects (jukebox-effects.js), for the page's second tab.
 function readEffects(disc) {
-  if (xdDisc.isXd(disc)) return [];
-  const common = fsys.entries(disc.file('common.fsys')).find(entry => entry.name === 'common_rel');
-  if (!common) return [];
-  const data = pokedex.relData(common.data());
-  return effects.list(effects.readBanks(disc), Buffer.from(data.subarray(SOUNDS.offset, SOUNDS.offset + SOUNDS.count * SOUNDS.size)));
+  const set = effects.read(disc);
+  return set ? effects.list(set) : [];
 }
 
 function readTracks(disc) {

@@ -20,14 +20,22 @@ function bank(label, key = 60, format = 0) {
 test('the effects are the sound table\'s flagged rows of the known groups, numbered in their group', () => {
   const sounds = table([[5, SOUND_EFFECT, 5, 1], [6, SOUND_EFFECT, 6, 1], [7, SOUND_EFFECT, 6, 1], [8, 0, 6, 1], [9, SOUND_EFFECT, 4, 1], [10, SOUND_EFFECT, 6, 2]]);
   const banks = new Map([[5, bank('Battle')], [6, bank('General')]]);
-  const list = effects.list(banks, sounds);
+  const list = effects.list({ layout: effects.LAYOUTS.colosseum, rows: sounds, banks });
   assert.deepEqual(list.map(each => [each.id, each.name, each.group]), [['6', 'General effect 1', 'General'], ['7', 'General effect 2', 'General'], ['5', 'Battle effect 1', 'Battle']]);
   assert.ok(list.every(each => each.kind === 'sfx' && each.seconds === 1));
 });
 
 test('an effect played at another key is shorter or longer, and what is not DSP-ADPCM is left out', () => {
   const sounds = table([[5, SOUND_EFFECT, 5, 1], [6, SOUND_EFFECT, 6, 1]]);
-  const up = effects.list(new Map([[5, bank('Battle', 72)], [6, bank('General', 60, 2)]]), sounds);
+  const up = effects.list({ layout: effects.LAYOUTS.colosseum, rows: sounds, banks: new Map([[5, bank('Battle', 72)], [6, bank('General', 60, 2)]]) });
   assert.equal(up.length, 1);
   assert.equal(up[0].seconds, 0.5);
+});
+
+test('XD\'s rows keep the group in their first byte, and a stream is not an effect', () => {
+  const rows = Buffer.alloc(SOUNDS.size * 5);
+  const put = (id, first, flags, fx) => { rows[id * SOUNDS.size] = first; rows[id * SOUNDS.size + 2] = flags; rows.writeUInt16BE(fx, id * SOUNDS.size + 4); };
+  put(1, 0x21, 0x30, 1); put(2, 0x31, 0x20, 1); put(3, 0x1c, 0x40, 1); put(4, 0x31, 0x40, 1);
+  const list = effects.list({ layout: effects.LAYOUTS.xd, rows, banks: new Map([[2, bank('General')], [3, bank('Battle')]]) });
+  assert.deepEqual(list.map(each => [each.id, each.group]), [['1', 'General'], ['2', 'Battle']]);
 });

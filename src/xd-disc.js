@@ -250,6 +250,12 @@ function soundTables(data) {
   return { data, sounds: table(data, sounds, 8192), files: table(data, files, 8192) };
 }
 
+// XD's sound table, whole, as the jukebox's effects read it (jukebox-effects.js): its rows of TABLES.sounds.size bytes.
+function soundRows(disc) {
+  const data = relOf(disc), count = soundTables(data).sounds;
+  return Buffer.from(data.subarray(TABLES.sounds.offset, TABLES.sounds.offset + count * TABLES.sounds.size));
+}
+
 // A sound id's stream: { archive, head, data } (the archive's number and its two entries' ids, 0 for its own), or null.
 function streamOf(tables, sound) {
   if (!Number.isInteger(sound) || sound < 0 || sound >= tables.sounds) return null;
@@ -400,4 +406,4 @@ function songRenderer(disc) {
 }
 
 module.exports = { TABLES, MODEL_TABLE, GIFTS, isXd, relOf, readDecks, readSpots, readSpecies, classify, readPokedex, colosseumPkx, archiveNames,
-  streamOf, decodeChannel, decodeStream, readCryTables, locateCry, decodeCry, songTitle, readSongs, songRenderer, sampleAt };
+  streamOf, decodeChannel, decodeStream, readCryTables, locateCry, decodeCry, songTitle, readSongs, songRenderer, soundRows, sampleAt };

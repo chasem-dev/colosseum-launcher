@@ -15,7 +15,7 @@
   // A song's length in the list: the clock's, except that a jingle over in a moment shows tenths of a second ("0.4 s").
   const lengthText = seconds => (seconds > 0 && seconds < 9.95 ? `${seconds.toFixed(1)} s` : clock(seconds));
 
-  let tracks = null, loading = null, current = null, busy = false, notice = '', tab = 'music';
+  let tracks = null, loading = null, current = null, busy = false, notice = '', tab = 'music', query = '', filter = 'all';
   let state = { playing: null, paused: false, volume: 100 };
   let context = null, gain = null, active = null, token = 0;
   const songs = new Map();   // id -> { buffer, loop }, oldest first
@@ -28,17 +28,53 @@
   };
   const index = () => pool().findIndex(each => each.id === current);
 
+  // Search and filters: what the list shows. A search ignores case and accents ("pokemon" finds "Pokémon").
+  const plain = text => String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const FILTERS = {
+    music: [['all', 'All'], ['tunes', 'Tunes'], ['battles', 'Battles'], ['jingles', 'Jingles']],
+    sfx: [['all', 'All']]
+  };
+  const matches = track => {
+    if (query && !plain(track.name).includes(plain(query))) return false;
+    if (filter === 'all') return true;
+    if (kindOf(track) === 'sfx') return track.group === filter;
+    const battle = window.coloJukeboxCover.kind(track) === 'battle';
+    return filter === 'jingles' ? Boolean(track.short) : filter === 'battles' ? battle : !track.short && !battle;
+  };
+  // the effects' filters are their groups, as the disc has them
+  const filtersFor = () => (tab === 'sfx'
+    ? [['all', 'All'], ...[...new Set((tracks ?? []).filter(each => kindOf(each) === 'sfx').map(each => each.group))].map(group => [group, group])]
+    : FILTERS.music);
+
   function render() {
     const list = $('jukebox-list');
     const hasEffects = Boolean(tracks?.some(each => kindOf(each) === 'sfx'));
     if (!hasEffects) tab = 'music';
     $('jukebox-tabs').hidden = !hasEffects;
     for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).setAttribute('aria-selected', String(tab === kind));
-    const shown = `${tab}:${tracks?.length}`;
+    if (!filtersFor().some(([id]) => id === filter)) filter = 'all';
+    const options = filtersFor();
+    const bar = $('jukebox-filters');
+    if (bar.dataset.rendered !== `${tab}:${options.length}`) {
+      bar.replaceChildren(...options.map(([id, label]) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'jukebox-filter';
+        chip.dataset.filter = id;
+        chip.textContent = label;
+        chip.addEventListener('click', () => { filter = id; render(); });
+        return chip;
+      }));
+      bar.dataset.rendered = `${tab}:${options.length}`;
+    }
+    bar.hidden = options.length < 2;
+    for (const chip of bar.children) chip.setAttribute('aria-pressed', String(chip.dataset.filter === filter));
+    const shown = `${tab}:${filter}:${query}:${tracks?.length}`;
     if (tracks && list.dataset.rendered !== shown) {
       const items = [];
       let group = null;
-      for (const track of tracks.filter(each => kindOf(each) === tab)) {
+      const visible = tracks.filter(each => kindOf(each) === tab && matches(each));
+      for (const track of visible) {
         // the sound effects are in groups, each under its heading
         if (track.group && track.group !== group) {
           group = track.group;
@@ -79,6 +115,9 @@
       }
       list.replaceChildren(...items);
       list.dataset.rendered = shown;
+      const all = tracks.filter(each => kindOf(each) === tab).length;
+      $('jukebox-count').textContent = visible.length === all ? `${all}` : `${visible.length} of ${all}`;
+      $('jukebox-nomatch').hidden = visible.length > 0;
     }
     for (const button of list.children) {
       button.classList.toggle('selected', button.dataset.id === current);
@@ -264,7 +303,8 @@
     if (current || pool().length) return play(current || pool()[0].id);
   });
   $('jukebox-stop').addEventListener('click', stop);
-  for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).addEventListener('click', () => { tab = kind; render(); });
+  $('jukebox-search').addEventListener('input', event => { query = event.target.value.trim(); render(); });
+  for (const kind of ['music', 'sfx']) $(`jukebox-tab-${kind}`).addEventListener('click', () => { tab = kind; filter = 'all'; render(); });
   $('jukebox-previous').addEventListener('click', () => step(-1));
   $('jukebox-next').addEventListener('click', () => step(1));
   $('jukebox-volume').addEventListener('input', event => volume(event.target.value));
@@ -310,9 +350,16 @@
       tracks = null;
       loading = null;
       tab = 'music';
+      query = '';
+      filter = 'all';
+      $('jukebox-search').value = '';
       $('jukebox-list').dataset.rendered = '';
       $('jukebox-list').replaceChildren();
+      $('jukebox-count').textContent = '';
+      $('jukebox-nomatch').hidden = true;
       render();
+      // the page is open while the game is changed: its list is read again from the other disc
+      if (!$('page-jukebox').hidden) load();
     },
     // Leaving the page doesn't end the music: the player stays under whatever page is open.
     hide() {},
