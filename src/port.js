@@ -176,6 +176,8 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     shinyStarters: input.shinyStarters !== false,
     // A New Game asks whether to begin with Espeon and Umbreon, or two Pokémon the player picks. On unless turned off.
     chooseStarters: input.chooseStarters !== false,
+    // The bag and shops list a TM by its move (Thunderbolt), its number in a tab over the description. On unless turned off.
+    tmNames: input.tmNames !== false,
     // The frame-time overlay at start.
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
@@ -322,6 +324,7 @@ const FEATURE_ENVIRONMENT = {
   shiny: ['COLO_SHINY_SHADOW'],
   shinyStarters: ['COLO_SHINY_STARTERS'],
   starters: ['COLO_CHOOSE_STARTERS'],
+  tmNames: ['COLO_TM_NAMES'],
   battleSpeed: ['COLO_BATTLE_SPEED'],
   quickMoves: ['COLO_QUICK_MOVES', 'COLO_FAST_STATUS', 'SMS_BUTTON_PROMPTS', 'SMS_BUTTON_PROMPT_PAD'],
   hdText: ['COLO_HD_TEXT']
@@ -376,6 +379,7 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   if (settings.shinyShadow === false) env.COLO_SHINY_SHADOW = '0';
   if (settings.shinyStarters === false) env.COLO_SHINY_STARTERS = '0';
   if (settings.chooseStarters === false) env.COLO_CHOOSE_STARTERS = '0';
+  if (settings.tmNames === false) env.COLO_TM_NAMES = '0';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   if (settings.quickMoves) env.COLO_QUICK_MOVES = '1';

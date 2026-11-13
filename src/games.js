@@ -9,7 +9,7 @@ const path = require('node:path');
 // ones its port has so far. Renderer, display, picture and input settings apply to every game.
 const FEATURES = ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdModels', 'hdTextures', 'languagePacks',
   'discordPresence', 'storyParty', 'pcBoxes', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters',
-  'shiny', 'shinyStarters', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves'];
+  'shiny', 'shinyStarters', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves', 'tmNames'];
 
 const GAMES = {
   colosseum: {
@@ -55,9 +55,10 @@ const GAMES = {
     // (host/battlespeed.c, quickmoves.c, shiny.c, starters.c with XD's parts); XD's Eevee can already be shiny, so it
     // has no shinyStarters. The randomizer is the port's shared host/randomizer.c, its stamp read from XD's save
     // (xd-save.js), as is the Story party (story-party.js), which XD's online battles take whole. The Pokédex and the
-    // Jukebox read XD's own disc (xd-disc.js: its species, models, streamed cries and streamed music)
+    // Jukebox read XD's own disc (xd-disc.js: its species, models, streamed cries and streamed music). TMs listed by their
+    // moves' names are host/tmnames.c's, with XD's own bag and shop calls
     features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'hdTextures', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
-      'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets', 'gbaLink', 'randomizer', 'storyParty', 'pokedex', 'jukebox']
+      'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets', 'gbaLink', 'randomizer', 'storyParty', 'pokedex', 'jukebox', 'tmNames']
   }
 };
 

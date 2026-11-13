@@ -241,6 +241,21 @@ test('choosing starters is on unless turned off, and on leaves it to the game', 
   }
 });
 
+test('TMs by move name are on unless turned off, and on leaves it to the game', () => {
+  const env = settings => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port');
+  const saved = process.env.COLO_TM_NAMES;
+  delete process.env.COLO_TM_NAMES;
+  try {
+    assert.equal(port.normalizeSettings({}).tmNames, true);
+    assert.equal(env({}).COLO_TM_NAMES, undefined);
+    assert.equal(env({ tmNames: true }).COLO_TM_NAMES, undefined);
+    assert.equal(env({ tmNames: false }).COLO_TM_NAMES, '0');
+    assert.equal(port.buildEnvironment(port.normalizeSettings({ tmNames: false }), 'disc', '/port', { game: 'xd' }).COLO_TM_NAMES, '0', 'XD has them too');
+  } finally {
+    if (saved !== undefined) process.env.COLO_TM_NAMES = saved;
+  }
+});
+
 test('HD models are on unless turned off, and on leaves it to the game', () => {
   const env = hdModels => port.buildEnvironment(port.normalizeSettings({ hdModels }), 'disc', '/port').COLO_HD_MODELS;
   const saved = process.env.COLO_HD_MODELS;
