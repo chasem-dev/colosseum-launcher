@@ -13,6 +13,11 @@
 // A room's WebSocket can drop in the middle of a battle. Messages between the
 // games are numbered, each launcher keeps what it sent, and when a connection
 // comes back each side says what it last received.
+//
+// Spectators: a third launcher can watch a room's battle. Its game plays the
+// same battle as a spectator's (config side 2), from the room's start and both
+// players' messages, which the room keeps from the battle's start and passes it
+// as they come (`from SIDE LINE` to the game). It says nothing to the room.
 
 const net = require('node:net');
 const { EventEmitter } = require('node:events');
@@ -40,6 +45,7 @@ const REPLY_WAIT = 8000;       // ms to wait for the room server
 const RECONNECT_FOR = 40000;   // ms a dropped connection keeps trying (the room waits 45 seconds)
 const RECONNECT_EVERY = 2000;
 const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const WATCHING = 2;            // a spectator's game's side in its config line
 
 // The code in `text` ("kq7-m2d", "KQ7 M2D", O typed for 0), or null.
 function parseRoomCode(text) {
@@ -162,13 +168,16 @@ const REFUSED = {
   version: 'That room is on another version of the game. Both players need the same version.',
   launcher: 'That room\'s player has another version of the launcher. Both players need the newest one.',
   full: 'That battle has already started.',
+  crowded: 'That battle has as many watching as it can take.',
   party: 'The room server didn\'t accept your party.',
   rules: 'Your party can\'t play by that room\'s rules.'
 };
 
 // One player's connection to one room: a battle, or a best-of set of them. Events: 'room' (code), 'preview' (the
 // room's team preview: pick with pick()), 'start' (a game's start message), 'peer' (lost or back), 'end' (a game's
-// or the room's end: { reason, winner }), 'set' (a set's end: { wins, reason }).
+// or the room's end: { reason, winner }), 'set' (a set's end: { wins, reason }), 'watchers' (how many watch).
+// A spectator's (watch()) has 'watching' (the room's answer), 'start', 'peer' (lost or back, and which side), 'end'
+// ({ reason, winner, side } with side for 'left') and 'set'.
 //
 // The game runs once for each battle: playBattle in the main process starts it, and asks again() whether to start it
 // once more, which it does for a host's game that waited in the stadium, and for each game of a set.
@@ -200,7 +209,12 @@ class Session extends EventEmitter {
     this.stalled = false;     // this game's battle ended as the other's stopped choosing
     this.timeUp = false;      // or as its time ran out
     this.timers = [];
+    this.heard = [0, 0];      // a spectator's: the last seq of each player's delivered to its game
+    this.ahead = [];          // and the set's next games, { start, lines, heard }, while its game plays an earlier one
+    this.setEnd = null;       // and the set's end, said once its game has played the last
   }
+
+  get watcher() { return this.role === 'watcher'; }
 
   // A host's room: resolves with the code once the server has made it.
   async host({ name, build, version, launcher, party, members, rules, bestOf, listed }) {
@@ -220,6 +234,17 @@ class Session extends EventEmitter {
     await this.connect(`${socketUrl(this.url)}/v1/rooms/${code}/join`);
     this.ws.send(JSON.stringify({ type: 'hello', name, build, version, launcher, protocol: PROTOCOL, party, ...(members ? { members } : {}) }));
     return this.answer(['start', 'preview'], message => message);
+  }
+
+  // A room's battle, to watch: resolves with the room's answer ({ name, rules, bestOf, status, players }), or rejects
+  // when refused. Its game starts with the battle's start ('start'), which may come at once.
+  async watch({ code, build, version, launcher }) {
+    this.role = 'watcher';
+    this.code = code;
+    this.hello = { type: 'hello', build, version, launcher, protocol: PROTOCOL };
+    await this.connect(`${socketUrl(this.url)}/v1/rooms/${code}/watch`);
+    this.ws.send(JSON.stringify(this.hello));
+    return this.answer('watching', message => message);
   }
 
   answer(events, value) {
@@ -252,6 +277,7 @@ class Session extends EventEmitter {
 
   keepAlive() {
     for (const timer of this.timers) clearInterval(timer);
+    if (this.watcher) { this.timers = [setInterval(() => this.send('ping'), PING_EVERY)]; this.timers[0].unref?.(); return; }
     this.timers = [setInterval(() => this.send('ping'), PING_EVERY)];
     if (this.role === 'host') this.timers.push(setInterval(() => this.sendJson({ type: 'status' }), STATUS_EVERY));
     for (const timer of this.timers) timer.unref?.();
@@ -279,7 +305,9 @@ class Session extends EventEmitter {
     // the other player may be playing the other game: XD plays by Colosseum's rules where they differ (Colosseum passes over it)
     if (this.features.crossplay) line = `${line || 'rules'} crossplay=1`;
     if (line) this.bridge.send(line);
-    this.bridge.send(this.start ? configLine(this.start) : configLine({ side: 0, rules: this.rules, code: this.code }));
+    // a spectator's game is neither side
+    if (this.watcher) this.bridge.send(configLine({ ...this.start, side: WATCHING }));
+    else this.bridge.send(this.start ? configLine(this.start) : configLine({ side: 0, rules: this.rules, code: this.code }));
     if (this.start) for (const each of startLines(this.start)) this.bridge.send(each);
     this.running = this.start ? this.game : 0;
     // the other game's turns that came before this one started
@@ -317,6 +345,16 @@ class Session extends EventEmitter {
 
   onGameLine(line) {
     const [word, value] = line.split(' ');
+    // a spectator's game only says how the battle ended, and to nobody but this launcher
+    if (this.watcher) {
+      if (word === 'desync') this.finish({ reason: 'desync' }, true);
+      else if (word === 'end') {
+        const winner = Number(value);
+        this.finish({ reason: 'over', winner: Number.isInteger(winner) && winner >= 0 ? winner : null }, (this.bestOf() === 1 || this.over) && !this.ahead.length);
+        this.nextWatched();
+      }
+      return;
+    }
     if (word === 'restart') this.restart = true;
     // how the battle is ending: the other player's game stopped choosing, or the battle's time ran out
     else if (word === 'stalled') this.stalled = true;
@@ -353,12 +391,14 @@ class Session extends EventEmitter {
     this.peerGone = false;
     this.stalled = false;
     this.timeUp = false;
+    this.heard = [0, 0];
   }
 
   onMessage(ws, data) {
     if (ws !== this.ws || typeof data !== 'string' || data === 'pong') return;
     let msg;
     try { msg = JSON.parse(data); } catch (_) { return; }
+    if (this.watcher) return this.onWatched(msg);
     if (msg.type === 'room') { this.code = msg.code; this.key = msg.key; this.emit('room', msg.code); }
     else if (msg.type === 'preview') this.onPreview(msg);
     else if (msg.type === 'start') this.onStart(msg);
@@ -370,6 +410,55 @@ class Session extends EventEmitter {
     else if (msg.type === 'finished') this.peerFinished = true;
     else if (msg.type === 'left') this.onLeft();
     else if (msg.type === 'set') this.onSet(msg);
+    else if (msg.type === 'watchers' && Number.isInteger(msg.count)) this.emit('watchers', msg.count);
+  }
+
+  // What a spectator's room sends.
+  onWatched(msg) {
+    const side = msg.side === 0 || msg.side === 1 ? msg.side : null;
+    if (msg.type === 'watching') this.emit('watching', msg);
+    else if (msg.type === 'start') this.onStart(msg);
+    else if (msg.type === 'refused') this.emit('refused', msg.reason, null);
+    else if (msg.type === 'game') this.onWatchedGame(msg, side);
+    else if (msg.type === 'peer-lost' || msg.type === 'peer-back') this.emit('peer', msg.type === 'peer-lost' ? 'lost' : 'back', side);
+    else if (msg.type === 'left') {
+      // the game plays what it has of the battle first, and ends it where that ends (games of the set after the one it
+      // plays go unseen)
+      this.ahead = [];
+      this.setEnd = null;
+      this.bridge?.send('left');
+      this.finish({ reason: 'left', side }, true);
+    } else if (msg.type === 'set') {
+      // said once the game has played the set's last game, which it may be well behind
+      if (this.ended && !this.ahead.length) this.onSet(msg);
+      else { this.over = true; this.setEnd = msg; }
+    } else if (msg.type === 'over') this.roomOver = true;
+  }
+
+  // A player's game message, each once and in order: the room sends them all again after a reconnection. One for a game
+  // of the set after the one the game plays waits with that game's start.
+  onWatchedGame(msg, side) {
+    if (side === null || !Number.isInteger(msg.seq) || typeof msg.line !== 'string') return;
+    const entry = msg.game === this.game ? this : this.ahead.find(each => each.start.game === msg.game);
+    if (!entry || msg.seq !== entry.heard[side] + 1) return;
+    entry.heard[side] = msg.seq;
+    const line = `from ${side} ${msg.line}`;
+    if (entry !== this) entry.lines.push(line);
+    else if (this.running !== this.game) this.pending.push(line);
+    else this.bridge?.send(line);
+  }
+
+  // A spectator's game has seen its game's end: the set's next game is the one to play, with the lines it has so far
+  // (playBattle starts it once this one closes), or the set's end is said.
+  nextWatched() {
+    const next = this.ahead.shift();
+    if (!next) {
+      if (this.setEnd) { const set = this.setEnd; this.setEnd = null; this.onSet(set); }
+      return;
+    }
+    this.onStart(next.start);
+    this.pending.push(...next.lines);
+    this.heard = next.heard;
   }
 
   // A host's game waiting in the stadium closes when the challenger comes: it starts again for the battle.
@@ -381,6 +470,7 @@ class Session extends EventEmitter {
   }
 
   onPreview(msg) {
+    if (this.watcher) return;
     // sent again after a reconnection: this game's picks are made already
     if (this.preview && this.preview.game === msg.game) return;
     if ((msg.game || 1) <= this.game && this.start) return;
@@ -393,10 +483,15 @@ class Session extends EventEmitter {
 
   onStart(msg) {
     if (this.start && (msg.game || 1) === this.game) return;   // sent again after a reconnection
+    if (this.watcher && this.start) {
+      if ((msg.game || 1) < this.game || this.ahead.some(each => each.start.game === msg.game)) return;
+      // a spectator's game still playing an earlier game of the set: this one waits for it
+      if (!this.ended) { this.ahead.push({ start: msg, lines: [], heard: [0, 0] }); return; }
+    }
     this.newGame(msg);
     this.start = msg;
     this.preview = null;
-    this.side = msg.side;
+    this.side = this.watcher ? null : msg.side;
     this.key = msg.key;
     this.emit('start', msg);
     // the game waiting in the stadium goes, to start again for the battle (one from before rules hears of the
@@ -452,6 +547,7 @@ class Session extends EventEmitter {
   async onClose(ws, event) {
     if (ws !== this.ws || this.closing) return;
     this.ws = null;
+    if (this.watcher) return this.onWatchClosed(event);
     if (!this.inRoom()) {
       if (event?.code === 4409 || this.over) return;
       this.emit('dropped');
@@ -466,6 +562,29 @@ class Session extends EventEmitter {
     while (!this.over && !this.closing && Date.now() < until) {
       try { await this.connect(url); return; }
       catch (_) { await new Promise(resolve => this.later(resolve, RECONNECT_EVERY)); }
+    }
+    if (!this.over) { this.bridge?.send('left'); this.finish({ reason: 'dropped' }, true); }
+  }
+
+  // A spectator's connection closed. Refused, or the room closed (its game has every line there is, and plays on to
+  // the battle's end); else it drops, and comes back in, where the room sends the battle again from its start.
+  async onWatchClosed(event) {
+    if (event?.code === 4409) return;
+    if (event?.code === 4404 || this.roomOver || this.over) {
+      // nothing to watch: the room closed before its battle began
+      if (!this.start) return this.finish({ reason: 'room-closed' }, true);
+      // no game comes after the one there is, which plays on (playBattle asks again() once it closes)
+      this.over = true;
+      this.emit('end-session');
+      return;
+    }
+    const until = Date.now() + RECONNECT_FOR;
+    while (!this.over && !this.closing && Date.now() < until) {
+      try {
+        await this.connect(`${socketUrl(this.url)}/v1/rooms/${this.code}/watch`);
+        this.ws.send(JSON.stringify(this.hello));
+        return;
+      } catch (_) { await new Promise(resolve => this.later(resolve, RECONNECT_EVERY)); }
     }
     if (!this.over) { this.bridge?.send('left'); this.finish({ reason: 'dropped' }, true); }
   }
@@ -493,4 +612,4 @@ class Session extends EventEmitter {
   }
 }
 
-module.exports = { PROTOCOL, STAGES, parseRoomCode, formatRoomCode, buildId, crossBuildId, isCrossBuild, serverUrl, listRooms, lookup, configLine, startLines, createBridge, Session };
+module.exports = { PROTOCOL, STAGES, WATCHING, parseRoomCode, formatRoomCode, buildId, crossBuildId, isCrossBuild, serverUrl, listRooms, lookup, configLine, startLines, createBridge, Session };

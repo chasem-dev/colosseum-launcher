@@ -165,6 +165,8 @@ Your game starts and waits in the stadium, and your room appears for everyone on
 
 Both players need the same build of the game. A room on another version says which one it needs.
 
+**Watch** a battle under way from the room list, or type its code and choose **Watch**. Your game plays the battle from its start with the same screens and battle camera the players see, without their menus: while they choose, the text box says *Players are selecting moves...*. Come in late and it fast-forwards until it has caught up. You don't need a party to watch, only the same version of the game as the room, and the players see how many are watching. **Stop watching** closes it.
+
 **Pokémon XD** battles online too. Its parties come from the team builder, which reads the Pokémon from your Colosseum disc, so set up Colosseum's disc as well. Tick **Colosseum and XD players can join** when you create a room, and a player of either game can take it: the two games play one battle, with XD following Colosseum's rules where they differ. XD's online battles have Colosseum's timers, the in-game pick screen with team preview, and the screens around a battle. Rooms for both games don't have Platinum's rules yet, and both games must come from the same version of the port.
 
 ### Game Boy Advance
