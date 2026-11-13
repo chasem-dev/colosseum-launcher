@@ -400,3 +400,164 @@ test("a room's rules carry its battle rules, Colosseum's unless Platinum's are c
   assert.equal(parties.normalize({ battleRules: 4 }).battleRules, 4);
   assert.equal(parties.normalize({ battleRules: 7 }).battleRules, 3);
 });
+
+// --- Spectators
+async function watched(session, answer = { type: 'watching', name: 'Ash', rules: { level: 50, size: 6 }, bestOf: 1, status: 'battling', players: ['Ash', 'Misty'] }) {
+  const opened = session.watch({ code: 'KQ7M2D', build: 'b', version: 'v', launcher: 'l' });
+  await new Promise(resolve => setImmediate(resolve));
+  FakeSocket.last.receive(answer);
+  return { ws: FakeSocket.last, answer: await opened };
+}
+const WATCHED_START = { ...START, key: undefined, side: null };
+
+test('a spectator\'s game plays the room\'s battle as neither side, from every line so far, each once', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, features: { rules: true, picks: true } });
+  const { ws, answer } = await watched(session);
+  assert.equal(ws.url, 'ws://rooms.test/v1/rooms/KQ7M2D/watch');
+  assert.deepEqual(ws.messages(), [{ type: 'hello', build: 'b', version: 'v', launcher: 'l', protocol: online.PROTOCOL }]);
+  assert.equal(answer.status, 'battling');
+  const make = fakeBridge();
+  await session.attachGame(make);
+  const bridge = make({});
+  const ready = session.again();
+  ws.receive(WATCHED_START);
+  ws.receive({ type: 'game', side: 0, game: 1, seq: 1, line: 'act 0 1 2 0 0' });
+  ws.receive({ type: 'game', side: 1, game: 1, seq: 1, line: 'act 0 1 2 0 0' });
+  assert.equal(await ready, true);
+  assert.equal(session.side, null);
+  assert.equal(bridge.lines[0], 'config 2 50 6 1');
+  assert.match(bridge.lines[1], /^start 42 Ash Misty /);
+  assert.deepEqual(bridge.lines.slice(2), ['from 0 act 0 1 2 0 0', 'from 1 act 0 1 2 0 0']);
+  // the room sends the battle again after a reconnection: each line goes once
+  ws.receive(WATCHED_START);
+  ws.receive({ type: 'game', side: 0, game: 1, seq: 1, line: 'act 0 1 2 0 0' });
+  ws.receive({ type: 'game', side: 0, game: 1, seq: 2, line: 'irekae 1 1 2 3' });
+  ws.receive({ type: 'game', side: 1, game: 2, seq: 2, line: 'act 9' });   // another game's
+  assert.deepEqual(bridge.lines.slice(4), ['from 0 irekae 1 1 2 3']);
+  // the spectator's game says nothing to the room
+  const before = ws.messages().length;
+  session.onGameLine('end 1');
+  assert.equal(ws.messages().length, before);
+  session.close();
+});
+
+test('a spectator hears how the battle ends from its own game, or that a player left', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket });
+  const { ws } = await watched(session);
+  const make = fakeBridge();
+  await session.attachGame(make);
+  const bridge = make({});
+  const ends = [];
+  session.on('end', result => ends.push(result));
+  ws.receive(WATCHED_START);
+  await session.again();
+  ws.receive({ type: 'left', side: 1 });
+  assert.equal(bridge.lines.at(-1), 'left');
+  assert.deepEqual(ends, [{ reason: 'left', side: 1 }]);
+  session.onGameLine('end 0');
+  assert.equal(ends.length, 1, 'the battle\'s end after a player left is no other end');
+  assert.equal(await session.again(), false);
+  session.close();
+
+  const other = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket });
+  const second = await watched(other);
+  await other.attachGame(fakeBridge());
+  const results = [];
+  other.on('end', result => results.push(result));
+  second.ws.receive(WATCHED_START);
+  await other.again();
+  // the room closes once the players are gone: the game plays on to the end it has
+  second.ws.receive({ type: 'over' });
+  second.ws.drop(1000);
+  other.onGameLine('end 1');
+  assert.deepEqual(results, [{ reason: 'over', winner: 1 }]);
+  assert.equal(await other.again(), false);
+  other.close();
+});
+
+test('a spectator of a waiting room starts its game with the battle, and is refused as the room says', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket });
+  const { ws, answer } = await watched(session, { type: 'watching', name: 'Ash', rules: { level: 50, size: 6 }, bestOf: 1, status: 'waiting' });
+  assert.equal(answer.status, 'waiting');
+  await session.attachGame(fakeBridge());
+  let started = false;
+  const ready = session.again().then(go => { started = go; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(started, false);
+  ws.receive(WATCHED_START);
+  await ready;
+  assert.equal(started, true);
+  session.close();
+
+  const refused = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket });
+  const opened = refused.watch({ code: 'KQ7M2D', build: 'x', version: 'v', launcher: 'l' });
+  await new Promise(resolve => setImmediate(resolve));
+  FakeSocket.last.receive({ type: 'refused', reason: 'version' });
+  await assert.rejects(opened, /another version of the game/);
+  refused.close();
+});
+
+test('a spectator whose connection drops comes back in, and the room sends what it missed', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket, setTimeout: (fn) => setImmediate(fn) });
+  const { ws } = await watched(session);
+  const make = fakeBridge();
+  await session.attachGame(make);
+  const bridge = make({});
+  ws.receive(WATCHED_START);
+  await session.again();
+  ws.receive({ type: 'game', side: 0, game: 1, seq: 1, line: 'act a' });
+  ws.drop();
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  const back = FakeSocket.last;
+  assert.notEqual(back, ws);
+  assert.equal(back.url, 'ws://rooms.test/v1/rooms/KQ7M2D/watch');
+  assert.equal(back.messages()[0].type, 'hello');
+  back.receive({ type: 'watching', status: 'battling' });
+  back.receive(WATCHED_START);
+  back.receive({ type: 'game', side: 0, game: 1, seq: 1, line: 'act a' });
+  back.receive({ type: 'game', side: 1, game: 1, seq: 1, line: 'act b' });
+  assert.deepEqual(bridge.lines.filter(line => line.startsWith('from')), ['from 0 act a', 'from 1 act b']);
+  session.close();
+});
+
+test('players hear how many are watching', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket });
+  const ws = await hosted(session);
+  const counts = [];
+  session.on('watchers', count => counts.push(count));
+  ws.receive({ type: 'watchers', count: 2 });
+  assert.deepEqual(counts, [2]);
+  session.close();
+});
+
+test('a spectator\'s game a game behind the set plays each game in turn, and hears the set\'s end after the last', async () => {
+  const session = new online.Session({ url: 'http://rooms.test', WebSocket: FakeSocket });
+  const { ws } = await watched(session, { type: 'watching', status: 'battling', bestOf: 3 });
+  const make = fakeBridge();
+  await session.attachGame(make);
+  const bridge = make({});
+  const events = [];
+  for (const name of ['start', 'end', 'set']) session.on(name, value => events.push([name, value.game || value.reason || value.wins]));
+  ws.receive({ ...WATCHED_START, bestOf: 3, game: 1 });
+  assert.equal(await session.again(), true);
+  ws.receive({ type: 'game', side: 0, game: 1, seq: 1, line: 'act one' });
+  // the players are on to game 2 while this game still plays game 1
+  ws.receive({ ...WATCHED_START, bestOf: 3, game: 2, seed: 43 });
+  ws.receive({ type: 'game', side: 0, game: 2, seq: 1, line: 'act two' });
+  ws.receive({ type: 'set', wins: [2, 0] });
+  assert.deepEqual(bridge.lines.filter(line => line.startsWith('from')), ['from 0 act one']);
+  assert.equal(session.game, 1);
+  session.onGameLine('end 0');
+  assert.equal(session.game, 2);
+  assert.equal(await session.again(), true, 'game 2 starts once game 1 closes');
+  assert.match(bridge.lines.find(line => line.startsWith('start 43')), /^start 43 /);
+  assert.equal(bridge.lines.at(-1), 'from 0 act two');
+  ws.receive({ type: 'game', side: 1, game: 2, seq: 1, line: 'act late' });
+  assert.equal(bridge.lines.at(-1), 'from 1 act late');
+  assert.deepEqual(events, [['start', 1], ['end', 'over'], ['start', 2]]);
+  session.onGameLine('end 0');
+  assert.deepEqual(events.slice(3), [['end', 'over'], ['set', [2, 0]]]);
+  assert.equal(await session.again(), false);
+  session.close();
+});

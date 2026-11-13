@@ -1513,7 +1513,8 @@ function showPresence() {
   if (!presenceSession || !discordPresence) return;
   const { startedAt, game: latest, online: isOnline } = presenceSession;
   const game = activeGame();
-  discordPresence.set(presence.activity(latest, { startedAt, online: isOnline ? { opponent: battle?.opponent || null } : null,
+  const online = !isOnline ? null : battle?.role === 'watcher' ? { watching: battle.players?.filter(Boolean) || [] } : { opponent: battle?.opponent || null };
+  discordPresence.set(presence.activity(latest, { startedAt, online,
     gameName: game.name, areaImages: game.id === 'colosseum' }));
 }
 
@@ -1648,7 +1649,7 @@ function setupTelemetry() {
 }
 
 // --- Online battles (src/online.js): the room, the game between it and the player.
-let battle = null;     // { session, status, code, role, opponent, rules, bestOf, game, wins, preview }
+let battle = null;     // { session, status, code, role, opponent, rules, bestOf, game, wins, preview, players, watchers }
 let battleResult = null;
 
 function onlineState() {
@@ -1660,9 +1661,12 @@ function onlineState() {
     platinumSupported: !binaryReady() || onlineFeatures(config.repo).platinum, game: games.get(config.game).shortName,
     // and in a room for both games, where both games' Pokémon sets take the fourth generation's under them
     crossPlatinumSupported: binaryReady() && onlineFeatures(config.repo).crossPlatinum,
+    // watching others' battles: this game plays a battle as a spectator's
+    spectateSupported: binaryReady() && onlineFeatures(config.repo).spectate,
     battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
       opponent: battle.opponent, peerLost: Boolean(battle.peerLost), bestOf: battle.bestOf || 1, game: battle.game || 0,
-      wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null } };
+      wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null,
+      players: battle.players || null, watchers: battle.watchers || 0 } };
 }
 
 function broadcastOnline() { broadcast('online', onlineState()); }
@@ -1700,6 +1704,8 @@ function onlineFeatures(root, id = config.game) {
         // rooms for either game's players (online.crossBuildId): XD's knows crossplay=1, and Colosseum's needs nothing
         // more than its rules line and whole Pokémon
         crossplay: rules && (story || xd),
+        // spectators' games, which play a room's battle from both players' lines (config side 2)
+        spectate: bytes.includes(xd ? 'online: XD spectating' : 'online: spectating'),
         // the randomizer (host/randomizer.c), which XD's game has once it prints its run
         randomizer: bytes.includes('randomizer: seed '),
         // the randomizer's fourth generation
@@ -1709,7 +1715,7 @@ function onlineFeatures(root, id = config.game) {
     }
     return onlineBinary;
   } catch (_) {
-    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossPlatinum: false, crossplay: false,
+    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossPlatinum: false, crossplay: false, spectate: false,
       randomizer: false, randomizerGenerations: false, randomizerPacks: false };
   }
 }
@@ -1887,6 +1893,28 @@ const BATTLE_OVER = {
   desync: 'The battle stopped: the two games no longer agreed. This is a bug, please report it.'
 };
 
+// How a watched battle ended, as the page says it: by the players' names.
+function watchedOutcome(result, players, set = null) {
+  const name = side => players?.[side] || (side ? 'The challenger' : 'The host');
+  if (result.reason === 'over') {
+    const what = set ? `game ${set.game}` : 'the battle';
+    return { message: result.winner === null ? `${set ? `Game ${set.game}` : 'The battle'} ended in a draw.` : `${name(result.winner)} won ${what}.` };
+  }
+  if (result.reason === 'left') return { message: `${result.side === 0 || result.side === 1 ? name(result.side) : 'A player'} left the battle.` };
+  if (result.reason === 'room-closed') return { message: 'That room closed before its battle began.' };
+  if (result.reason === 'desync') return { message: 'Watching stopped: this game no longer agreed with the players\' games. This is a bug, please report it.' };
+  if (result.reason === 'dropped') return { message: BATTLE_OVER.dropped };
+  return null;
+}
+
+// And how a watched set ended.
+function watchedSetOutcome(set, players) {
+  const [a, b] = set.wins.map(wins => wins || 0);
+  const name = side => players?.[side] || (side ? 'The challenger' : 'The host');
+  if (set.reason === 'disagree') return { message: 'The set stopped: the two players\' games saw different results.' };
+  return { message: a === b ? `The set ended ${a}–${b}.` : `${name(a > b ? 0 : 1)} won the set ${Math.max(a, b)}–${Math.min(a, b)}.` };
+}
+
 function battleOutcome(result, side, set = null) {
   if (result.reason === 'over') {
     const what = set ? `game ${set.game}` : 'the battle';
@@ -1927,7 +1955,8 @@ async function playBattle(session) {
 // Where a set is: which game, and the score so far.
 function noteSet(message) {
   Object.assign(battle, { bestOf: message.bestOf || 1, game: message.game || 1, wins: Array.isArray(message.wins) ? message.wins : [0, 0],
-    side: message.side, rules: message.rules || battle.rules, opponent: message.players[1 - message.side].name });
+    side: message.side ?? null, rules: message.rules || battle.rules, players: message.players.map(player => player.name),
+    opponent: battle.role === 'watcher' ? null : message.players[1 - message.side].name });
 }
 
 function watchSession(session) {
@@ -1944,22 +1973,25 @@ function watchSession(session) {
   session.on('start', message => {
     if (!battle) return;
     noteSet(message);
-    battle.status = 'battling';
+    battle.status = battle.role === 'watcher' ? 'watching' : 'battling';
     battle.preview = null;
     if (battle.bestOf > 1) battleResult = null;
     broadcastOnline();
     showPresence();
   });
-  session.on('peer', peer => { if (battle) { battle.peerLost = peer === 'lost'; broadcastOnline(); } });
+  session.on('peer', (peer, side) => { if (battle) { battle.peerLost = peer === 'lost' ? (side ?? true) : false; broadcastOnline(); } });
+  session.on('watchers', count => { if (battle) { battle.watchers = count; broadcastOnline(); } });
   session.on('end', result => {
     const set = battle && battle.bestOf > 1 && result.reason === 'over' && !session.over ? { game: battle.game } : null;
-    const outcome = battleOutcome(result, session.side, set);
+    // a spectator's game may be a game or more behind the set: each game it plays is named
+    const outcome = session.watcher ? watchedOutcome(result, battle?.players, battle?.bestOf > 1 && result.reason === 'over' ? { game: battle.game } : null)
+      : battleOutcome(result, session.side, set);
     if (outcome) battleResult = { ...outcome, opponent: battle?.opponent || null };
     if (battle) battle.status = set ? 'between' : 'ended';
     broadcastOnline();
   });
   session.on('set', set => {
-    battleResult = { ...setOutcome(set, session.side), opponent: battle?.opponent || null };
+    battleResult = { ...(session.watcher ? watchedSetOutcome(set, battle?.players) : setOutcome(set, session.side)), opponent: battle?.opponent || null };
     if (battle) { battle.wins = set.wins; battle.status = 'ended'; }
     broadcastOnline();
   });
@@ -2035,6 +2067,45 @@ async function joinRoom(input) {
     broadcastOnline();
     throw withProblems(error);
   }
+  playBattle(session).catch(error => log(`✕ ${error.message}`));
+  return { code: online.formatRoomCode(code) };
+}
+
+// Watching a room's battle: this game plays it as a spectator's, from the battle's start, with nobody at its controls.
+// The room can be in battle, or waiting for one (its game starts with the battle).
+async function watchRoom(input) {
+  if (!supports('online')) throw new Error(`Online battles aren't in ${games.get(config.game).shortName} yet. Choose Colosseum on the Play page.`);
+  if (!port.isPort(config.repo, config.game) || !binaryReady()) throw new Error('Set up the game on the Play page first.');
+  if (!onlineFeatures(config.repo).spectate) throw new Error('This version of the game can\'t watch battles yet. Update it from the Play page.');
+  if (active || battle) throw new Error('Finish what the launcher is doing first.');
+  const code = online.parseRoomCode(input);
+  if (!code) throw new Error('A room code looks like KQ7-M2D.');
+  battleResult = null;
+  const info = await online.lookup(code);
+  const cross = online.isCrossBuild(info.build);
+  if (cross && !onlineFeatures(config.repo).crossplay) throw new Error('That room is for both games, which this version of the game can\'t play. Update it from the Play page.');
+  // the spectator's game plays the players' battle, so it has to be the very same build
+  if (gameBuild(cross).build !== info.build) throw new Error(`That battle is on another version of the game (${info.version || 'unknown'}). Watching needs the same version.`);
+  const session = new online.Session({ features: sessionFeatures(cross) });
+  const players = Array.isArray(info.players) ? info.players : [info.name, null];
+  battle = { session, status: 'connecting', role: 'watcher', rules: formats.normalize(info.rules || {}), bestOf: info.bestOf || 1, code, opponent: null, players };
+  broadcastOnline();
+  watchSession(session);
+  try {
+    const answer = await session.watch({ code, ...gameBuild(cross) });
+    // the battle's start may have come with the answer
+    if (battle?.session === session && battle.status === 'connecting') {
+      battle.status = answer.status === 'battling' ? 'watching' : 'watch-waiting';
+      if (Array.isArray(answer.players)) battle.players = answer.players;
+    }
+  } catch (error) {
+    session.close();
+    battle = null;
+    broadcastOnline();
+    throw error;
+  }
+  broadcastOnline();
+  log(`Watching room ${online.formatRoomCode(code)}.`);
   playBattle(session).catch(error => log(`✕ ${error.message}`));
   return { code: online.formatRoomCode(code) };
 }
@@ -2311,6 +2382,7 @@ function registerHandlers() {
   ipcMain.handle('usage-refresh', () => reporter?.refresh());
   ipcMain.handle('online-create', () => createRoom());
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
+  ipcMain.handle('online-watch', (_event, code) => watchRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('online-pick', (_event, order) => pickPokemon(Array.isArray(order) ? order.map(Number) : []));
   // (the team builder's Pokémon too: Colosseum's disc's, in XD as well)

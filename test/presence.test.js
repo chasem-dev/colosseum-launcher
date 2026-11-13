@@ -77,6 +77,8 @@ test('a game that prints nothing still shows the game, and an online battle show
   const online = presence.activity(presence.parseLine(line({ mode: 'battle', story: 0 })), { online: { opponent: 'Ash' } });
   assert.deepEqual([online.details, online.state, online.assets.large_image], ['Online battle', 'Battling Ash', 'orre_colosseum']);
   assert.equal(presence.activity(null, { online: { opponent: null } }).state, 'Waiting for a challenger');
+  assert.equal(presence.activity(null, { online: { watching: ['Ash', 'Misty'] } }).state, 'Watching Ash vs Misty');
+  assert.equal(presence.activity(null, { online: { watching: [] } }).state, 'Watching a battle');
 });
 
 test('texts fit what Discord accepts', () => {
