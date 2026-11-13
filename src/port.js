@@ -178,6 +178,12 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     chooseStarters: input.chooseStarters !== false,
     // The bag and shops list a TM by its move (Thunderbolt), its number in a tab over the description. On unless turned off.
     tmNames: input.tmNames !== false,
+    // Teaching a TM leaves it in the bag, as in later games. Off unless turned on: it changes what TMs are worth.
+    infiniteTms: Boolean(input.infiniteTms),
+    // Every party Pokémon gets EXP from a knockout, those that didn't battle half, as in later games. Off unless turned on.
+    expShare: Boolean(input.expShare),
+    // The C-Stick walks and moves menu cursors like the Control Stick, as in XD, where the game doesn't use it. Off unless turned on.
+    cstickMove: Boolean(input.cstickMove),
     // The frame-time overlay at start.
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
@@ -325,6 +331,9 @@ const FEATURE_ENVIRONMENT = {
   shinyStarters: ['COLO_SHINY_STARTERS'],
   starters: ['COLO_CHOOSE_STARTERS'],
   tmNames: ['COLO_TM_NAMES'],
+  infiniteTms: ['COLO_INFINITE_TMS'],
+  expShare: ['COLO_EXP_SHARE'],
+  cstickMove: ['COLO_CSTICK_MOVE'],
   battleSpeed: ['COLO_BATTLE_SPEED'],
   quickMoves: ['COLO_QUICK_MOVES', 'COLO_FAST_STATUS', 'SMS_BUTTON_PROMPTS', 'SMS_BUTTON_PROMPT_PAD'],
   hdText: ['COLO_HD_TEXT']
@@ -380,6 +389,9 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   if (settings.shinyStarters === false) env.COLO_SHINY_STARTERS = '0';
   if (settings.chooseStarters === false) env.COLO_CHOOSE_STARTERS = '0';
   if (settings.tmNames === false) env.COLO_TM_NAMES = '0';
+  if (settings.infiniteTms) env.COLO_INFINITE_TMS = '1';
+  if (settings.expShare) env.COLO_EXP_SHARE = '1';
+  if (settings.cstickMove) env.COLO_CSTICK_MOVE = '1';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   if (settings.quickMoves) env.COLO_QUICK_MOVES = '1';
