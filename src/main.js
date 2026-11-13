@@ -1634,6 +1634,8 @@ function onlineState() {
     // rooms for both games, with this game's build for them; Platinum's rules; the game's short name
     crossBuild: binaryReady() && onlineFeatures(config.repo).crossplay ? gameBuild(true).build : null,
     platinumSupported: !binaryReady() || onlineFeatures(config.repo).platinum, game: games.get(config.game).shortName,
+    // and in a room for both games, where both games' Pokémon sets take the fourth generation's under them
+    crossPlatinumSupported: binaryReady() && onlineFeatures(config.repo).crossPlatinum,
     battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
       opponent: battle.opponent, peerLost: Boolean(battle.peerLost), bestOf: battle.bestOf || 1, game: battle.game || 0,
       wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null } };
@@ -1665,8 +1667,12 @@ function onlineFeatures(root, id = config.game) {
         timers: xd ? bytes.includes('online: XD turn timer') : bytes.includes('online: turn timer'),
         // the screens around a battle, where the players pick their Pokémon with team preview
         picks: xd ? bytes.includes('online: XD picks, ') : bytes.includes('online: picks, '),
-        // Pokémon Platinum's battle rules (src/generations.js): Colosseum's game only
-        platinum: !xd,
+        // Pokémon Platinum's battle rules (src/generations.js), from the room's rules file: Colosseum's game has always
+        // played them, and XD's once it turns their later generation's numbers into its own (host/xd/online.c)
+        platinum: !xd || bytes.includes('online: XD Platinum rules '),
+        // and in a room for both games: the shared set of Pokémon (host/crossplay.c) has the fourth generation's under
+        // them, in both games' builds of one commit
+        crossPlatinum: bytes.includes('online: crossplay set: the fourth generation\'s under Platinum\'s rules'),
         // rooms for either game's players (online.crossBuildId): XD's knows crossplay=1, and Colosseum's needs nothing
         // more than its rules line and whole Pokémon
         crossplay: rules && (story || xd),
@@ -1679,7 +1685,7 @@ function onlineFeatures(root, id = config.game) {
     }
     return onlineBinary;
   } catch (_) {
-    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossplay: false,
+    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossPlatinum: false, crossplay: false,
       randomizer: false, randomizerGenerations: false, randomizerPacks: false };
   }
 }
@@ -1789,14 +1795,23 @@ function partyNames() {
   } catch (_) { return {}; }
 }
 
+// What a room for both games takes of the fourth generation under Platinum's rules (src/crossplay.js options): its
+// Pokémon, moves and items, and a second ability wherever that generation gives the species one, from the disc.
+function crossLater() {
+  let species = {};
+  try { species = battleData(teamDisc()).generations[4].species; } catch (error) { log(`Team builder: couldn't read abilities from the disc (${error.message}).`); }
+  return { later: true, secondAbility: id => Boolean(species[id]?.abilities?.some(ability => ability.slot === 1)) };
+}
+
 // The party to battle with by a room's rules: what battleParty gives, once it can play by them.
 function partyFor(rules, { cross = false } = {}) {
   const features = onlineFeatures(config.repo);
   if (rules.format !== 'casual' && !features.rules)
     throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
-  if (rules.battleRules === 4 && (!features.platinum || cross)) {
-    const why = cross ? 'a room for both games plays by Colosseum\'s' : `${games.get(config.game).shortName}'s online battles play by Colosseum's`;
-    throw Object.assign(new Error(`Pokémon Platinum's battle rules are for Colosseum's rooms for now: ${why}.`), { problems: ['Platinum\'s battle rules'] });
+  const platinum = rules.battleRules === 4;
+  if (platinum && (!features.platinum || (cross && !features.crossPlatinum))) {
+    const what = cross ? 'A room for both games with Pokémon Platinum\'s battle rules' : `Pokémon Platinum's battle rules in ${games.get(config.game).shortName}`;
+    throw Object.assign(new Error(`${what} need a newer game. Update it from the Play page.`), { problems: ['Platinum\'s battle rules'] });
   }
   // the other game makes a Pokémon from its species differently: each goes whole
   if (cross && config.online.selected !== parties.STORY && !features.members)
@@ -1807,7 +1822,7 @@ function partyFor(rules, { cross = false } = {}) {
   const chosen = battleParty(rules.size, { cross });
   const problems = formats.problems(rules, chosen.party, chosen.members || null, partyNames());
   // a room for both games: only what both games make alike (src/crossplay.js), or the battle would go otherwise
-  if (cross) problems.push(...crossplay.problems(chosen.party, chosen.members || null, partyNames()).filter(each => !problems.includes(each)));
+  if (cross) problems.push(...crossplay.problems(chosen.party, chosen.members || null, partyNames(), platinum ? crossLater() : {}).filter(each => !problems.includes(each)));
   if (problems.length) throw Object.assign(new Error(`Your party can't play ${formats.describe(rules).name}: ${problems.join(' ')}`), { problems });
   return chosen;
 }

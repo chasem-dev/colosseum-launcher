@@ -16,6 +16,9 @@ const XD_SAVE = 'PokemonXD.dat';
 // XD numbers the moves after Gen 3's 354 differently: its own Shadow moves first (355 to 374), then later generations'
 // 17 past Colosseum's (host/mechanics.c colo_xd_move). A member goes in Colosseum's numbers, which both games read.
 const XD_SHADOW_MOVES = [355, 374], XD_MOVE_SHIFT = 17;
+// and its items past Colosseum's from 0x224 on: its own key items, then Diamond and Pearl's 0x2e past Colosseum's
+// (host/mechanics.c colo_xd_item)
+const XD_NEW_ITEM = 0x252, COLOSSEUM_NEW_ITEM = 0x224;
 const PARTY = 0xa8;          // where an unscrambled slot keeps the party (src/gci-save.js)
 const PARTY_SIZE = 6;
 const POKEMON = 0x138;
@@ -68,6 +71,12 @@ function xdMove(move) {
   return move > XD_SHADOW_MOVES[1] ? move - XD_MOVE_SHIFT : move;
 }
 
+// An item of XD's save in Colosseum's numbers; one of XD's key items (which nothing holds) is none.
+function xdItem(item) {
+  if (item < COLOSSEUM_NEW_ITEM) return item;
+  return item >= XD_NEW_ITEM ? item - (XD_NEW_ITEM - COLOSSEUM_NEW_ITEM) : 0;
+}
+
 // The party in the save of Pokémon XD the game would load (xd-save.js), as readStoryParty gives Colosseum's.
 function readXdParty(saveDir) {
   const file = path.join(saveDir, XD_SAVE);
@@ -89,7 +98,7 @@ function readXdParty(saveDir) {
     if (member.shadow) { leftOut++; continue; }
     if (isPackSpecies(member.species)) { packsLeftOut++; continue; }
     const moves = member.moves.map(([move, ups]) => [xdMove(move), ups]).map(([move, ups]) => (move ? [move, ups] : [0, 0]));
-    members.push({ ...member, moves, shiny: isShiny(member) });
+    members.push({ ...member, moves, item: xdItem(member.item), shiny: isShiny(member) });
   }
   return { trainer, members, leftOut, packsLeftOut, modified: fs.statSync(file).mtimeMs };
 }
@@ -154,4 +163,4 @@ function memberLine(side, slot, member) {
   return `member ${side} ${slot} ${member.join(' ')}`;
 }
 
-module.exports = { PARTY_SIZE, SAVE, XD_SAVE, readStoryParty, readMember, xdMove, isShiny, wireMember, validWireMember, memberLine, WIRE_NUMBERS };
+module.exports = { PARTY_SIZE, SAVE, XD_SAVE, readStoryParty, readMember, xdMove, xdItem, isShiny, wireMember, validWireMember, memberLine, WIRE_NUMBERS };

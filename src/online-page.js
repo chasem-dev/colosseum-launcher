@@ -442,12 +442,13 @@
     $('online-size').value = String(setup.size);
     $('online-rules').value = String(setup.battleRules || 3);
     $('online-listed').checked = setup.listed;
-    // rooms for both games, when this game can play them; such a room has no timers, and Colosseum's rules
+    // rooms for both games, when this game can play them; such a room has no timers, and Platinum's rules once both games' sets have them
     $('online-crossplay-row').hidden = !state.crossBuild;
     $('online-crossplay').checked = Boolean(setup.crossplay) && Boolean(state.crossBuild);
     // the game's own battle rules: Colosseum's, or XD's (the third generation's in both)
     $('online-rules').querySelector('option[value="3"]').textContent = `${state.game || 'Colosseum'}'s`;
-    $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported || Boolean(setup.crossplay && state.crossBuild);
+    $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported
+      || Boolean(setup.crossplay && state.crossBuild && !state.crossPlatinumSupported);
     renderParties();
     renderFormat();
     renderBanner();
