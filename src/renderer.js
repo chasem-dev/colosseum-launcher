@@ -893,13 +893,15 @@ function stageGeometry() {
     play: { ...across(play), top: play.top - page.top },
     // the window's foot
     visibleBottom: viewport.getBoundingClientRect().bottom - page.top - scroll - 8,
-    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), bottom: bannerBox.bottom - page.top } : null,
+    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), top: bannerBox.top - page.top, bottom: bannerBox.bottom - page.top } : null,
     band: parseFloat(window.getComputedStyle(home).paddingTop) || 0,
     headlineHeight: $('home-headline').offsetHeight || 0,
     origin: { x: $('game-picker').getBoundingClientRect().left - shell.left, page: page.left - shell.left }
   };
 }
-function layoutPlayStage() {
+// full: measured with the banner whole (its second line), then shortened if the headline needs the room
+function layoutPlayStage(full = true) {
+  if (full) $('add-to-steam').classList.remove('compact');
   const geometry = stageGeometry();
   if (!geometry || !window.ColoPlayStage) return false;
   let places = window.ColoPlayStage.layout(geometry);
@@ -908,8 +910,17 @@ function layoutPlayStage() {
     const at = places.headline || { cx: places[geometry.active].cx };
     headline.style.setProperty('--x', px(at.cx - geometry.origin.page));
     if (places.headline) { headline.style.setProperty('--top', px(at.top)); headline.style.setProperty('--max', px(at.maxWidth)); }
+    else headline.style.setProperty('--max', '');
   };
   placeHeadline();
+  // setting up beside the chosen game's banner: the banner keeps only its title when the headline wouldn't fit in one line
+  const banner = $('add-to-steam');
+  if (geometry.panel && !banner.hidden) {
+    headline.style.maxWidth = 'none';
+    const wide = headline.offsetWidth;
+    headline.style.maxWidth = '';
+    if (full && places.headline && wide > places.headline.maxWidth) { banner.classList.add('compact'); return layoutPlayStage(false); }
+  }
   // the headline wraps to the width it is given, which moves the logo above it: once more with its new height
   if (places.headline && Math.abs((headline.offsetHeight || 0) - geometry.headlineHeight) > 1) {
     places = window.ColoPlayStage.layout({ ...geometry, headlineHeight: headline.offsetHeight || 0 });

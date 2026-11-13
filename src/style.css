@@ -212,19 +212,21 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .game-tab.has-logo[aria-pressed="false"]:hover:not(:disabled) .game-tab-logo { filter: grayscale(.2) brightness(.95) drop-shadow(0 3px 12px #12051add); }
 /* The headline, under the chosen game's logo (layoutPlayStage's --x): setting up, below the logo at the top of the page;
    ready, only the status line shows (the logo names the game), under the logo wherever it is (--top, as wide as --max).
-   Any banner beside it goes to the other side. */
+   The chosen game's banner (Add to Steam) is on its side, at the window's edge; setting up, the headline is centred in
+   the room beside it (play-stage.js), and the banner drops its second line when that room is short. */
 #page-home .intro { position: relative; min-height: 22px; }
 #page-home:not(.ready-mode) .intro { min-height: calc(clamp(30px, 3.5vw, 44px) * 1.1 + 25px); }
 #home-headline { position: absolute; top: 0; left: var(--x, 50%); translate: -50% 0; width: max-content; max-width: 60vw; text-align: center; }
 #page-home.ready-mode .intro { position: static; }
 #page-home.ready-mode #home-headline { top: var(--top, 0px); max-width: var(--max, 60vw); }
-#page-home .intro-banners { margin-left: auto; }
+#page-home .intro-banners { margin-left: 0; margin-right: auto; }
+#page-home:not(.ready-mode) #home-headline { max-width: var(--max, 60vw); }
 /* a short window setting up: the step's own heading says it, so the headline goes (kept for screen readers) */
 @media (max-height: 720px) {
   #page-home:not(.ready-mode) .intro { min-height: 0; }
   #page-home:not(.ready-mode) .intro > div:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-.shell:has(> .game-art[data-active="xd"]) #page-home .intro-banners { margin-left: 0; margin-right: auto; }
+.shell:has(> .game-art[data-active="xd"]) #page-home .intro-banners { margin-left: auto; margin-right: 0; }
 /* Setting up, the steps and the button under them stay on the chosen game's side, clear of the line where it is
    nearest (63% of the width at the window's foot for Colosseum, 37% at its head for XD), so the other game's logo has
    its strip: as wide as fits there, and under the chosen game's logo where they can be. */
@@ -720,6 +722,7 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .discord-logo svg { width: 23px; height: 23px; fill: #fff; }
 .steam-logo { background: linear-gradient(135deg, #1b2838, #2a475e); }
 .steam-banner:disabled { opacity: .75; cursor: progress; }
+.steam-banner.compact small { display: none; }
 .discord-copy { display: grid; gap: 2px; }
 .discord-copy strong { font-size: 14px; font-weight: 750; letter-spacing: -.01em; }
 .discord-copy small { color: #d2eaf0; font-size: 11px; font-weight: 500; }
