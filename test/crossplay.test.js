@@ -75,3 +75,21 @@ test('a Story party in a room for both games: those outside the set stay home, w
   assert.deepEqual(leftOut.map(each => each.why[0]), ['Gengar holds item #592, which the other game doesn\'t have as a held item.',
     'Alakazam knows a Shadow move (move #356): rooms for both games have none.', 'Umbreon is a Shadow Pokémon: it stays home until it\'s purified.']);
 });
+
+test('under Platinum\'s rules a room for both games takes the fourth generation\'s', () => {
+  const later = { later: true, secondAbility: species => species === 212 || species === 474 };
+  const plat = (species, options) => crossplay.memberProblems(species, wire(species, options), {}, false, later);
+  // Garchomp with Life Orb (0x251) and later moves (Stone Edge 447, Fire Fang 427); Lucario's second ability
+  assert.deepEqual(plat(471, { item: 593, moves: [447, 89, 200, 427] }), []);
+  assert.deepEqual(plat(474, { item: 555, ability: 1, moves: [399, 373] }), []);
+  assert.deepEqual(plat(212, { ability: 1, moves: [421, 372] }), []);      // Scizor's Technician is the fourth generation's
+  assert.deepEqual(plat(143, { item: 175 }), []);                         // the Enigma Berry has an effect under them
+  assert.deepEqual(plat(360, { moves: [360, 361] }), []);                 // Colosseum's 358 on: later moves, not Shadow ones
+  assert.match(plat(94, { moves: [355] })[0], /a Shadow move/);           // Colosseum's own Shadow moves stay out
+  assert.match(plat(143, { ability: 1, moves: [34] })[0], /second ability/);
+  assert.match(plat(94, { item: 0x28a })[0], /doesn't have as a held item/);
+  // and without them, as before
+  assert.match(one(471)[0], /isn't a Pokémon both games have/);
+  assert.match(one(212, { ability: 1 })[0], /second ability/);
+  assert.deepEqual(crossplay.problems([471, 474], [wire(471, { moves: [447] }), wire(474, { moves: [399] })], {}, later), []);
+});

@@ -14,6 +14,11 @@
 // - the second ability only for a species that has one; balls 1 to 12; IVs up to 31; EVs up to 255 each and 510 in
 //   all; friendship up to 255; PP Ups up to 3; nickname letters both games take (src/team-sets.js nicknameLetter).
 // A member's numbers are src/story-party.js wireMember's.
+//
+// Under Pokémon Platinum's battle rules both games take the fourth generation's from the room's rules file and play
+// it by the same code (host/crossplay.c), so the set has its Pokémon (413 to 519), moves (358 to 470) and held items
+// (src/formats.js laterItem) too, and a second ability wherever the fourth generation gives the species one (options
+// `later` and `secondAbility`).
 
 const SPECIES = [[1, 251], [277, 411]];
 const LAST_MOVE = 354;
@@ -36,30 +41,38 @@ const isSpecies = id => within(SPECIES, id);
 const isMove = id => Number.isInteger(id) && id >= 1 && id <= LAST_MOVE;
 const isShadowMove = id => Number.isInteger(id) && id >= SHADOW_MOVES[0] && id <= SHADOW_MOVES[1];
 const isItem = id => within(ITEMS, id);
+const LATER_SPECIES = [413, 519], LATER_MOVES = [358, 470], LATER_ITEMS = [0x224, 0x289], ENIGMA_BERRY = 175;
+const isLaterSpecies = id => within([LATER_SPECIES], id);
+const isLaterMove = id => within([LATER_MOVES], id);
+const isLaterItem = id => id === ENIGMA_BERRY || within([LATER_ITEMS], id);
 const hasSecondAbility = species => SECOND_ABILITY.has(species);
 // host/online.c nickname_letter, which both games share
 const isLetter = code => (code >= 0x20 && code <= 0x7e) || (code >= 0xa0 && code <= 0x17f) || code === 0x2640 || code === 0x2642 || (code >= 0x3041 && code <= 0x30fe);
 
 // Why one Pokémon can't battle as it is in a room for both games: [] when it can. `species` is its species, `wire` its
 // member numbers (or null for a species alone), `shadow` whether it's a Shadow Pokémon. `names` as formats.problems's.
-function memberProblems(species, wire, names = {}, shadow = false) {
+// options: `later`, the room plays by Platinum's rules (the fourth generation's are in the set), and `secondAbility`,
+// whether a species has a second ability under them.
+function memberProblems(species, wire, names = {}, shadow = false, { later = false, secondAbility = null } = {}) {
   const name = names.species?.(species) || `Pokémon #${species}`;
   const itemName = id => names.item?.(id) || `item #${id}`, moveName = id => names.move?.(id) || `move #${id}`;
   if (shadow) return [`${name} is a Shadow Pokémon: it stays home until it's purified.`];
-  if (!isSpecies(species)) return [`${name} isn't a Pokémon both games have.`];
+  if (!isSpecies(species) && !(later && isLaterSpecies(species))) return [`${name} isn't a Pokémon both games have.`];
   if (!wire) return [];
   const out = [];
   const [, , , ball, ability, item, friendship] = wire;
   const moves = [wire[7], wire[9], wire[11], wire[13]].filter(move => move);
   const seen = new Set();
   for (const move of moves) {
-    if (isShadowMove(move)) out.push(`${name} knows a Shadow move (${moveName(move)}): rooms for both games have none.`);
-    else if (!isMove(move)) out.push(`${name} knows ${moveName(move)}, which the other game doesn't have.`);
+    // (under Platinum's rules Colosseum's numbers go on past its Shadow moves: 358 on are the fourth generation's)
+    if (isShadowMove(move) && !(later && isLaterMove(move))) out.push(`${name} knows a Shadow move (${moveName(move)}): rooms for both games have none.`);
+    else if (!isMove(move) && !(later && isLaterMove(move))) out.push(`${name} knows ${moveName(move)}, which the other game doesn't have.`);
     else if (seen.has(move)) out.push(`${name} knows ${moveName(move)} twice.`);
     seen.add(move);
   }
-  if (item && !isItem(item)) out.push(`${name} holds ${itemName(item)}, which the other game doesn't have as a held item.`);
-  if (ability && !(ability === 1 && hasSecondAbility(species))) out.push(`${name} has a second ability its species doesn't have.`);
+  if (item && !isItem(item) && !(later && isLaterItem(item))) out.push(`${name} holds ${itemName(item)}, which the other game doesn't have as a held item.`);
+  const second = later && secondAbility ? secondAbility(species) : hasSecondAbility(species);
+  if (ability && !(ability === 1 && second)) out.push(`${name} has a second ability its species doesn't have.`);
   if (!(ball >= 1 && ball <= BALLS)) out.push(`${name} is in a ball the other game doesn't have.`);
   const evs = wire.slice(21, 27), ivs = wire.slice(15, 21);
   if (evs.some(ev => !(ev >= 0 && ev <= EV_MOST)) || evs.reduce((sum, ev) => sum + ev, 0) > EV_TOTAL)
@@ -74,11 +87,11 @@ function memberProblems(species, wire, names = {}, shadow = false) {
 }
 
 // Why a party (species, and members as wireMember's, or null) can't battle in a room for both games.
-function problems(party, members = null, names = {}) {
+function problems(party, members = null, names = {}, options = {}) {
   const out = [];
   (Array.isArray(party) ? party : []).forEach((species, slot) => {
     if (!species) return;
-    out.push(...memberProblems(species, Array.isArray(members) ? members[slot] || null : null, names));
+    out.push(...memberProblems(species, Array.isArray(members) ? members[slot] || null : null, names, false, options));
   });
   return [...new Set(out)];
 }
@@ -95,5 +108,6 @@ function storyMembers(members, wireMember, names = {}) {
   return { kept, leftOut };
 }
 
-module.exports = { SPECIES, LAST_MOVE, SHADOW_MOVES, ITEMS, SECOND_ABILITY, isSpecies, isMove, isShadowMove, isItem, hasSecondAbility,
+module.exports = { SPECIES, LAST_MOVE, SHADOW_MOVES, ITEMS, SECOND_ABILITY, LATER_SPECIES, LATER_MOVES, LATER_ITEMS, isSpecies, isMove,
+  isShadowMove, isItem, isLaterSpecies, isLaterMove, isLaterItem, hasSecondAbility,
   isLetter, memberProblems, problems, storyMembers };
