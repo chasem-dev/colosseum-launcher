@@ -347,6 +347,18 @@ test('each game has its own HD texture pack: Colosseum its pinned one, XD its ow
   fs.writeFileSync(path.join(folder, '.release'), JSON.stringify({ sha256: xd.sha256 }));
   assert.equal(port.texturePackInstalled(root, 'xd'), true);
   assert.equal(port.texturePackInstalled(root, 'colosseum'), false, 'XD\'s pack is not Colosseum\'s');
+  // images the game draws better itself come out of an installed pack (the window atlas of "Your name?" and others)
+  assert.ok(xd.leaveOut.length > 0);
+  for (const name of xd.leaveOut) assert.match(name, /^tex1_\w+\.png$/);
+  const atlas = path.join(folder, xd.leaveOut[0]), kept = path.join(folder, 'tex1_8x8_0000000000000000_9.png');
+  fs.writeFileSync(atlas, 'png');
+  fs.writeFileSync(kept, 'png');
+  assert.deepEqual(port.dropLeftOutTextures(root, 'colosseum'), [], 'Colosseum\'s pack is not installed here');
+  assert.deepEqual(port.dropLeftOutTextures(root, 'xd'), [xd.leaveOut[0]]);
+  assert.equal(fs.existsSync(atlas), false);
+  assert.equal(fs.existsSync(kept), true, 'the rest of the pack stays');
+  assert.equal(port.texturePackInstalled(root, 'xd'), true, 'and still counts as installed');
+  assert.deepEqual(port.dropLeftOutTextures(root, 'xd'), [], 'once removed, nothing to do');
   assert.equal(port.textureCommand(root, 'linux', {}).args[2], require('../src/texture-pack.json').url);
   assert.equal(port.textureCommand(root, 'linux', {}).args.length, 6, 'Colosseum\'s pack is one zip');
 });

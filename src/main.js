@@ -1447,6 +1447,7 @@ async function play(installation = null, battle = null) {
   if (!binaryReady(root)) throw new Error('Set up this version of the game before playing.');
   if (!hdVisualsReady(root, settings))
     throw new Error('HD visuals need to be set up. Return to the main screen to finish setup, or turn them off in Settings.');
+  if (settings.textures) for (const name of port.dropLeftOutTextures(root, chosen.id)) log(`Removed ${name} from the HD texture pack: the game draws its own.`);
   if (supports('languagePacks')) await ensureLanguage(settings);
   // An online battle plays on no save: the memory card stays as it was.
   if (!battle) makeSaveBackup('before-play');
