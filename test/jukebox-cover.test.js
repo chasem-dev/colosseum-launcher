@@ -19,8 +19,8 @@ test('a song\'s kind comes from its name and whether it is short', () => {
   assert.equal(cover.kind({ name: 'Level Up', short: true }), 'jingle');
   assert.equal(cover.kind({ name: 'Phenac City' }), 'tune');
   assert.equal(cover.kind({}), 'tune');
-  for (const name of ['Mt. Battle', 'Mt. Battle Rest Room', 'Mt. Battle rest area', 'Battle Mode Menu', 'Battle Bingo']) assert.equal(cover.kind({ name }), 'tune', name);
-  for (const name of ['Battle Bingo battle', 'Colosseum Round 3 Battle', 'Battle vs. Miror B.']) assert.equal(cover.kind({ name }), 'battle', name);
+  for (const name of ['Mt. Battle', 'Mt. Battle Rest Room', 'Mt. Battle rest area', 'Battle Mode Menu', 'Battle Bingo', 'Battle Bingo - Board']) assert.equal(cover.kind({ name }), 'tune', name);
+  for (const name of ['Battle Bingo battle', 'Battle Bingo - Battle', 'Wild Pokémon Battle', 'Colosseum Round 3 Battle', 'Battle vs. Miror B.']) assert.equal(cover.kind({ name }), 'battle', name);
   assert.equal(cover.kind({ name: 'General effect 1', kind: 'sfx' }), 'effect');
 });
 

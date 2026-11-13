@@ -76,10 +76,11 @@ test('an XD model is made Colosseum\'s: header, model, particles, motion slots a
 });
 
 test('song names: the ones known by name, the rest made readable', () => {
-  assert.equal(xdDisc.songTitle('stm_bgm_title.fsys'), 'Title screen');
-  assert.equal(xdDisc.songTitle('stm_me_me_win.fsys'), 'Victory');
-  assert.equal(xdDisc.songTitle('stm_bgm_b_colosseum1.fsys'), 'B colosseum1');
-  assert.equal(xdDisc.songTitle('stm_me_fanfare00.fsys'), 'Jingle fanfare00');
+  assert.equal(xdDisc.songTitle('stm_bgm_title.fsys'), 'Title Screen');
+  assert.equal(xdDisc.songTitle('stm_me_me_win.fsys'), 'Win Battle');
+  assert.equal(xdDisc.songTitle('stm_bgm_b_colosseum1.fsys'), 'Colosseum - 1st Round');
+  assert.equal(xdDisc.songTitle('stm_bgm_b_paira.fsys'), 'B paira');
+  assert.equal(xdDisc.songTitle('stm_me_fanfare00.fsys'), 'VS Battle Fanfare 1');
 });
 
 // --- The real disc: XD_TEST_DISC=/path/to/GXXE01.iso npm test ---------------------------------------------------

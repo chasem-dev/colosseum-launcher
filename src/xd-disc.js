@@ -353,13 +353,36 @@ function decodeCry(disc, tables, sound) {
 // --- Music -------------------------------------------------------------------------------------------------------
 
 // What a song's file is called in the Jukebox: the ones we know by name, else the file's name made readable.
+// The names are the fan labels of KHInsider's XD gamerip, matched by the file's name (often a Japanese word: kinkyu is an
+// emergency, esaba a feeding spot, ketsui resolve) and its length. Those marked "?" fit one way, not both; the jingles the two
+// games share are named as Colosseum's are (jukebox-names.js). A song with no name here (or one whose file is a copy of another
+// song's, such as b_paira of b_colosseum1) shows its file's name.
 const SONG_NAMES = {
-  title: 'Title screen', pokecen: 'Pokémon Center', stand: 'Outskirt Stand', ev_6brothers: 'Hexagon Brothers', worldmap: 'World map', pokelabo: 'Pokémon HQ Lab', mt_battle: 'Mt. Battle',
-  mt_battle_kyukei: 'Mt. Battle rest area', mt_battle_uketsuke: 'Mt. Battle reception', orecolosseum: 'Orre Colosseum', libra: 'S.S. Libra',
-  esaba: 'Poké Spot', b_esaba: 'Battle at a Poké Spot', bingo: 'Battle Bingo', b_bingo: 'Battle Bingo battle', b_virtual: 'Battle Simulator battle',
-  mirrorbo: 'Miror B.', b_mirrorbo: 'Battle vs. Miror B.', kaminko: 'Kaminko\'s house', kaminko2: 'Kaminko\'s house 2', b_rugia: 'Battle vs. XD001',
-  chr_rugia: 'XD001', b_lastboss: 'Final battle', watercity: 'Phenac City', watercity2: 'Phenac City 2', tool_imasugu: 'Quick Battle',
-  tool_imasugu2: 'Quick Battle 2', ev_end: 'Ending', me_win: 'Victory', me_level_up: 'Level up', me_snatch: 'Snagged', me_relive: 'Purified'
+  title: 'Title Screen', open_roll: 'Demo Opening', stand: 'Outskirt Stand', pokelabo: 'Pokémon HQ Lab', ioport: 'Gateon Port',
+  pokecen: 'Pokémon Center', watercity: 'Phenac City', watercity2: 'Phenac City Crisis' /* ? */, libra: 'S.S. Libra', worldmap: 'World Map',
+  mt_battle: 'Mt. Battle', mt_battle_uketsuke: 'Mt. Battle - Reception Counter', mt_battle_kyukei: 'Mt. Battle - Break Room' /* ? */,
+  relivehall: 'Purification Chamber', relive_ceremony: 'Purification Ceremony',
+  stage_perfect: 'Purification Chamber - Perfect', stage_verygood: 'Purification Chamber - Very Good', stage_good: 'Purification Chamber - Good',
+  stage_bad: 'Purification Chamber - Bad',
+  esaba: 'Poké Spot', b_esaba: 'Wild Pokémon Battle', bingo: 'Battle Bingo - Board', b_bingo: 'Battle Bingo - Battle',
+  mirrorbo: 'Miror B.\'s Theme', b_mirrorbo: 'Miror B. Battle', snatch_ajito: 'Snagem Hideout', orecolosseum: 'Orre Colosseum',
+  b_colosseum1: 'Colosseum - 1st Round', b_colosseum2: 'Colosseum - 2nd Round', b_colosseum3: 'Colosseum - Semi-Finals', b_colosseum4: 'Colosseum - Finals',
+  nikeldark: 'Citadark Isle', dark_factory: 'Cipher Key Lair' /* ? */, darkside4: 'Cipher Lab' /* ? */, saint: 'Realgam Tower' /* ? */,
+  shinpi: 'Fateen\'s Fortune Telling' /* ? */, tretre: 'Pre Gym' /* ? */,
+  kaminko: 'Dr. Kaminko\'s Manor' /* ? */, kaminko2: 'Dr. Kaminko\'s Yard' /* ? */,
+  ev_mechagradon: 'Robo Groudon', ev_6brothers: 'The Hexagon Brothers', ev_ketsui: 'We\'ll Finish the Purify Chamber Ourselves!',
+  ev_ketsui2: 'Our Pride as Scientists' /* ? */, ev_kinkyu: 'Prof. Krane\'s Kidnap' /* ? */, ev_fuan: 'Trouble' /* ? */,
+  ev_honobono: 'Jovi\'s Theme' /* ? */, ev_sad: 'Jovi Is Sad (unused)' /* ? */, ev_last: 'Master Greevil Defeated' /* ? */,
+  ev_last2: 'Master Greevil Redeemed' /* ? */, ev_end: 'Ending',
+  chr_rugia: 'Shadow Lugia\'s Theme', chr_helgonza: 'Gonzap\'s Theme', chr_boss01: 'Mr. Verich\'s Theme' /* ? */,
+  b_rugia: 'Shadow Lugia Battle', b_lastboss: 'Master Greevil Final Battle', b_virtual: 'Battle Sim', b_wirie: 'Rider Willie Battle',
+  xdbattle01: 'Normal Battle', xdbattle02: 'Cipher Battle', xdbattle03: 'Cipher Admin Battle' /* ? */,
+  tool_minnade: 'VS Battle Mode (Version 1)', tool_imasugu: 'VS Battle Mode (Version 3)', tool_music: 'VS Mode Menu',
+  me_win: 'Win Battle', me_level_up: 'Level Up', me_snatch: 'Snatch Shadow Pokémon', me_relive: 'Shadow Pokémon is Purified', me_welcome: 'Welcome',
+  me_agb_fanfa1b: 'Get Item', me_agb_fanfa5: 'Congratulations (Evolution Success)', me_agb_me_asa: 'Heal Pokémon',
+  me_agb_me_shinka: 'Evolution Jingle', me_agb_shinka: 'Pokémon is Evolving', me_fue: 'Time Flute', me_news: 'ONBS News Broadcast',
+  me_snatchmachine: 'Snag Machine',
+  ...Object.fromEntries([0, 1, 2, 3].map(i => [`me_fanfare0${i}`, `VS Battle Fanfare ${i + 1}`]))
 };
 function songTitle(file) {
   const stem = String(file).replace(/^stm_bgm_/, '').replace(/^stm_/, '').replace(/^me_me_/, 'me_').replace(/\.fsys$/, '');
