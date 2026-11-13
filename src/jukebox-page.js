@@ -169,7 +169,12 @@
         }
         button.title = track.name;   // the whole name, for a long one in a narrow window
         button.addEventListener('click', () => play(track.id));
-        items.push(button);
+        // the song and its star, side by side (a button can't hold another)
+        const item = document.createElement('div');
+        item.className = 'jukebox-item';
+        item.dataset.id = track.id;
+        item.append(button, star(track));
+        items.push(item);
       }
       list.replaceChildren(...items);
       list.dataset.rendered = shown;
@@ -178,7 +183,11 @@
       $('jukebox-count').textContent = visible.length === all ? `${all}` : `${visible.length} of ${all}`;
       $('jukebox-nomatch').hidden = visible.length > 0;
     }
-    for (const button of list.children) {
+    for (const starred of document.querySelectorAll('.jukebox-star[data-id]')) {
+      const on = lists.isFavorite(playlists, starred.dataset.id);
+      starred.setAttribute('aria-pressed', String(on));
+    }
+    for (const button of list.querySelectorAll('.jukebox-track')) {
       button.classList.toggle('selected', button.dataset.id === current);
       button.classList.toggle('playing', button.dataset.id === state.playing && !state.paused);
       if (button.dataset.id === current) button.setAttribute('aria-current', 'true'); else button.removeAttribute('aria-current');
@@ -194,6 +203,10 @@
     const where = queue ? ` · ${queue.name}, ${queue.at + 1} of ${queue.order.length}${queue.shuffled ? ', shuffled' : ''}` : '';
     $('jukebox-status').textContent = notice || ((busy ? 'Preparing the song…' : state.playing ? (state.paused ? 'Paused' : 'Playing') : current ? 'Ready' : '') + where);
     $('jukebox-add').disabled = !current;
+    const dockStar = $('jukebox-star');
+    dockStar.disabled = !current;
+    dockStar.dataset.id = current ?? '';
+    dockStar.setAttribute('aria-pressed', String(Boolean(current) && lists.isFavorite(playlists, current)));
     const playing = Boolean(state.playing) && !state.paused;
     $('jukebox-toggle').textContent = playing ? 'Pause' : state.paused ? 'Resume' : 'Play';
     $('jukebox-toggle').setAttribute('aria-label', $('jukebox-toggle').textContent);
@@ -417,6 +430,22 @@
     window.colo.jukeboxSavePlaylists(next).then(kept => { playlists = kept; render(); })
       .catch(error => { notice = `The playlists could not be saved: ${message(error)}`; render(); });
   }
+  // A song's star: filled while the song is in Favorites; pressing it adds the song or takes it out.
+  const STAR = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.6l2.3 4.9 5.3.6-3.9 3.6 1.1 5.3L10 14.3 5.2 17l1.1-5.3-3.9-3.6 5.3-.6z"/></svg>';
+  function star(track) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'jukebox-star';
+    button.dataset.id = track.id;
+    button.innerHTML = STAR;
+    button.setAttribute('aria-label', `Favorite: ${track.name}`);
+    button.title = 'Favorite';
+    button.setAttribute('aria-pressed', String(lists.isFavorite(playlists, track.id)));
+    button.addEventListener('click', () => toggleStar(track.id));
+    return button;
+  }
+  function toggleStar(id) { if (id) savePlaylists(lists.toggleFavorite(playlists, id)); }
+
   function newPlaylist(name, song = null) {
     const made = lists.create(playlists, name);
     if (!made.id) return null;
@@ -443,6 +472,7 @@
       if (each.id === chosen) button.setAttribute('aria-current', 'true');
       const name = document.createElement('span');
       name.textContent = each.name;
+      if (each.id === lists.FAVORITES) button.classList.add('favorites');
       const count = document.createElement('span');
       count.className = 'jukebox-track-length';
       count.textContent = String(each.songs.length);
@@ -455,13 +485,18 @@
     $('jukebox-pl-none').hidden = playlists.length > 0;
     $('jukebox-pl-main').hidden = !playlist;
     if (!playlist) return;
-    const title = $('jukebox-pl-title');
+    const title = $('jukebox-pl-title'), favorites = playlist.id === lists.FAVORITES;
     if (document.activeElement !== title) title.value = playlist.name;
+    title.readOnly = favorites;   // Favorites keeps its name, and stays
+    $('jukebox-pl-delete').hidden = favorites;
     const playable = playlist.songs.filter(has);
     $('jukebox-pl-count').textContent = playable.length === playlist.songs.length ? `${playlist.songs.length}` : `${playable.length} of ${playlist.songs.length} on this disc`;
     $('jukebox-pl-play').disabled = $('jukebox-pl-shuffle').disabled = !playable.length;
     $('jukebox-pl-delete').textContent = confirmDelete && Date.now() - confirmDelete < 4000 ? 'Delete it?' : 'Delete';
     $('jukebox-pl-empty').hidden = playlist.songs.length > 0;
+    $('jukebox-pl-empty').textContent = favorites
+      ? 'No favorites yet. Press the star beside a song, in Music or Sound effects or in the player, to add it here.'
+      : 'This playlist is empty. Right-click a song in Music or Sound effects, or use the player\'s Add to playlist button, to add it here.';
     const songs = $('jukebox-pl-songs');
     songs.replaceChildren(...playlist.songs.map((id, index) => {
       const track = trackOf(id), row = document.createElement('li');
@@ -603,6 +638,7 @@
     const x = event.clientX || box.left + 12, y = event.clientY || box.bottom;
     openMenu(button.dataset.id, x, y, button);
   });
+  $('jukebox-star').addEventListener('click', event => toggleStar(event.currentTarget.dataset.id));
   $('jukebox-add').addEventListener('click', event => {
     if (!menu.hidden) return closeMenu();
     const box = event.currentTarget.getBoundingClientRect();

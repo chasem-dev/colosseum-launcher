@@ -5,21 +5,24 @@
 // them in the launcher's data folder (jukebox-playlists.json: { colosseum: [...], xd: [...] }); the page changes them with these
 // functions, each of which returns a new list and leaves the one it was given alone.
 // A playlist: { id, name, songs: [song id, ...] }. A song can be in a playlist once.
+// Favorites is a playlist every list has, first, that the star beside a song fills: it can't be renamed or deleted.
 (function (root) {
   const MOST_PLAYLISTS = 200, MOST_SONGS = 2000, LONGEST_NAME = 60;
+  const FAVORITES = 'favorites', FAVORITES_NAME = 'Favorites';
+  const songsOf = songs => [...new Set((Array.isArray(songs) ? songs : []).filter(song => typeof song === 'string' && /^\d{1,6}$/.test(song)))].slice(0, MOST_SONGS);
 
   const cleanName = name => String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, LONGEST_NAME);
 
   // A list as it was saved, made safe to use: what isn't a playlist is left out, and so is what is too much.
   function normalize(list) {
-    if (!Array.isArray(list)) return [];
-    const out = [], ids = new Set();
-    for (const each of list) {
+    const saved = Array.isArray(list) ? list : [];
+    const out = [{ id: FAVORITES, name: FAVORITES_NAME, songs: songsOf(saved.find(each => each?.id === FAVORITES)?.songs) }], ids = new Set([FAVORITES]);
+    for (const each of saved) {
       if (out.length >= MOST_PLAYLISTS) break;
       const name = cleanName(each?.name), id = typeof each?.id === 'string' && /^[\w-]{1,40}$/.test(each.id) ? each.id : null;
       if (!name || !id || ids.has(id)) continue;
       ids.add(id);
-      const songs = [...new Set((Array.isArray(each.songs) ? each.songs : []).filter(song => typeof song === 'string' && /^\d{1,6}$/.test(song)))].slice(0, MOST_SONGS);
+      const songs = songsOf(each.songs);
       out.push({ id, name, songs });
     }
     return out;
@@ -53,8 +56,11 @@
     const out = list.map(each => (each.id === id ? edit(each) : each));
     return out.every((each, i) => each === list[i]) ? list : out;
   }
-  const rename = (list, id, name) => (cleanName(name) ? change(list, id, each => ({ ...each, name: cleanName(name) })) : list);
-  const remove = (list, id) => list.filter(each => each.id !== id);
+  const rename = (list, id, name) => (cleanName(name) && id !== FAVORITES ? change(list, id, each => ({ ...each, name: cleanName(name) })) : list);
+  const remove = (list, id) => (id === FAVORITES ? list : list.filter(each => each.id !== id));
+  // Favorites: whether a song is in it, and the star's toggle
+  const isFavorite = (list, song) => Boolean(list.find(each => each.id === FAVORITES)?.songs.includes(song));
+  const toggleFavorite = (list, song) => (isFavorite(list, song) ? drop(list, FAVORITES, song) : add(list, FAVORITES, song));
   // a song at the end, once
   const add = (list, id, song) => change(list, id, each => (each.songs.includes(song) || each.songs.length >= MOST_SONGS ? each : { ...each, songs: [...each.songs, String(song)] }));
   const drop = (list, id, song) => change(list, id, each => ({ ...each, songs: each.songs.filter(one => one !== song) }));
@@ -76,7 +82,7 @@
     return songs;
   }
 
-  const api = { MOST_PLAYLISTS, MOST_SONGS, LONGEST_NAME, normalize, normalizeAll, create, rename, remove, add, drop, move, order };
+  const api = { MOST_PLAYLISTS, MOST_SONGS, LONGEST_NAME, FAVORITES, normalize, normalizeAll, create, rename, remove, add, drop, move, order, isFavorite, toggleFavorite };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.coloJukeboxPlaylists = api;
 })(typeof globalThis === 'object' ? globalThis : this);

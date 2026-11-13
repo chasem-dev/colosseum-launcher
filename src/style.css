@@ -1248,3 +1248,25 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
   .jukebox-pl-song { grid-template-columns: minmax(0, 1fr) 48px auto; }
   .jukebox-pl-song .jukebox-track-type { display: none; }
 }
+
+/* Favorites: a star beside every song, filled while it is one */
+.jukebox-item { position: relative; display: flex; min-width: 0; }
+.jukebox-item > .jukebox-track { flex: 1; min-width: 0; padding-right: 40px; }
+.jukebox-list[data-view="list"] .jukebox-item, .jukebox-list[data-view="compact"] .jukebox-item { border-bottom: 1px solid var(--jk-line); }
+.jukebox-list[data-view] .jukebox-item:last-child { border-bottom: 0; }
+.jukebox-list[data-view="list"] .jukebox-item .jukebox-track, .jukebox-list[data-view="compact"] .jukebox-item .jukebox-track { border-bottom: 0; }
+.jukebox-star { line-height: 0; color: var(--jk-muted); }
+.jukebox-item > .jukebox-star { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 4px; border: 0; border-radius: 6px; background: none; }
+.jukebox-star svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.jukebox-star:hover { color: var(--jk-text); background: var(--jk-hover); }
+.jukebox-star[aria-pressed="true"] { color: #e0a100; }
+.dark .jukebox-star[aria-pressed="true"], .dark .jukebox-dock .jukebox-star[aria-pressed="true"] { color: #ffc75a; }
+.jukebox-star[aria-pressed="true"] svg { fill: currentColor; }
+.jukebox-star:focus-visible { outline: 2px solid var(--jk-accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: no-preference) { .jukebox-star svg { transition: transform .15s ease; } .jukebox-star[aria-pressed="true"] svg { transform: scale(1.12); } }
+.jukebox-pl-item.favorites span:first-child::before { content: "\2605  "; color: #e0a100; }
+.dark .jukebox-pl-item.favorites span:first-child::before { color: #ffc75a; }
+.jukebox-pl-item.favorites.playing span:first-child::before { content: "\266A  "; color: var(--jk-accent); }
+.jukebox-pl-title[readonly] { border-color: transparent; background: transparent; }
+.jukebox-list[data-view] .jukebox-item > .jukebox-track { padding-right: 44px; }
+.jukebox-list[data-view] .jukebox-columns { padding-right: 44px; }
