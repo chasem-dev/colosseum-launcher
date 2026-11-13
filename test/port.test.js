@@ -256,6 +256,23 @@ test('TMs by move name are on unless turned off, and on leaves it to the game', 
   }
 });
 
+test('Infinite TMs, EXP Share and the C-Stick as the stick are off unless turned on, and Colosseum only', () => {
+  const keys = { infiniteTms: 'COLO_INFINITE_TMS', expShare: 'COLO_EXP_SHARE', cstickMove: 'COLO_CSTICK_MOVE' };
+  const saved = Object.fromEntries(Object.values(keys).map(key => [key, process.env[key]]));
+  for (const key of Object.values(keys)) delete process.env[key];
+  try {
+    for (const [setting, key] of Object.entries(keys)) {
+      assert.equal(port.normalizeSettings({})[setting], false, setting);
+      assert.equal(port.buildEnvironment(port.normalizeSettings({}), 'disc', '/port')[key], undefined, setting);
+      assert.equal(port.buildEnvironment(port.normalizeSettings({ [setting]: false }), 'disc', '/port')[key], undefined, setting);
+      assert.equal(port.buildEnvironment(port.normalizeSettings({ [setting]: true }), 'disc', '/port')[key], '1', setting);
+      assert.equal(port.buildEnvironment(port.normalizeSettings({ [setting]: true }), 'disc', '/port', { game: 'xd' })[key], undefined, `XD has no ${setting}`);
+    }
+  } finally {
+    for (const [key, value] of Object.entries(saved)) if (value !== undefined) process.env[key] = value;
+  }
+});
+
 test('HD models are on unless turned off, and on leaves it to the game', () => {
   const env = hdModels => port.buildEnvironment(port.normalizeSettings({ hdModels }), 'disc', '/port').COLO_HD_MODELS;
   const saved = process.env.COLO_HD_MODELS;
