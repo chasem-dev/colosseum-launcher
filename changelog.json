@@ -50,7 +50,8 @@
       "Pokémon XD: on the online team-pick screen, the stick and the keyboard's arrow keys pick Pokémon, and the buttons shown match your controller or keyboard.",
       "Pokémon XD: Quick moves work in VS MODE's Quick Battle: press Z, then A, B, X and Y pick moves.",
       "Pokémon XD: under Platinum rules, a move's details in Quick Battle show whether it is PHYSICAL, SPECIAL or STATUS.",
-      "Pokémon XD: fixed the game crashing on Windows in battle when a Pokémon was sent out."
+      "Pokémon XD: fixed the game crashing on Windows in battle when a Pokémon was sent out.",
+      "Pokémon XD: fixed the game crashing on an opposing trainer's turn in some double battles, when the trainer had a pair of moves it plays together, such as Sweet Scent and Blizzard."
     ]
   },
   "releases": [
