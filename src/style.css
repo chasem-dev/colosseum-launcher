@@ -491,6 +491,7 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .path-row > button, .path-row > .actions { flex: none; }
 /* Settings → Game Boy Advance: what a chosen file is, and what's wrong with it */
 .path-row .gba-note { color: #9a5a12; white-space: normal; }
+#pbr-note { white-space: normal; }
 .path-row .gba-note.rom-error { color: #b3261e; }
 #pane-gba > .helper { display: block; margin: 4px 0 10px; }
 #gba-found { margin-top: 10px; }

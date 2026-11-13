@@ -377,6 +377,29 @@ test('a wrong disc file keeps the offer open with the reason in a banner, and ma
   assert.equal(ui.elements.get('pbr-check').hidden, true);
 });
 
+// A good disc but a game that can't make the assets yet: the banner and the button say what to do, not just a greyed button
+test('a found disc with no game to make the assets says to set up or update the game', async () => {
+  const choice = { ok: true, file: '/games/pbr.iso', message: 'The North American release of Pokémon Battle Revolution (RPBE01, ISO).', at: 3 };
+  const fresh = gen4State({ supported: false, disc: '/games/pbr.iso', discFound: true, choice });
+  fresh.repoReady = false;
+  const ui = await renderer(fresh);
+  assert.equal(ui.elements.get('make-pbr-models').disabled, true);
+  assert.equal(ui.elements.get('pbr-check-title').textContent, 'Battle Revolution disc found');
+  assert.match(ui.elements.get('pbr-check-detail').textContent, /\(RPBE01, ISO\)\. Set up the game on the Play page first/);
+  assert.match(ui.elements.get('make-pbr-models').title, /Set up the game/);
+  assert.match(ui.elements.get('pbr-note').textContent, /^Set up the game/);
+
+  const old = gen4State({ supported: false, disc: '/games/pbr.iso', discFound: true, choice });
+  old.repoReady = true;
+  const outdated = await renderer(old);
+  assert.match(outdated.elements.get('pbr-check-detail').textContent, /Your game is too old to make them: update it from the Play page/);
+
+  const ready = await renderer(gen4State({ disc: '/games/pbr.iso', discFound: true, choice }));
+  assert.equal(ready.elements.get('make-pbr-models').disabled, false);
+  assert.equal(ready.elements.get('make-pbr-models').title, '');
+  assert.equal(ready.elements.get('pbr-check-detail').textContent, choice.message);
+});
+
 // One chosen before the launcher checked: the Play page and Settings say it can't be used, and Make assets is off
 test('a kept disc that is not Battle Revolution is flagged on Play and in Settings', async () => {
   const ui = await renderer(gen4State({ disc: '/games/other.iso', discFound: true, discProblem: 'That\'s "Wii Sports" (RSPE01), not Pokémon Battle Revolution.' }));

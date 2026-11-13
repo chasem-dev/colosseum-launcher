@@ -1405,18 +1405,32 @@ function pbrProgress(active) {
 // What the game makes from the disc: models and icons, and cries where it has them (pbr.cries)
 function pbrAssets(pbr, icons = false) { return pbr.cries ? (icons ? 'models, icons and cries' : 'models and cries') : (icons ? 'models and icons' : 'models'); }
 
-function renderPbr(data) {
+// Why Make assets can't run yet, in the player's words, or '' when it can (or when a task is running, which the
+// progress shows). The note beside the button was all that said so, cut off at the row's width.
+function pbrBlocker(data) {
   const pbr = data.pbr || {};
+  if (data.active) return '';
+  if (!pbr.supported) return data.repoReady
+    ? 'Your game is too old to make them: update it from the Play page, then press Make assets.'
+    : 'Set up the game on the Play page first, then press Make assets here.';
+  if (!pbr.wanted) return 'Turn on Generation 4 Pokémon above first.';
+  if (!pbr.disc) return 'Choose your Battle Revolution disc first.';
+  return '';
+}
+
+function renderPbr(data) {
+  const pbr = data.pbr || {}, blocker = pbrBlocker(data);
   $('pbr-note').textContent = pbrProgress(data.active)
-    || (!pbr.supported ? 'Update your game to make models from your own Pokémon Battle Revolution disc.'
+    || (!pbr.supported ? `${blocker} Generation 4 Pokémon's models come from your own Pokémon Battle Revolution disc.`
       : !pbr.wanted ? `Turn on Generation 4 Pokémon above, then make their ${pbrAssets(pbr)} from your own Pokémon Battle Revolution disc. No Blender needed.`
         : !pbr.disc ? `Choose your own Pokémon Battle Revolution disc (RVZ, ISO or WBFS) and their ${pbrAssets(pbr, true)} are made from it. Until then, each has a Colosseum Pokémon standing in. ${pbr.made} of ${pbr.wanted} made.`
           : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make assets to make ${pbr.outdated === 1 ? 'it' : 'them'} again.`
             : pbr.noCry ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. ${pbr.noCry === 1 ? '1 Pokémon has' : `${pbr.noCry} Pokémon have`} a model but no cry of its own yet: press Make assets to add ${pbr.noCry === 1 ? 'it' : 'them'}.`
               : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
   $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbrDiscUsable(pbr);
+  $('make-pbr-models').title = blocker;
   $('choose-pbr-disc').disabled = Boolean(data.active);
-  renderPbrCheck('pbr-check', pbr);
+  renderPbrCheck('pbr-check', pbr, { blocker });
   renderPbrBanner(data);
 }
 
@@ -1428,7 +1442,7 @@ function fileName(file) { return String(file || '').split(/[\\/]/).pop(); }
 // in the disc offer): a wrong file was otherwise turned away, or failed minutes into making the assets, with the reason
 // only in the activity log. Each can be dismissed; a new choice shows again.
 let pbrCheckDismissed = null;
-function pbrCheck(pbr) {
+function pbrCheck(pbr, blocker = '') {
   const choice = pbr.choice;
   if (choice && !choice.ok) return { kind: 'error', key: `choice:${choice.at}`, title: `${fileName(choice.file)} can't be used`,
     detail: `${choice.message}${pbr.disc && pbrDiscUsable(pbr) ? ` Your disc stays ${fileName(pbr.disc)}.` : ''}` };
@@ -1437,11 +1451,12 @@ function pbrCheck(pbr) {
   if (pbr.disc && !pbr.discFound) return { kind: 'warn', key: `missing:${pbr.disc}`, title: 'Your Battle Revolution disc isn\'t where it was',
     detail: `${pbr.disc} can't be found. Choose it again.` };
   if (choice?.ok && choice.file === pbr.disc) return { kind: choice.warning ? 'warn' : 'ok', key: `choice:${choice.at}`,
-    title: choice.warning ? 'Battle Revolution disc found, but check it' : 'Battle Revolution disc found', detail: choice.message };
+    title: choice.warning ? 'Battle Revolution disc found, but check it' : 'Battle Revolution disc found',
+    detail: `${choice.message}${blocker ? ` ${blocker}` : ''}` };
   return null;
 }
-function renderPbrCheck(id, pbr, { dismissible = true } = {}) {
-  const check = pbrCheck(pbr || {});
+function renderPbrCheck(id, pbr, { dismissible = true, blocker = '' } = {}) {
+  const check = pbrCheck(pbr || {}, blocker);
   const show = Boolean(check && !(dismissible && pbrCheckDismissed === check.key));
   $(id).hidden = !show;
   if (!show) return;
