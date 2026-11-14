@@ -20,7 +20,8 @@ const IDLE_MS = 15000;
 
 // --- The 3D view ---------------------------------------------------------------------
 
-export function createViewer(canvas) {
+// `onFrame(frame, frames)` hears each frame of the motion drawn, for a page that shows where it is.
+export function createViewer(canvas, { onFrame = null } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -229,15 +230,16 @@ export function createViewer(canvas) {
   const observer = new ResizeObserver(resize);
   observer.observe(canvas.parentElement);
 
-  let running = false, started = 0, frame = 0, lastDraw = -Infinity, lastActive = performance.now(), background = document.hidden, redrawQueued = false;
+  let paused = false, running = false, started = 0, frame = 0, lastDraw = -Infinity, lastActive = performance.now(), background = document.hidden, redrawQueued = false;
   const listening = new AbortController();
   const rate = () => shown?.clip?.fps || 30;
   const draw = now => {
     const { clip } = shown || {};
     place();
     const blinked = stepBlink(now);
-    if (clip) frame = Math.floor(((now - started) / 1000 * clip.fps) % clip.frames + clip.frames) % clip.frames;
+    if (clip && !paused) frame = Math.floor(((now - started) / 1000 * clip.fps) % clip.frames + clip.frames) % clip.frames;
     if (shown && (clip || blinked || !shown.posed)) showFrame(frame);
+    if (clip && onFrame) onFrame(frame, clip.frames);
     renderer.render(scene, camera);
     lastDraw = now;
   };
@@ -272,6 +274,20 @@ export function createViewer(canvas) {
 
   return {
     setModel, setClip,
+    // Holds the motion at its frame (true), or plays it on from there.
+    setPaused(on) {
+      paused = Boolean(on);
+      started = performance.now() - frame / rate() * 1000;
+      redraw();
+    },
+    // Shows one frame of the motion (and plays on from it, unless paused).
+    setFrame(index) {
+      const frames = shown?.clip?.frames || 1;
+      frame = Math.max(0, Math.min(frames - 1, Math.round(index)));
+      started = performance.now() - frame / rate() * 1000;
+      if (shown) shown.posed = false;
+      redraw();
+    },
     // New texels for one of the shown model's textures (one made from `rgba`, at the same size), for a page that
     // repaints them; drawn at once, even while the model holds still.
     setTexels(index, rgba) {

@@ -14,12 +14,13 @@
   // Seeds are a few shades of each region as the disc has them (the lightest, typical and darkest of each colour
   // of the model's textures). A `face` region is only looked for on the face; the rest only on the body.
   // `keep` seeds catch texels no region should take: the whites of the eyes, lines, the mouth.
-  // `model` is the archive the model is in, `entry` its id there (else its first entry, a pkx), `idle` the clip it
-  // stands in (else the idle its pkx header names). Wes is shown as his field model, standing as on the name screen:
-  // his battle model's idle is his battle stance, and the opening's (ken_c1) has his goggles down and no Snag
-  // Machine. The Game Boy Advance heroes' battle models stand at ease, and have more detail than their field models.
+  // `battle` is the hero's battle model (a pkx archive), `stand` the model shown standing when it isn't the battle
+  // model: `file` the archive, `entry` the model's id in it, `idle` the clip it stands in. Wes stands as his field
+  // model, as on the name screen: his battle model's idle is his battle stance, and the opening's (ken_c1) has his
+  // goggles down and no Snag Machine. The Game Boy Advance heroes' battle models stand at ease, with more detail
+  // than their field models.
   const HEROES = [
-    { id: 'wes', label: 'Wes', from: 'Pokémon Colosseum', model: 'field_common.fsys', entry: 0x00f70400, idle: 1, regions: [
+    { id: 'wes', label: 'Wes', from: 'Pokémon Colosseum', stand: { file: 'field_common.fsys', entry: 0x00f70400, idle: 1 }, battle: { file: 'pkx_ken_a1.fsys' }, regions: [
       { id: 'coat', label: 'Coat', seeds: seeds(['0a3f5f', '0d4f78', '10537e']) },
       { id: 'suit', label: 'Suit', seeds: seeds(['151515', '2b2526', '313131', '1d202e', '292839', '363547']) },
       { id: 'trim', label: 'Trim', seeds: seeds(['731e00', '7f2200', '843000', '421000', '4f1500', '9c2c00', 'ad3800', 'ce5900']) },
@@ -33,7 +34,7 @@
       { id: 'midnight', label: 'Midnight', colors: { coat: '#20223a', suit: '#0d0d12', trim: '#3fa9f5' } },
       { id: 'snow', label: 'Snow', colors: { coat: '#d6dbe3', suit: '#3a3f4a', trim: '#2a7fd4' } },
     ] },
-    { id: 'brendan', label: 'Brendan', from: 'Pokémon Ruby and Sapphire', model: 'pkx_agb_m_a1.fsys', regions: [
+    { id: 'brendan', label: 'Brendan', from: 'Pokémon Ruby and Sapphire', battle: { file: 'pkx_agb_m_a1.fsys' }, regions: [
       { id: 'jacket', label: 'Jacket', seeds: seeds(['9f1d21', 'a41e23', 'a51e23', '631010', '751418', '841818']) },
       { id: 'black', label: 'Shirt and shorts', seeds: seeds(['212021', '2e2d2e', '2d2e2d']) },
       { id: 'white', label: 'Hat and white', seeds: seeds(['a2a0a2', 'c3c0c0', 'ffffff']) },
@@ -45,7 +46,7 @@
       { id: 'ocean', label: 'Ocean', colors: { jacket: '#2459b0', black: '#1a2233' } },
       { id: 'shadow', label: 'Shadow', colors: { jacket: '#2a2a33', black: '#101014', white: '#7a7a86', bag: '#5a5a66' } },
     ] },
-    { id: 'may', label: 'May', from: 'Pokémon Ruby and Sapphire', model: 'pkx_agb_f_a1.fsys', regions: [
+    { id: 'may', label: 'May', from: 'Pokémon Ruby and Sapphire', battle: { file: 'pkx_agb_f_a1.fsys' }, regions: [
       { id: 'shirt', label: 'Shirt and bandana', seeds: seeds(['811002', '9c2821', 'a42c21', 'a5261b', 'a52c21', 'ad3021']) },
       { id: 'shorts', label: 'Shorts', seeds: seeds(['333233', '363536']) },
       { id: 'white', label: 'White', seeds: seeds(['bdc3ce', 'dee3e7', 'ffffff']) },
@@ -59,7 +60,7 @@
       { id: 'sky', label: 'Sky', colors: { shirt: '#3a7ad8', shorts: '#1c2440' } },
       { id: 'sunset', label: 'Sunset', colors: { shirt: '#e07a20', shorts: '#3a2a5a', bag: '#c84a6a' } },
     ] },
-    { id: 'red', label: 'Red', from: 'Pokémon FireRed and LeafGreen', model: 'pkx_akami_m_a1.fsys', regions: [
+    { id: 'red', label: 'Red', from: 'Pokémon FireRed and LeafGreen', battle: { file: 'pkx_akami_m_a1.fsys' }, regions: [
       { id: 'vest', label: 'Vest and cap', seeds: seeds(['993a31', 'a54539', 'aa4639', '6b2418', '782920', '833026']) },
       { id: 'jeans', label: 'Jeans', seeds: seeds(['4a697b', '5a7b8e', '5a7d8e']) },
       { id: 'shirt', label: 'Shirt', seeds: seeds(['101029', '1b1a3c', '1c1c41']) },
@@ -74,7 +75,7 @@
       { id: 'navy', label: 'Navy', colors: { vest: '#24346e', jeans: '#2a2a33' } },
       { id: 'gold', label: 'Gold', colors: { vest: '#d8a832', jeans: '#3a3a44', shirt: '#2a1a10' } },
     ] },
-    { id: 'leaf', label: 'Leaf', from: 'Pokémon FireRed and LeafGreen', model: 'pkx_akami_f_a1.fsys', regions: [
+    { id: 'leaf', label: 'Leaf', from: 'Pokémon FireRed and LeafGreen', battle: { file: 'pkx_akami_f_a1.fsys' }, regions: [
       { id: 'top', label: 'Top', seeds: seeds(['6b9aad', '78a8b7']) },
       { id: 'skirt', label: 'Skirt', seeds: seeds(['843831', '9c4942', 'a95145', '8c2c21', 'a74f42']) },
       { id: 'white', label: 'Hat and socks', seeds: seeds(['ffffff', 'd0cdb7', 'e6e1d3', 'eeebde']) },
@@ -90,6 +91,27 @@
     ] },
   ];
   const hero = id => HEROES.find(each => each.id === id) || null;
+
+  // What the page can play. `slot` is a trainer's battle motion slot (the game's wazaSequenceTrainerCreate
+  // sequence): a hero whose model has none in that slot plays Wes's, moved onto their skeleton (hero-retarget.js).
+  // Idle is the hero standing: Wes's field model, else the battle model's slot 0.
+  const MOTIONS = [
+    { id: 'idle', label: 'Idle' },
+    { id: 'stance', label: 'Battle stance', slot: 0 },
+    { id: 'throw', label: 'Poké Ball throw', slot: 1 },
+    { id: 'snag', label: 'Snag Ball throw', slot: 7 },
+    { id: 'snagReady', label: 'Snag Machine ready', slot: 6 },
+    // The game gives the rest no names: these say how they look (slot 9 plays slot 8's clip)
+    { id: 'wide', label: 'Wide stance', slot: 2 },
+    { id: 'lean', label: 'Leaning stance', slot: 3 },
+    { id: 'guard', label: 'Guard stance', slot: 4 },
+    { id: 'tall', label: 'Standing tall', slot: 5 },
+    { id: 'turn', label: 'Quick turn', slot: 8 },
+    { id: 'headDown', label: 'Head down', slot: 10 },
+  ];
+  const motionsOf = id => MOTIONS.filter(motion => !motion.only || motion.only === id);
+  // Which model a motion is played on: the battle model, but for a hero's idle when they have a model to stand as
+  const modelFor = (id, motion) => (motion === 'idle' && hero(id)?.stand ? 'stand' : 'battle');
 
   // CIE Lab, with lightness counted at half weight so shading within a region matters less than its hue.
   const LINEAR = Float64Array.from({ length: 256 }, (_, v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
@@ -274,5 +296,5 @@
     return { colors, shown: hero(saved?.shown) ? saved.shown : HEROES[0].id };
   }
 
-  return { HEROES, hero, lab, classify, lightness, references, blendEdges, prepare, ramp, recolor, normalizeColors, normalizeLooks, hex };
+  return { HEROES, MOTIONS, hero, motionsOf, modelFor, lab, classify, lightness, references, blendEdges, prepare, ramp, recolor, normalizeColors, normalizeLooks, hex };
 });

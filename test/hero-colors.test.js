@@ -20,7 +20,7 @@ function patches(list) {
 test('every hero has its model file, regions with seeds, and presets of its own regions', () => {
   assert.deepEqual(colors.HEROES.map(hero => hero.id), ['wes', 'brendan', 'may', 'red', 'leaf']);
   for (const hero of colors.HEROES) {
-    assert.match(hero.model, /^\w+\.fsys$/);
+    assert.match(hero.battle.file, /^pkx_\w+\.fsys$/);
     const ids = hero.regions.map(region => region.id);
     assert.equal(new Set(ids).size, ids.length, `${hero.id}'s regions are named once`);
     assert.ok(hero.regions.every(region => region.seeds.length && region.seeds.every(seed => seed.length === 3)));
@@ -66,4 +66,36 @@ test('a hero\'s idle motion is the one the model names, else its first', () => {
   assert.equal(heroLook.idleOf({ motions: [{ index: 2, kind: 'special' }, { index: 1, kind: 'idle' }], animations: [10, 30, 30] }), 1);
   assert.equal(heroLook.idleOf({ motions: [], animations: [10] }), 0);
   assert.equal(heroLook.idleOf({ motions: [], animations: [] }), -1);
+});
+
+test('a joint\'s rotation read back from its matrix is the one it was made with', () => {
+  const retarget = require('../src/hero-retarget');
+  for (const rotation of [[0, 0, 0], [0.3, -0.7, 1.2], [-1.1, 0.4, -2.5], [2.9, 1.2, 0.1]]) {
+    const m = retarget.jointLocal([1, 1, 1], rotation, [0, 0, 0]);
+    const r = [m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]];
+    const again = retarget.jointLocal([1, 1, 1], retarget.eulerOf(r), [0, 0, 0]);
+    for (let e = 0; e < 16; e++) assert.ok(Math.abs(again[e] - m[e]) < 1e-9, `rotation ${rotation} element ${e}`);
+  }
+});
+
+test('a pkx\'s battle slots name their first clip, and an empty slot -1', () => {
+  // the header (0x40), a model and its particles of 0x20 bytes each, then three 0xD0-byte slots
+  const pkx = Buffer.alloc(0x40 + 0x20 + 0x20 + 3 * 0xd0);
+  pkx.writeUInt32BE(0x20, 0); pkx.writeUInt32BE(0x20, 4); pkx.writeUInt32BE(3, 8); pkx.writeUInt32BE(5, 0x10);
+  const slot = i => 0x80 + i * 0xd0;
+  pkx.writeUInt32BE(1, slot(0) + 4); pkx.writeUInt32BE(0, slot(0) + 0x8c); pkx.writeUInt32BE(4, slot(0) + 0x90);
+  pkx.writeUInt32BE(2, slot(2) + 4); pkx.writeUInt32BE(1, slot(2) + 0x8c); pkx.writeUInt32BE(9, slot(2) + 0x90); pkx.writeUInt32BE(0, slot(2) + 0x94); pkx.writeUInt32BE(2, slot(2) + 0x98);
+  assert.deepEqual(heroLook.slotClips(pkx, 10), [4, -1, 2]);
+  assert.deepEqual(heroLook.slotClips(pkx, 3), [-1, -1, 2], 'a clip past the model\'s isn\'t played');
+  assert.deepEqual(heroLook.slotClips(Buffer.alloc(0x40), 3), [], 'no battle header, no slots');
+});
+
+test('every motion is named once; Idle comes first and is played standing when a hero has a model to stand as', () => {
+  const ids = colors.MOTIONS.map(motion => motion.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(ids[0], 'idle');
+  assert.equal(colors.modelFor('wes', 'idle'), 'stand');
+  assert.equal(colors.modelFor('wes', 'snag'), 'battle');
+  assert.equal(colors.modelFor('brendan', 'idle'), 'battle');
+  assert.ok(colors.MOTIONS.filter(motion => motion.id !== 'idle').every(motion => Number.isInteger(motion.slot)));
 });

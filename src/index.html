@@ -206,6 +206,10 @@
           <div class="pokedex-stage-wrap customize-stage-wrap">
             <canvas id="customize-stage" class="pokedex-stage" tabindex="0" aria-label="The hero's model. Drag or use the arrow keys to turn it, scroll to zoom."></canvas>
             <div id="customize-status" class="pokedex-status" role="status" hidden><span class="pokedex-loader" aria-hidden="true"></span><span id="customize-status-text"></span><button id="customize-retry" class="solid" hidden>Try again</button></div>
+            <div class="pokedex-stage-controls customize-stage-controls"><label><span>Motion</span><select id="customize-motion"></select></label>
+              <label id="customize-wes-moves-field" class="customize-wes-moves" title="Play every motion as Wes moves, on this hero"><input id="customize-wes-moves" type="checkbox"><span>Wes's moves</span></label></div>
+            <p id="customize-motion-note" class="customize-motion-note" hidden></p>
+            <div class="customize-playback"><button id="customize-play" class="subtle" type="button">Pause</button><input id="customize-frame" type="range" min="0" max="0" value="0" aria-label="Frame of the motion"><span id="customize-frame-text" class="customize-frame-text"></span></div>
           </div>
           <div class="customize-panel">
             <div class="customize-heading"><h2 id="customize-name"></h2><small id="customize-from"></small></div>

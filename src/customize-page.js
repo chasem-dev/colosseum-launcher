@@ -10,7 +10,9 @@ const message = error => String(error?.message || error).replace(/^Error invokin
 // The colours are saved this long after the last change, so dragging across a colour picker saves once
 const SAVE_DELAY = 300;
 
-let looks = null, visible = false, viewer = null, shown = null, request = 0, saveTimer = null, paintQueued = false;
+let looks = null, visible = false, viewer = null, shown = null, request = 0, saveTimer = null, paintQueued = false, motion = 'idle';
+// The motion held at a frame, and the slider being dragged (which the playing motion doesn't move then)
+let paused = false, scrubbing = false;
 
 function setStatus(text, { busy = false, retry = false } = {}) {
   $('customize-status-text').textContent = text;
@@ -25,7 +27,7 @@ function startViewer() {
   const canvas = $('customize-stage').cloneNode(false);
   canvas.classList.remove('ready');
   $('customize-stage').replaceWith(canvas);
-  try { viewer = createViewer(canvas); }
+  try { viewer = createViewer(canvas, { onFrame: showFrameNumber }); viewer.setPaused(paused); }
   catch (_) {
     setStatus('The 3D view couldn\'t start. Try again, or restart the launcher to reset its graphics.', { retry: true });
     return false;
@@ -132,39 +134,92 @@ function renderRegions() {
   }));
 }
 
-async function showHero(id) {
-  const mine = ++request, hero = colors.hero(id);
-  looks.shown = id;
-  save();
-  markHero(id);
-  $('customize-name').textContent = hero.label;
-  $('customize-from').textContent = hero.from;
-  $('customize-stage').classList.remove('ready');
-  setStatus(`Reading ${hero.label} from your disc…`, { busy: true });
+// The motions the hero can play, Idle first: one moved over from Wes's says so once it's chosen.
+function renderMotions(id) {
+  $('customize-motion').replaceChildren(...colors.motionsOf(id).map(motion => Object.assign(document.createElement('option'), { value: motion.id, textContent: motion.label })));
+  $('customize-motion').value = motion;
+}
+
+// The hero playing `motionId`, on the model it's played on: Wes stands as his field model and battles as his battle
+// model, so a motion can bring another model (and its textures, repainted) as well as its clip.
+async function show(id, motionId) {
+  const mine = ++request, hero = colors.hero(id), kind = colors.modelFor(id, motionId);
+  const sameModel = shown?.id === id && shown.kind === kind && viewer;
+  if (!sameModel) {
+    $('customize-stage').classList.remove('ready');
+    setStatus(`Reading ${hero.label} from your disc…`, { busy: true });
+  }
   try {
-    const data = await window.colo.heroModel(id);
+    const wesMoves = id !== 'wes' && $('customize-wes-moves').checked;
+    const [data, played] = await Promise.all([sameModel ? null : window.colo.heroModel(id, kind), window.colo.heroClip(id, motionId, wesMoves)]);
     if (mine !== request || !visible || !startViewer()) return;
-    // The texels as read stay put; the model's own arrays are the ones drawn, repainted from them
-    shown = { id, refs: data.refs, textures: data.textures, originals: data.model.textures.map(texture => texture.rgba.slice()),
-      painted: data.model.textures.map(texture => new Uint8ClampedArray(texture.rgba.length)) };
-    viewer.setModel(data.model, data.clip);
-    viewer.setClip(data.clip);
-    renderPresets();
-    renderRegions();
-    paint();
-    $('customize-hd').hidden = !data.hd;
-    setStatus('');
-    requestAnimationFrame(() => requestAnimationFrame(() => $('customize-stage').classList.add('ready')));
+    if (data) {
+      // The texels as read stay put; the model's own arrays are the ones drawn, repainted from them
+      shown = { id, kind, refs: data.refs, textures: data.textures, originals: data.model.textures.map(texture => texture.rgba.slice()),
+        painted: data.model.textures.map(texture => new Uint8ClampedArray(texture.rgba.length)) };
+      viewer.setModel(data.model, played.clip);
+      renderPresets();
+      renderRegions();
+      paint();
+      $('customize-hd').hidden = !data.hd;
+    }
+    viewer.setClip(played.clip);
+    $('customize-frame').max = String(Math.max(0, (played.clip?.frames || 1) - 1));
+    showFrameNumber(0, played.clip?.frames || 0);
+    $('customize-motion-note').hidden = played.from !== 'wes';
+    $('customize-motion-note').textContent = played.from !== 'wes' ? '' : wesMoves ? `Wes's moves, on ${hero.label}.`
+      : `${hero.label}'s model has no motion of its own for this: these are Wes's moves, on ${hero.label}.`;
+    setStatus(played.clip ? '' : `${hero.label} has no such motion.`);
+    if (!sameModel) requestAnimationFrame(() => requestAnimationFrame(() => $('customize-stage').classList.add('ready')));
   } catch (error) {
     if (mine === request) setStatus(message(error), { retry: true });
   }
 }
 
+function showHero(id) {
+  const hero = colors.hero(id);
+  looks.shown = id;
+  save();
+  markHero(id);
+  $('customize-name').textContent = hero.label;
+  $('customize-from').textContent = hero.from;
+  motion = 'idle';
+  renderMotions(id);
+  $('customize-wes-moves-field').hidden = id === 'wes';
+  show(id, motion);
+}
+
+// Where the motion is: the slider follows it, unless it's being dragged.
+function showFrameNumber(frame, frames) {
+  if (!scrubbing) $('customize-frame').value = String(frame);
+  $('customize-frame-text').textContent = frames ? `${frame + 1} / ${frames}` : '';
+}
+
+function setPaused(on) {
+  paused = on;
+  $('customize-play').textContent = paused ? 'Play' : 'Pause';
+  viewer?.setPaused(paused);
+}
+
+$('customize-play').addEventListener('click', () => setPaused(!paused));
+$('customize-frame').addEventListener('input', event => {
+  scrubbing = true;
+  if (!paused) setPaused(true);
+  viewer?.setFrame(Number(event.target.value));
+});
+$('customize-frame').addEventListener('change', () => { scrubbing = false; });
+$('customize-wes-moves').addEventListener('change', () => { if (looks) show(looks.shown, motion); });
+
+$('customize-motion').addEventListener('change', event => {
+  motion = event.target.value;
+  if (looks) show(looks.shown, motion);
+});
 $('customize-reset').addEventListener('click', () => { if (shown) setColors({}); });
 $('customize-retry').addEventListener('click', () => {
   stopViewer();
+  shown = null;
   setStatus('');
-  if (looks) showHero(looks.shown);
+  if (looks) show(looks.shown, motion);
 });
 
 window.coloCustomize = {

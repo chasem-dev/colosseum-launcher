@@ -1447,23 +1447,28 @@ function heroStopWorker() {
   for (const { reject } of heroPending.values()) reject(new Error('Customize was closed.'));
   heroPending.clear();
 }
-function heroRead(rom, hero) {
+// The texture folders a hero's HD images come from: the Pokédex's.
+function heroFolders() {
+  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo, config.game)) };
+  const folders = port.texturePackFolders(settings, config.repo, customTextureDirectory());
+  return { folders, key: folders.join('\n') };
+}
+function heroAsk(message) {
   if (!heroWorker) {
     heroWorker = new Worker(path.join(__dirname, 'hero-look-worker.js'));
-    heroWorker.on('message', ({ id: request, error, hero: read }) => {
+    heroWorker.on('message', ({ id: request, error, result }) => {
       const pending = heroPending.get(request);
       if (!pending) return;
       heroPending.delete(request);
-      if (error) pending.reject(new Error(error)); else pending.resolve(read);
+      if (error) pending.reject(new Error(error)); else pending.resolve(result);
     });
     heroWorker.on('error', error => { log(`Customize: ${error.message}`); heroStopWorker(); });
     heroWorker.on('exit', () => { heroWorker = null; });
   }
-  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo, config.game)) };
-  const folders = port.texturePackFolders(settings, config.repo, customTextureDirectory()), request = ++heroRequest;
+  const request = ++heroRequest;
   return new Promise((resolve, reject) => {
     heroPending.set(request, { resolve, reject });
-    heroWorker.postMessage({ id: request, rom, hero, folders, key: folders.join('\n') });
+    heroWorker.postMessage({ id: request, ...message });
   });
 }
 
@@ -2459,9 +2464,13 @@ function registerHandlers() {
     return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom, config.game), look.national, String(form)));
   });
   // The Customize page: a hero's model with its textures sorted into colour regions, and the colours chosen.
-  ipcMain.handle('hero-model', (_event, id) => {
+  ipcMain.handle('hero-model', (_event, id, kind) => {
     requireFeature('customize', 'Customize');
-    return heroRead(port.validateRom(config.rom, config.game), String(id));
+    return heroAsk({ rom: port.validateRom(config.rom, config.game), hero: String(id), kind: kind === 'stand' ? 'stand' : 'battle', ...heroFolders() });
+  });
+  ipcMain.handle('hero-clip', (_event, id, motion, wesMoves) => {
+    requireFeature('customize', 'Customize');
+    return heroAsk({ rom: port.validateRom(config.rom, config.game), hero: String(id), motion: String(motion), wesMoves: Boolean(wesMoves) });
   });
   ipcMain.handle('hero-close', () => heroStopWorker());
   ipcMain.handle('hero-looks', () => heroLook.readLooks(app.getPath('userData')));
