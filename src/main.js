@@ -53,6 +53,7 @@ const battleData = require('./battle-data').create();
 const teamSets = require('./team-sets');
 const pokemonPacks = require('./pokemon-packs');
 const generations = require('./generations');
+const evolutionWays = require('./evolution-ways');
 const hsdModel = require('./hsd-model');
 const randomizer = require('./randomizer');
 const languagePacks = require('./language-packs');
@@ -1333,8 +1334,25 @@ function pokedexList(rom) {
           const into = all.find(each => each.id === row.evolutions.readUInt16BE(i * 6 + 4));
           const target = into && packs.find(entry => entry.key === `pack:${into.key}`);
           if (!row.evolutions[i * 6] || !target || from.evolutions.includes(target.key)) continue;
+          const way = evolutionWays.describeBytes(row.evolutions, i * 6), platinum = evolutionWays.platinumWay(from.national, into.national);
           from.evolutions = [...from.evolutions, target.key];
+          from.evolutionWays = [...from.evolutionWays, platinum ? { ...way, note: [way.note, platinum].filter(Boolean).join(' ') } : way];
           if (['shadow', 'gift', 'evolve'].includes(from.status?.kind)) target.status = { ...target.status, note: `${target.status.note} Evolve ${from.name} to get it.` };
+        }
+      }
+      // Evolutions by level that overlap (Kirlia's into Gardevoir at 30, and Gallade at 35 for a male one)
+      const nameOf = key => (typeof key === 'number' ? species.find(entry => entry.national === key) : packs.find(entry => entry.key === key))?.name;
+      for (const entry of species)
+        if (entry.evolutionWays?.some(way => way.gender)) entry.evolutionWays = evolutionWays.overlappingLevels(entry.evolutionWays, entry.evolutions.map(nameOf));
+      // Platinum's evolutions into a later generation's Pokémon that the game can't make (Eevee's into Leafeon and
+      // Glaceon), shown as such
+      for (const [i, target] of packs.entries()) {
+        if (!all[i].generation) continue;
+        for (const only of evolutionWays.platinumOnly(all[i].national)) {
+          const from = species.find(entry => entry.national === only.from) || packs.find((entry, j) => all[j].generation && all[j].national === only.from);
+          if (!from || from.evolutions.includes(target.key)) continue;
+          from.evolutions = [...from.evolutions, typeof from.key === 'string' ? target.pack.key : target.key];
+          from.evolutionWays = [...from.evolutionWays, only];
         }
       }
     }

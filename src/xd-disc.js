@@ -10,6 +10,7 @@
 //   - cries and music are streams: two channels of DSP-ADPCM in 0x8000-byte blocks, with an "I_SF" header
 //     (host/xd/cries.c in the port), played by sound id through the sound table and its file table.
 const fsys = require('./fsys');
+const evolutionWays = require('./evolution-ways');
 
 // common_rel's .data, as its prolog publishes it (offsets in the data section; each table's count is a word there too)
 const TABLES = {
@@ -129,15 +130,15 @@ function readSpecies(data, messages, { displayName, TYPES, ABILITY_MESSAGES }) {
     if (!national) continue;
     const name = messages.get(data.readUInt32BE(at + SP.name));
     if (!name) continue;
-    const types = [TYPES[data[at + SP.types]], TYPES[data[at + SP.types + 1]]], evolutions = [];
+    const types = [TYPES[data[at + SP.types]], TYPES[data[at + SP.types + 1]]], evolutions = [], ways = [];
     for (let i = 0; i < 5; i++) {
       const target = data.readUInt16BE(at + SP.evolutions + i * 6 + 4);
-      if (data[at + SP.evolutions + i * 6] && target) evolutions.push(target);
+      if (data[at + SP.evolutions + i * 6] && target) evolutions.push(target), ways.push(evolutionWays.describeBytes(data, at + SP.evolutions + i * 6, { game: 'xd' }));
     }
     const abilities = [data[at + SP.abilities], data[at + SP.abilities + 1]].filter(Boolean).map(ability => displayName(messages.get(ABILITY_MESSAGES + ability) || ''));
     species.push({ id, national, name: displayName(name), types: types[0] === types[1] ? types.slice(0, 1) : types,
       abilities: [...new Set(abilities)].filter(Boolean), height: height(data.readUInt16BE(at + SP.height)), weight: weight(data.readUInt16BE(at + SP.weight)),
-      catchRate: data[at + SP.catchRate], stats: Array.from({ length: 6 }, (_, i) => data.readUInt16BE(at + SP.stats + i * 2)), evolutions,
+      catchRate: data[at + SP.catchRate], stats: Array.from({ length: 6 }, (_, i) => data.readUInt16BE(at + SP.stats + i * 2)), evolutions, evolutionWays: ways,
       model: data.readUInt32BE(at + SP.model) });
   }
   return species;
@@ -188,8 +189,8 @@ function readPokedex(disc, discSprites, helpers) {
     entry.sprite = image?.url || null;
     if (image) discSprites?.set(entry.national, image.disc);
     delete entry.model;
-    entry.evolutions = entry.evolutions.map(id => species.find(other => other.id === id)?.national).filter(Boolean);
   }
+  helpers.nationalEvolutions(species);
   return species.sort((a, b) => a.national - b.national);
 }
 

@@ -9,6 +9,7 @@ const fsys = require('./fsys');
 const gx = require('./gx-texture');
 const hsd = require('./hsd-model');
 const xdDisc = require('./xd-disc');
+const evolutionWays = require('./evolution-ways');
 
 // Places in the one release the launcher accepts (GC6E01, revision 0: port.validateRom).
 const REL_DATA_SECTION = 4;
@@ -102,16 +103,16 @@ function readSpecies(data, messages) {
     const name = messages.get(data.readUInt32BE(at + 0x18));
     if (!name) continue;
     const height = data.readUInt16BE(at + 0x0a), types = [TYPES[data[at + 0x30]], TYPES[data[at + 0x31]]];
-    const evolutions = [];
+    const evolutions = [], ways = [];
     for (let i = 0; i < 5; i++) {
       const target = data.readUInt16BE(at + 0x9c + i * 6 + 4);
-      if (data[at + 0x9c + i * 6] && target) evolutions.push(target);
+      if (data[at + 0x9c + i * 6] && target) evolutions.push(target), ways.push(evolutionWays.describeBytes(data, at + 0x9c + i * 6));
     }
     const abilities = [data[at + 0x32], data[at + 0x33]].filter(Boolean).map(ability => displayName(messages.get(ABILITY_MESSAGES + ability) || ''));
     species.push({ id, national, name: displayName(name), types: types[0] === types[1] ? types.slice(0, 1) : types,
       abilities: [...new Set(abilities)].filter(Boolean), height: `${Math.floor(height / 100)}'${String(height % 100).padStart(2, '0')}"`,
       weight: `${(data.readUInt16BE(at + 0x0c) / 10).toFixed(1)} lbs`, catchRate: data[at + 1],
-      stats: Array.from({ length: 6 }, (_, i) => data.readUInt16BE(at + 0x84 + i * 2)), evolutions,
+      stats: Array.from({ length: 6 }, (_, i) => data.readUInt16BE(at + 0x84 + i * 2)), evolutions, evolutionWays: ways,
       model: data.readUInt32BE(at + 0x2c), sprites: [data.readUInt32BE(at + 0x10c + 4), data.readUInt32BE(at + 0x114 + 4)] });
   }
   return species;
@@ -151,6 +152,17 @@ function classify(species, { seen, shadow }) {
     const kind = shadow.has(entry.id) ? 'shadow' : GIFTS[entry.id] ? 'gift' : from.has(entry.id) ? 'evolve' : seen.has(entry.id) ? 'battle' : 'hidden';
     const note = kind === 'gift' ? GIFTS[entry.id] : kind === 'evolve' ? `Evolve ${byId.get(from.get(entry.id)).name} to get it.` : STATUS[kind].note;
     entry.status = { kind, label: STATUS[kind].label, locked: STATUS[kind].locked, note: BONUS_DISC_GIFTS[entry.id] || note };
+  }
+}
+
+// Each species' evolutions by the National Pokédex numbers of what they evolve into, as the page names them, and how
+// (evolutionWays, one for each).
+function nationalEvolutions(species) {
+  const national = new Map(species.map(entry => [entry.id, entry.national]));
+  for (const entry of species) {
+    const kept = entry.evolutions.map((id, i) => [national.get(id), entry.evolutionWays[i]]).filter(([into]) => into);
+    entry.evolutions = kept.map(([into]) => into);
+    entry.evolutionWays = kept.map(([, way]) => way);
   }
 }
 
@@ -228,7 +240,7 @@ function readPokedex(rom, discSprites = null) {
   try {
     // Pokémon XD's disc: its own tables, read with these same helpers (xd-disc.js)
     if (xdDisc.isXd(disc))
-      return xdDisc.readPokedex(disc, discSprites, { readMessages, displayName, TYPES, ABILITY_MESSAGES, readDol, dolOffset, modelFiles, spritesOf, formsOf });
+      return xdDisc.readPokedex(disc, discSprites, { readMessages, displayName, TYPES, ABILITY_MESSAGES, readDol, dolOffset, modelFiles, spritesOf, formsOf, nationalEvolutions });
     const rel = fsys.entries(disc.file('common.fsys')).find(entry => entry.name === 'common_rel');
     if (!rel) throw new Error('The game disc has no Pokémon data.');
     const data = relData(rel.data()), messages = readMessages(data), species = readSpecies(data, messages);
@@ -243,8 +255,8 @@ function readPokedex(rom, discSprites = null) {
       if (image) discSprites?.set(entry.national, image.disc);
       delete entry.sprites;
       delete entry.model;
-      entry.evolutions = entry.evolutions.map(id => species.find(other => other.id === id)?.national).filter(Boolean);
     }
+    nationalEvolutions(species);
     return species.sort((a, b) => a.national - b.national);
   } finally { disc.close(); }
 }
