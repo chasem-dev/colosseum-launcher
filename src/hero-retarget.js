@@ -202,17 +202,21 @@ function matchJoints(source, target) {
 function retarget(source, clip, target, match = matchJoints(source, target)) {
   const { map, next, sourceNext, hips, scale, sourceRest, targetRest, sourceAt, targetAt } = match;
   // At rest, each chain joint of the hero turned to point along its joint of Wes's: the hero in Wes's rest pose. A
-  // chain's last joint turns as the one before it.
-  const restTurn = target.joints.map(() => IDENTITY3), order = target.joints.map((_, j) => j);
-  for (const j of order) {
+  // joint points at the next of its chain that sits somewhere else (a thigh is two joints in one place); a chain's
+  // last joint turns as the one before it.
+  const apart = (at, a, b) => Math.hypot(...sub(at[b], at[a])) > 1e-4;
+  const onward = (from, step, at) => { let k = step(from); while (k !== undefined && k >= 0 && !apart(at, from, k)) k = step(k); return k; };
+  const restTurn = target.joints.map(() => IDENTITY3);
+  for (let j = 0; j < target.joints.length; j++) {
     if (map[j] < 0) continue;
-    const n = next[j], s = map[j];
+    const s = map[j], n = onward(j, k => next[k], targetAt);
     let to = null;
-    if (n >= 0) {
-      const sn = map[n] !== s ? map[n] : sourceNext.get(s);
+    if (n !== undefined && n >= 0) {
+      // Wes's joint for the hero's next one, or along Wes's own chain when both are on the same joint of his
+      const sn = map[n] !== s && apart(sourceAt, s, map[n]) ? map[n] : onward(s, k => sourceNext.get(k), sourceAt);
       if (sn !== undefined && sn >= 0) to = normalize(sub(sourceAt[sn], sourceAt[s]));
     }
-    if (n >= 0 && to) restTurn[j] = turnBetween(normalize(sub(targetAt[n], targetAt[j])), to);
+    if (to) restTurn[j] = turnBetween(normalize(sub(targetAt[n], targetAt[j])), to);
     else if (target.joints[j].parent >= 0 && map[target.joints[j].parent] >= 0) restTurn[j] = restTurn[target.joints[j].parent];
   }
   const sourceRestRot = sourceRest.map(rotationOf), targetRestRot = targetRest.map(rotationOf);
@@ -248,7 +252,10 @@ function retarget(source, clip, target, match = matchJoints(source, target)) {
       }
       turned[j] = world;
       placed[j] = at;
-      values.set([...rest.slice(j * 9, j * 9 + 3), ...(s < 0 ? restLocal : eulerOf(local)), ...translation], o + j * 9);
+      // A joint whose turn can't be worked out (it never should) stays as at rest, rather than vanishing
+      const rotation = s < 0 ? restLocal : eulerOf(local), ok = rotation.every(Number.isFinite) && translation.every(Number.isFinite);
+      values.set([...rest.slice(j * 9, j * 9 + 3), ...(ok ? rotation : restLocal), ...(ok ? translation : rest.slice(j * 9 + 6, j * 9 + 9))], o + j * 9);
+      if (!ok) { turned[j] = mul3(parentRot, rotationOf(jointLocal([1, 1, 1], restLocal, [0, 0, 0]))); placed[j] = parentAt; }
     }
   }
   return { frames: clip.frames, fps: clip.fps, values, materials: [], alphas: [] };
