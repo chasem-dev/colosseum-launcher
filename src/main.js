@@ -41,6 +41,7 @@ const formats = require('./formats');
 const storyParty = require('./story-party');
 const crossplay = require('./crossplay');
 const pokedexNames = require('./pokedex');
+const heroLook = require('./hero-look');
 const pokedexData = pokedexNames.create();
 const pokemonCries = require('./pokemon-cries');
 const pokedexCries = pokemonCries.create();
@@ -1437,6 +1438,35 @@ function saveJukeboxPlaylists(list) {
   return all[config.game];
 }
 
+// The Customize page's heroes, read in a worker (hero-look-worker.js), with the HD images the Pokédex would use.
+let heroWorker = null, heroRequest = 0;
+const heroPending = new Map();
+function heroStopWorker() {
+  heroWorker?.terminate();
+  heroWorker = null;
+  for (const { reject } of heroPending.values()) reject(new Error('Customize was closed.'));
+  heroPending.clear();
+}
+function heroRead(rom, hero) {
+  if (!heroWorker) {
+    heroWorker = new Worker(path.join(__dirname, 'hero-look-worker.js'));
+    heroWorker.on('message', ({ id: request, error, hero: read }) => {
+      const pending = heroPending.get(request);
+      if (!pending) return;
+      heroPending.delete(request);
+      if (error) pending.reject(new Error(error)); else pending.resolve(read);
+    });
+    heroWorker.on('error', error => { log(`Customize: ${error.message}`); heroStopWorker(); });
+    heroWorker.on('exit', () => { heroWorker = null; });
+  }
+  const settings = { ...config.settings, textures: Boolean(config.repo && config.settings.textures && port.texturePackInstalled(config.repo, config.game)) };
+  const folders = port.texturePackFolders(settings, config.repo, customTextureDirectory()), request = ++heroRequest;
+  return new Promise((resolve, reject) => {
+    heroPending.set(request, { resolve, reject });
+    heroWorker.postMessage({ id: request, rom, hero, folders, key: folders.join('\n') });
+  });
+}
+
 let jukeboxWorker = null, jukeboxRequest = 0;
 const jukeboxPending = new Map();
 function jukeboxStopWorker() {
@@ -2428,6 +2458,14 @@ function registerHandlers() {
     const look = pokedexLook(key, String(form));
     return withHdTextures(look.pkx ? hsdModel.parseModel(look.pkx) : pokedexData.model(port.validateRom(config.rom, config.game), look.national, String(form)));
   });
+  // The Customize page: a hero's model with its textures sorted into colour regions, and the colours chosen.
+  ipcMain.handle('hero-model', (_event, id) => {
+    requireFeature('customize', 'Customize');
+    return heroRead(port.validateRom(config.rom, config.game), String(id));
+  });
+  ipcMain.handle('hero-close', () => heroStopWorker());
+  ipcMain.handle('hero-looks', () => heroLook.readLooks(app.getPath('userData')));
+  ipcMain.handle('save-hero-looks', (_event, looks) => heroLook.saveLooks(app.getPath('userData'), looks));
   ipcMain.handle('pokedex-cry', (_event, key) => {
     const own = String(key).startsWith('pack:') ? pokedexPacks.get(String(key).slice('pack:'.length))?.ownCry : null;
     if (own) return own;
