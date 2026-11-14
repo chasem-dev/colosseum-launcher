@@ -354,9 +354,10 @@ function decodeCry(disc, tables, sound) {
 
 // What a song's file is called in the Jukebox: the ones we know by name, else the file's name made readable.
 // The names are the fan labels of KHInsider's XD gamerip, matched by the file's name (often a Japanese word: kinkyu is an
-// emergency, esaba a feeding spot, ketsui resolve) and its length. Those marked "?" fit one way, not both; the jingles the two
-// games share are named as Colosseum's are (jukebox-names.js). A song with no name here (or one whose file is a copy of another
-// song's, such as b_paira of b_colosseum1) shows its file's name.
+// emergency, esaba a feeding spot, ketsui resolve, imasugu "right now", the Japanese name of Quick Battle) and its length. Those
+// marked "?" fit one way, not both; the jingles the two games share are named as Colosseum's are (jukebox-names.js). A file that
+// is another song's audio (the same length and loop) is named after it: with its place where its name gives one, else "(copy)".
+// A song with no name here shows its file's name, until someone who knows it can tell.
 const SONG_NAMES = {
   title: 'Title Screen', open_roll: 'Demo Opening', stand: 'Outskirt Stand', pokelabo: 'Pokémon HQ Lab', ioport: 'Gateon Port',
   pokecen: 'Pokémon Center', watercity: 'Phenac City', watercity2: 'Phenac City Crisis' /* ? */, libra: 'S.S. Libra', worldmap: 'World Map',
@@ -377,7 +378,11 @@ const SONG_NAMES = {
   chr_rugia: 'Shadow Lugia\'s Theme', chr_helgonza: 'Gonzap\'s Theme', chr_boss01: 'Mr. Verich\'s Theme' /* ? */,
   b_rugia: 'Shadow Lugia Battle', b_lastboss: 'Master Greevil Final Battle', b_virtual: 'Battle Sim', b_wirie: 'Rider Willie Battle',
   xdbattle01: 'Normal Battle', xdbattle02: 'Cipher Battle', xdbattle03: 'Cipher Admin Battle' /* ? */,
-  tool_minnade: 'VS Battle Mode (Version 1)', tool_imasugu: 'VS Battle Mode (Version 3)', tool_music: 'VS Mode Menu',
+  tool_minnade: 'VS Battle Mode (Version 1)', tool_imasugu: 'VS Battle Mode (Version 3)', tool_imasugu2: 'VS Battle Mode (Version 2)' /* ? */,
+  tool_music: 'VS Mode Menu', clubtea: 'Krabby Klub' /* ? */,
+  // copies of other songs' audio
+  b_paira: 'Colosseum - 1st Round (Pyrite)', b_raruga: 'Colosseum - 2nd Round (Realgam)', b_nikeldark: 'Rider Willie Battle (Citadark)',
+  xd_battle8: 'Rider Willie Battle (copy)', xd_battle0: 'Battle Sim (copy)', musicsoft: 'VS Mode Menu (copy)',
   me_win: 'Win Battle', me_level_up: 'Level Up', me_snatch: 'Snatch Shadow Pokémon', me_relive: 'Shadow Pokémon is Purified', me_welcome: 'Welcome',
   me_agb_fanfa1b: 'Get Item', me_agb_fanfa5: 'Congratulations (Evolution Success)', me_agb_me_asa: 'Heal Pokémon',
   me_agb_me_shinka: 'Evolution Jingle', me_agb_shinka: 'Pokémon is Evolving', me_fue: 'Time Flute', me_news: 'ONBS News Broadcast',

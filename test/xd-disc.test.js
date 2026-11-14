@@ -79,7 +79,8 @@ test('song names: the ones known by name, the rest made readable', () => {
   assert.equal(xdDisc.songTitle('stm_bgm_title.fsys'), 'Title Screen');
   assert.equal(xdDisc.songTitle('stm_me_me_win.fsys'), 'Win Battle');
   assert.equal(xdDisc.songTitle('stm_bgm_b_colosseum1.fsys'), 'Colosseum - 1st Round');
-  assert.equal(xdDisc.songTitle('stm_bgm_b_paira.fsys'), 'B paira');
+  assert.equal(xdDisc.songTitle('stm_bgm_b_paira.fsys'), 'Colosseum - 1st Round (Pyrite)');
+  assert.equal(xdDisc.songTitle('stm_bgm_chr_mecha.fsys'), 'Chr mecha');
   assert.equal(xdDisc.songTitle('stm_me_fanfare00.fsys'), 'VS Battle Fanfare 1');
 });
 
