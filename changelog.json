@@ -56,7 +56,9 @@
       "Pokémon XD: fixed the game crashing at 60 fps as a battle with a Mt. Battle Area Leader, such as Vander, began.",
       "Shader warm-up works now, in Colosseum and in XD: the game builds the effects it is known to use before it draws them, all of them in the background from the logos on with Metal and Vulkan, so new places and battles no longer stutter the first time you play on a computer.",
       "Online: a spectator's game plays the battle as the players' games do, and while the players choose, its text box says Players are selecting moves... (or which player is choosing a Pokémon after a faint), in Colosseum and Pokémon XD.",
-      "The bag and shops list a TM by the move it teaches, such as THUNDERBOLT, instead of TM24, and while one is selected its number shows in a tab above the description box. This works in Colosseum and XD."
+      "The bag and shops list a TM by the move it teaches, such as THUNDERBOLT, instead of TM24, and while one is selected its number shows in a tab above the description box. This works in Colosseum and XD.",
+      "Cheats: press F9 while playing for a cheat menu, in Colosseum and XD. It has Infinite HP, One-Hit KO, Infinite PP, EXP and money multipliers, Always Snag, Snag Any Pokémon (snag a trainer's ordinary Pokémon too), Shiny Shadow Pokémon, Fast Purification, Heal Party and Walk Speed. Cheats start off each time you play, aren't saved, and are off in online battles.",
+      "Warp: press F8 while playing to pick any place in the game and go straight there, in Colosseum and XD. Save first, as warping ahead of the story can leave it stuck."
     ]
   },
   "releases": [
