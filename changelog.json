@@ -56,7 +56,8 @@
       "Pokémon XD: fixed the game crashing at 60 fps as a battle with a Mt. Battle Area Leader, such as Vander, began.",
       "Shader warm-up works now, in Colosseum and in XD: the game builds the effects it is known to use before it draws them, all of them in the background from the logos on with Metal and Vulkan, so new places and battles no longer stutter the first time you play on a computer.",
       "Online: a spectator's game plays the battle as the players' games do, and while the players choose, its text box says Players are selecting moves... (or which player is choosing a Pokémon after a faint), in Colosseum and Pokémon XD.",
-      "The bag and shops list a TM by the move it teaches, such as THUNDERBOLT, instead of TM24, and while one is selected its number shows in a tab above the description box. This works in Colosseum and XD."
+      "The bag and shops list a TM by the move it teaches, such as THUNDERBOLT, instead of TM24, and while one is selected its number shows in a tab above the description box. This works in Colosseum and XD.",
+      "Under Pokémon Platinum's battle rules, a fainted Pokémon's replacement now comes out at the end of the turn, after the weather and the turn's other effects, as in Diamond, Pearl and Platinum, instead of straight away; a move whose target has fainted by then turns to the other foe in a double battle, or says \"But there was no target...\" and still uses its PP. This is in Colosseum only for now: in Pokémon XD and in online rooms for both games, a replacement still comes out straight away."
     ]
   },
   "releases": [
