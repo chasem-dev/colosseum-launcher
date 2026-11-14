@@ -30,6 +30,7 @@ const { createActivityLog } = require('./activity-log');
 const { observeProcess, exitDescription, failureMessage, gameStopReason, taskEnvironment } = require('./process-output');
 const { createSessionLog } = require('./session-log');
 const displayScale = require('./display-scale');
+const windowMode = require('./window-mode');
 const steam = require('./steam');
 const crashReports = require('./crash-reports');
 const telemetry = require('./telemetry');
@@ -248,7 +249,9 @@ function loadConfig() {
     // The trainer name, parties and room options of the Online page.
     online: parties.normalize(saved.online),
     // The Game Boy Advance's BIOS, and each socket's Game Pak and save (Settings → Game Boy Advance).
-    gba: gbaLink.normalize(saved.gba)
+    gba: gbaLink.normalize(saved.gba),
+    // Full screen, maximized or normal: the launcher's window opens the way it was left.
+    launcherWindow: windowMode.normalize(saved.launcherWindow)
   };
   if (config.installId !== saved.installId) {
     try { saveConfig(); } catch (error) { log(`Could not save preferences: ${error.message}`); }
@@ -2754,8 +2757,20 @@ function createWindow() {
   });
   if (windowsScaling) displayScale.followDisplayScale(window, screen, WINDOW_SIZE, zoom);
   window.setMenuBarVisibility(false);
-  const sendWindowState = () => broadcast('window-state', windowState(window));
-  for (const event of ['enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize', 'restore']) window.on(event, sendWindowState);
+  if (config?.launcherWindow === 'fullscreen') window.setFullScreen(true);
+  else if (config?.launcherWindow === 'maximized') window.maximize();
+  // The event says which way full screen went: on Linux, isFullScreen() can lag the window manager.
+  const sendWindowState = event => {
+    broadcast('window-state', windowState(window));
+    // A minimized window keeps the mode it had, so it doesn't open minimized next time.
+    if (window.isDestroyed() || window.isMinimized()) return;
+    const mode = event === 'enter-full-screen' ? 'fullscreen'
+      : event === 'leave-full-screen' ? (window.isMaximized() ? 'maximized' : 'normal') : windowMode.modeOf(window);
+    if (!config || mode === config.launcherWindow) return;
+    config.launcherWindow = mode;
+    try { saveConfig(); } catch (error) { log(`Could not save preferences: ${error.message}`); }
+  };
+  for (const event of ['enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize', 'restore']) window.on(event, () => sendWindowState(event));
   window.loadFile(path.join(__dirname, 'index.html'));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('console-message', details => {
