@@ -336,6 +336,9 @@ const FEATURE_ENVIRONMENT = {
 function buildEnvironment(settings, disc, root, { customTextures = null, laterGenerations = false, packPokemon = false, game = games.DEFAULT } = {}) {
   if (!root) throw new Error('The port folder is required to configure texture packs.');
   const env = {
+    // The game never takes typed text, but SDL starts text input with its window, and on a Steam Deck
+    // that opens Steam's on-screen keyboard over the game. A player's own setting stands.
+    SDL_ENABLE_SCREEN_KEYBOARD: '0',
     ...process.env,
     COLO_DISC: disc,
     SMS_GX_BACKEND: settings.renderer,

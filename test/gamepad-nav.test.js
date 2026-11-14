@@ -89,3 +89,89 @@ test('nothing far off to the side counts as being in that direction', () => {
   // A slightly lower neighbour still counts.
   assert.equal(nextInDirection(rect(0, 0, 100, 30), [rect(130, 40, 100, 30)], 'right'), 0);
 });
+
+test('only fields that take typing count as typed', () => {
+  const { typed } = require('../src/gamepad-nav');
+  assert.equal(typed({ tagName: 'INPUT', type: 'search' }), true);
+  assert.equal(typed({ tagName: 'INPUT', type: 'text' }), true);
+  assert.equal(typed({ tagName: 'TEXTAREA' }), true);
+  for (const type of ['checkbox', 'range', 'radio', 'button']) assert.equal(typed({ tagName: 'INPUT', type }), false);
+  assert.equal(typed({ tagName: 'SELECT' }), false);
+  assert.equal(typed(null), false);
+});
+
+// A small stand-in page: elements that focus and blur, a document that hears focusin, and one controller.
+function fakePage() {
+  const listeners = {};
+  const document = {
+    activeElement: null,
+    body: { querySelectorAll: () => document.elements, classList: { set: new Set(), toggle(name, on) { if (on) this.set.add(name); else this.set.delete(name); }, contains(name) { return this.set.has(name); } } },
+    addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+    querySelectorAll: () => [],
+    hasFocus: () => true,
+    elements: []
+  };
+  function element(tagName, type, box) {
+    const own = {};
+    const el = {
+      tagName, type, readOnly: false, disabled: false, dataset: {},
+      addEventListener(event, fn, options) { (own[event] ||= []).push({ fn, once: options?.once }); },
+      dispatch(event) { const list = own[event] || []; own[event] = list.filter(entry => !entry.once); for (const entry of list) entry.fn(); },
+      focus() {
+        if (document.activeElement === el) return;
+        document.activeElement?.blur();
+        document.activeElement = el;
+        for (const fn of listeners.focusin || []) fn({ target: el });
+      },
+      blur() { if (document.activeElement !== el) return; document.activeElement = null; el.dispatch('blur'); },
+      click() { el.clicked = (el.clicked || 0) + 1; },
+      closest: () => null, checkVisibility: () => true, scrollIntoView() {}, getBoundingClientRect: () => box
+    };
+    document.elements.push(el);
+    return el;
+  }
+  let buttons = [];
+  let frame = null;
+  const window = {
+    navigator: { getGamepads: () => [pad({ buttons })] },
+    requestAnimationFrame(fn) { frame = fn; return 1; },
+    addEventListener() {},
+    getComputedStyle: () => ({ overflowY: 'visible' }),
+    Event: class { constructor(type) { this.type = type; } }
+  };
+  let now = 0;
+  // Each press is held for one frame and released for the next.
+  function press(index) {
+    for (const held of [[index], []]) { buttons = held; now += 500; const run = frame; frame = null; run(now); }
+  }
+  const fire = (type, event) => { for (const fn of listeners[type] || []) fn(event); };
+  return { document, window, element, press, fire };
+}
+
+test('a text field the controller reaches is read-only until A picks it', () => {
+  const { start } = require('../src/gamepad-nav');
+  const page = fakePage();
+  const button = page.element('BUTTON', 'submit', rect(0, 0, 100, 40));
+  const search = page.element('INPUT', 'search', rect(0, 100, 100, 40));
+  start({ document: page.document, window: page.window, defaultFocus: () => [button] });
+  page.press(13); // down: the first press focuses the default control
+  assert.equal(page.document.activeElement, button);
+  page.press(13); // down to the search field
+  assert.equal(page.document.activeElement, search);
+  assert.equal(search.readOnly, true);
+  page.press(0); // A: now it takes typing
+  assert.equal(page.document.activeElement, search);
+  assert.equal(search.readOnly, false);
+  page.press(12); // up and away, then back: read-only again
+  assert.equal(page.document.activeElement, button);
+  assert.equal(search.readOnly, false);
+  page.press(13);
+  assert.equal(search.readOnly, true);
+  // A page focusing its own field after a controller press holds it too; a touch frees it.
+  page.press(12);
+  search.focus();
+  assert.equal(search.readOnly, true);
+  page.fire('pointerdown', { target: search });
+  assert.equal(search.readOnly, false);
+  assert.equal(page.document.body.classList.contains('gamepad-active'), false);
+});
