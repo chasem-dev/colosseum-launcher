@@ -48,3 +48,22 @@ test('the names are for songs of the disc, each once, in the style of the rest',
   assert.equal(NAMES.fanfare03, 'Colosseum Round Intro 4');
   assert.ok(Object.keys(NAMES).length >= 60);
 });
+
+test('a track carries its length, when the songs\' lengths are known', () => {
+  const names = new Map([[0x03080800, 'battle2_song'], [0x08070800, 'fanfare00_song']]);
+  const list = songs.build({ sounds: table([[24, 0, 0], [973, 0, 1]]), songs: [0x03080800, 0x08070800], names, lengths: new Map([[0x03080800, 90.6], [0x08070800, 10.8]]) });
+  assert.deepEqual(list.map(t => [t.sound, t.seconds]), [[24, 90.6], [973, 10.8]]);
+  const without = songs.build({ sounds: table([[24, 0, 0]]), songs: [0x03080800], names });
+  assert.equal('seconds' in without[0], false);
+});
+
+test('tunes come first and the short tracks and jingles after them, each group in the disc\'s order', () => {
+  const list = songs.arrange([
+    { id: '1', name: 'Jingle A', seconds: 3 }, { id: '2', name: 'Tune A', seconds: 90 }, { id: '3', name: 'Tune B', seconds: songs.SHORT },
+    { id: '4', name: 'Jingle B', seconds: songs.SHORT - 0.1 }, { id: '5', name: 'Unknown length' }, { id: '6', name: 'Silence', seconds: 0 }
+  ]);
+  assert.deepEqual(list.map(t => t.name), ['Tune A', 'Tune B', 'Unknown length', 'Jingle A', 'Jingle B', 'Silence']);
+  assert.deepEqual(list.map(t => t.short), [false, false, false, true, true, true]);
+  assert.equal(list[0].id, '2');                         // the tracks are otherwise as they were
+  assert.deepEqual(songs.arrange([]), []);
+});

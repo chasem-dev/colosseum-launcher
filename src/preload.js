@@ -70,6 +70,8 @@ contextBridge.exposeInMainWorld('colo', {
   jukeboxTracks: () => ipcRenderer.invoke('jukebox-tracks'),
   jukeboxRender: id => ipcRenderer.invoke('jukebox-render', id),
   jukeboxClose: () => ipcRenderer.invoke('jukebox-close'),
+  jukeboxPlaylists: () => ipcRenderer.invoke('jukebox-playlists'),
+  jukeboxSavePlaylists: list => ipcRenderer.invoke('jukebox-playlists-save', list),
   onJukeboxStop: callback => ipcRenderer.on('jukebox-stop', () => callback()),
   openPokemonPacks: () => ipcRenderer.invoke('open-pokemon-packs'),
   changelog: () => ipcRenderer.invoke('changelog'),

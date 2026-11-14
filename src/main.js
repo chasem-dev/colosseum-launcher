@@ -45,6 +45,7 @@ const pokedexData = pokedexNames.create();
 const pokemonCries = require('./pokemon-cries');
 const pokedexCries = pokemonCries.create();
 const jukeboxSongs = require('./jukebox-songs');
+const jukeboxPlaylists = require('./jukebox-playlists');
 const { Disc } = require('./disc');
 const texturePackLookup = require('./texture-pack-lookup');
 const { pathToFileURL } = require('node:url');
@@ -1418,6 +1419,24 @@ function jukeboxTracks() {
   return jukeboxSongList.tracks;
 }
 
+// The player's playlists (jukebox-playlists.js), each game's own, in the data folder. A file that can't be read is a fresh start.
+function jukeboxPlaylistFile() { return path.join(app.getPath('userData'), 'jukebox-playlists.json'); }
+function readJukeboxPlaylists() {
+  let saved = {};
+  try { saved = JSON.parse(fs.readFileSync(jukeboxPlaylistFile(), 'utf8')); } catch (_) { /* none yet */ }
+  return jukeboxPlaylists.normalizeAll(saved, games.ids());
+}
+// The chosen game's playlists, as the page has changed them; saved, and returned as kept.
+function saveJukeboxPlaylists(list) {
+  requireFeature('jukebox', 'The Jukebox');
+  const all = { ...readJukeboxPlaylists(), [config.game]: jukeboxPlaylists.normalize(list) };
+  const file = jukeboxPlaylistFile(), temporary = `${file}.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temporary, JSON.stringify(all, null, 2), { mode: 0o600 });
+  fs.renameSync(temporary, file);
+  return all[config.game];
+}
+
 let jukeboxWorker = null, jukeboxRequest = 0;
 const jukeboxPending = new Map();
 function jukeboxStopWorker() {
@@ -2420,6 +2439,8 @@ function registerHandlers() {
   ipcMain.handle('game-logos', () => gameLogos());
   ipcMain.handle('jukebox-render', (_event, id) => jukeboxRender(String(id)));
   ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
+  ipcMain.handle('jukebox-playlists', () => { requireFeature('jukebox', 'The Jukebox'); return readJukeboxPlaylists()[config.game] ?? []; });
+  ipcMain.handle('jukebox-playlists-save', (_event, list) => saveJukeboxPlaylists(list));
   ipcMain.handle('pokedex-clip', (_event, key, form, index) => {
     const look = pokedexLook(key, String(form));
     return look.pkx ? hsdModel.parseClip(look.pkx, Number(index)) : pokedexData.clip(port.validateRom(config.rom, config.game), look.national, String(form), Number(index));
