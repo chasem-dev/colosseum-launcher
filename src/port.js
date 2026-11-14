@@ -178,6 +178,9 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     chooseStarters: input.chooseStarters !== false,
     // The bag and shops list a TM by its move (Thunderbolt), its number in a tab over the description. On unless turned off.
     tmNames: input.tmNames !== false,
+    // A New Game asks who to play as (Wes, or a Game Boy Advance hero Mt. Battle shows) before the name, and the save
+    // keeps the choice. On unless turned off; off, a New Game is Wes's, and a save made before keeps its hero.
+    chooseHero: input.chooseHero !== false,
     // The frame-time overlay at start.
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
@@ -325,6 +328,7 @@ const FEATURE_ENVIRONMENT = {
   shinyStarters: ['COLO_SHINY_STARTERS'],
   starters: ['COLO_CHOOSE_STARTERS'],
   tmNames: ['COLO_TM_NAMES'],
+  playAs: ['COLO_CHOOSE_HERO', 'COLO_PLAYER'],
   battleSpeed: ['COLO_BATTLE_SPEED'],
   quickMoves: ['COLO_QUICK_MOVES', 'COLO_FAST_STATUS', 'SMS_BUTTON_PROMPTS', 'SMS_BUTTON_PROMPT_PAD'],
   hdText: ['COLO_HD_TEXT']
@@ -380,6 +384,7 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   if (settings.shinyStarters === false) env.COLO_SHINY_STARTERS = '0';
   if (settings.chooseStarters === false) env.COLO_CHOOSE_STARTERS = '0';
   if (settings.tmNames === false) env.COLO_TM_NAMES = '0';
+  if (settings.chooseHero === false) env.COLO_CHOOSE_HERO = '0';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   if (settings.quickMoves) env.COLO_QUICK_MOVES = '1';
