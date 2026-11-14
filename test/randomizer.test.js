@@ -78,14 +78,16 @@ function slot(count, stamp) {
   out.writeUInt32BE((0x100000000 - sum) >>> 0, 0x0c);
   return out;
 }
+// (options from 256 on are byte 7, and checked 16 bits up, as host/randomizer.c writes them)
 function stamp(seed, options = 15, generations = 7) {
   const out = Buffer.alloc(16);
   out.writeUInt32BE(0x43524e44, 0);
   out[4] = 1;
-  out[5] = options;
+  out[5] = options & 0xff;
   out[6] = generations;
+  out[7] = options >> 8;
   out.writeUInt32BE(seed, 8);
-  out.writeUInt32BE((seed ^ 0x5eedc01d ^ (options << 8) ^ generations) >>> 0, 12);
+  out.writeUInt32BE((seed ^ 0x5eedc01d ^ ((options & 0xff) << 8) ^ generations ^ ((options >> 8) << 16)) >>> 0, 12);
   return out;
 }
 // temporary card folders, removed when the tests are done (they used to pile up in the system's temp folder)
@@ -105,6 +107,15 @@ function card(...slots) {
 test('a save says its run, from the copy the game would load', () => {
   const folder = card(slot(1, stamp(0xc0ffee11)), slot(2, stamp(0xbadc0de5, 31, 2)), slot(0));
   assert.deepEqual(randomizer.readSave(folder), { exists: true, run: { seed: 'BADC0DE5', options: 31, generations: 2 } });
+});
+
+test('a save says the options past the first eight byte, no repeats and first forms only', () => {
+  const folder = card(slot(1, stamp(0xbadc0de5, 0x1ff, 7)), slot(0), slot(0));
+  assert.deepEqual(randomizer.readSave(folder), { exists: true, run: { seed: 'BADC0DE5', options: 0x1ff, generations: 7 } });
+  // byte 7 counts in the check: a stamp whose byte 7 changed is no run
+  const broken = stamp(0xbadc0de5, 0x1ff, 7);
+  broken[7] = 0;
+  assert.equal(randomizer.readSave(card(slot(1, broken), slot(0), slot(0))).run, null);
 });
 
 test('a save with no stamp is the normal game, even over an older run', () => {
@@ -184,4 +195,36 @@ test('a run has Generation 4 Pokémon when they are added and the game knows the
   const only4 = { randomizerGen1: false, randomizerGen2: false, randomizerGen3: false };
   assert.equal(randomizer.environmentValue(gen4(only4), { laterGenerations: true }), 'C0FFEE11:19:8');
   assert.equal(randomizer.environmentValue(on(only4), { laterGenerations: true }), 'C0FFEE11:19:7');
+});
+
+test('no repeats and first forms only are off to start with, and reach the game only when it knows them', () => {
+  const settings = randomizer.normalize({});
+  assert.equal(settings.randomizerNoRepeats, false);
+  assert.equal(settings.randomizerBaseForms, false);
+  const both = on({ randomizerNoRepeats: true, randomizerBaseForms: true });
+  assert.equal(randomizer.environmentValue(both, { noRepeats: true, baseForms: true }), 'C0FFEE11:403:7');
+  assert.equal(randomizer.environmentValue(on({ randomizerNoRepeats: true }), { noRepeats: true, baseForms: true }), 'C0FFEE11:147:7');
+  assert.equal(randomizer.environmentValue(on({ randomizerBaseForms: true }), { noRepeats: true, baseForms: true }), 'C0FFEE11:275:7');
+  // off, or with a game from before them, the run is the one it always was
+  assert.equal(randomizer.environmentValue(on(), { noRepeats: true, baseForms: true }), 'C0FFEE11:19:7');
+  assert.equal(randomizer.environmentValue(both), 'C0FFEE11:19:7');
+  assert.equal(randomizer.environmentValue(both, { noRepeats: true }), 'C0FFEE11:147:7');
+  assert.equal(randomizer.environmentValue(both, { baseForms: true }), 'C0FFEE11:275:7');
+  // they randomize nothing by themselves
+  const nothing = on({ randomizerStarters: false, randomizerShadow: false, randomizerNoRepeats: true, randomizerBaseForms: true });
+  assert.equal(randomizer.environmentValue(nothing, { noRepeats: true, baseForms: true }), null);
+  const env = (extra, options) => port.buildEnvironment(port.normalizeSettings({ randomizer: true, randomizerSeed: 'C0FFEE11', ...extra }), '/disc.iso', '/game', options);
+  assert.equal(env({ randomizerNoRepeats: true, randomizerBaseForms: true }, { noRepeats: true, baseForms: true }).COLO_RANDOMIZER, 'C0FFEE11:403:7');
+  assert.equal(env({ randomizerNoRepeats: true, randomizerBaseForms: true }, {}).COLO_RANDOMIZER, 'C0FFEE11:19:7');
+});
+
+test('spoilers leave out the teams a run with no repeats lists, as they do rows', () => {
+  const raw = 'seed C0FFEE11 options 415 generations 7\nstarter 197 214\nstarter 196 131\nshadow 1 296 270\nrow 8 30 296 270 0 0 0 0 0 0\nteam 1 8 9 10 11 12 13\n';
+  const species = [{ national: 197, name: 'Umbreon' }, { national: 196, name: 'Espeon' }, { national: 214, name: 'Heracross' },
+    { national: 131, name: 'Lapras' }, { national: 296, name: 'Makuhita' }, { national: 270, name: 'Lotad' }];
+  const text = randomizer.spoilerText(raw, species);
+  assert.match(text, /Umbreon is now Heracross/);
+  assert.match(text, /Espeon is now Lapras/);
+  assert.match(text, /Makuhita is now Lotad/);
+  assert.doesNotMatch(text, /team|row/);
 });

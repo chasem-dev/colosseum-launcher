@@ -438,6 +438,28 @@ test('Back up automatically shows the setting and is saved with the others', asy
   assert.equal(ui.calls.at(-1)[1].autoBackups, false);
 });
 
+test('the randomizer\'s No repeats and First forms only are off by default, saved with the others, and wait for a game that knows them', async () => {
+  const data = { ...state(), randomizerNoRepeats: true, randomizerBaseForms: true };
+  data.config.settings = port.normalizeSettings({ randomizer: true });
+  const ui = await renderer(data);
+  for (const id of ['randomizerNoRepeats', 'randomizerBaseForms']) {
+    assert.equal(ui.elements.get(id).checked, false);
+    assert.equal(ui.elements.get(id).disabled, false);
+  }
+  assert.match(ui.elements.get('randomizer-no-repeats-note').textContent, /No evolution family comes up twice/);
+  assert.match(ui.elements.get('randomizer-base-forms-note').textContent, /don't evolve from another/);
+  ui.elements.get('randomizerBaseForms').checked = true;
+  ui.elements.get('randomizerBaseForms').dispatch('change');
+  await new Promise(setImmediate);
+  assert.equal(ui.calls.at(-1)[1].randomizerBaseForms, true);
+  assert.equal(ui.calls.at(-1)[1].randomizerNoRepeats, false);
+  // a game from before them
+  const old = await renderer({ ...state(), randomizerNoRepeats: false, randomizerBaseForms: false });
+  for (const id of ['randomizerNoRepeats', 'randomizerBaseForms']) assert.equal(old.elements.get(id).disabled, true);
+  assert.match(old.elements.get('randomizer-no-repeats-note').textContent, /Update your game/);
+  assert.match(old.elements.get('randomizer-base-forms-note').textContent, /Update your game/);
+});
+
 test('dark mode is off by default, switches the theme at once and is saved with the others', async () => {
   const ui = await renderer(state());
   const shell = ui.elements.get('shell');

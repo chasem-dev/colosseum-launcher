@@ -1108,7 +1108,7 @@ function refresh(data) {
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
 const SELECTS = ['buttonPrompts', 'promptPad', 'battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'fastForward', 'fastForwardSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
-const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerPacks', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'quickMoves', 'quickStatus', 'shinyShadow', 'shinyStarters', 'chooseStarters', 'tmNames', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerPacks', 'randomizerSimilar', 'randomizerNoLegendaries', 'randomizerNoRepeats', 'randomizerBaseForms', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'quickMoves', 'quickStatus', 'shinyShadow', 'shinyStarters', 'chooseStarters', 'tmNames', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 // The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
 // removed from the folder stays listed, as the game plays in English without it.
@@ -1537,6 +1537,14 @@ function renderRandomizer(data) {
   $('randomizerPacks').disabled = !packsGame;
   $('randomizer-packs-note').textContent = !packsGame ? 'Update your game to have your Pokémon packs\' Pokémon in a randomized run.'
     : 'Your Pokémon packs\' Pokémon can be chosen too, whichever generations are ticked. Keep the same packs for the whole run: adding or removing one changes what it chooses. Anyone you share the seed with needs them too.';
+  // No repeats and first forms only, which a run can have once the game knows them
+  const noRepeatsGame = data.randomizerNoRepeats !== false, baseFormsGame = data.randomizerBaseForms !== false;
+  $('randomizerNoRepeats').disabled = !noRepeatsGame;
+  $('randomizer-no-repeats-note').textContent = !noRepeatsGame ? 'Update your game to keep evolution families from repeating in a randomized run.'
+    : 'No evolution family comes up twice among the Pokémon you start with and the Shadow Pokémon: start with Raichu and no Pichu or Pikachu is a Shadow Pokémon. With Trainers\' Pokémon on, no trainer\'s team has two of one family either.';
+  $('randomizerBaseForms').disabled = !baseFormsGame;
+  $('randomizer-base-forms-note').textContent = !baseFormsGame ? 'Update your game to start from first forms in a randomized run.'
+    : 'The Pokémon you start with and the Shadow Pokémon are only ones that don\'t evolve from another, such as Charmander or Tauros, so you can raise and evolve them. Trainers\' Pokémon and gifts are chosen as usual.';
   $('randomizer-save-note').textContent = !ready ? 'Update your game to use the randomizer. This version of the game plays every save as normal.'
     : run && (run.options & 64) ? `A randomized run with your Pokémon packs' Pokémon, seed ${run.seed}. Keep the packs it started with to play it as it was made; a New Game uses the settings above.`
     : run && (run.generations & 8) && !gen4Pokemon ? `A randomized run with Gen 4 Pokémon, seed ${run.seed}. Turn on Generation 4 Pokémon, under Later generations, to play it as it was made.`

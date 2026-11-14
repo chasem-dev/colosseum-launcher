@@ -1467,7 +1467,8 @@ async function play(installation = null, battle = null) {
   const { file: packsFile, own: packPokemon } = preparePlayPacks(rom, cacheFolder, battle);
   const playEnv = { ...port.buildEnvironment(settings, rom, root, { customTextures: customTextureDirectory(), laterGenerations: onlineFeatures(root).randomizerGenerations,
     // a new randomized run can have packs' own Pokémon: there are some, and the game can choose them
-    packPokemon: packPokemon > 0 && onlineFeatures(root).randomizerPacks, game: chosen.id }),
+    packPokemon: packPokemon > 0 && onlineFeatures(root).randomizerPacks,
+    noRepeats: onlineFeatures(root).randomizerNoRepeats, baseForms: onlineFeatures(root).randomizerBaseForms, game: chosen.id }),
     ...saves.gameDataEnvironment(), ...bindingsEnvironment(settings),
     ...(supports('languagePacks') ? languagePacks.environment(settings, languageFolder()) : {}),
     ...(supports('gbaLink') ? gbaLink.environment(config.gba, settings, gbaBackupFolder()) : {}),
@@ -1711,12 +1712,15 @@ function onlineFeatures(root, id = config.game) {
         // the randomizer's fourth generation
         randomizerGenerations: bytes.includes('randomizer: later generations'),
         // and Pokémon packs' own Pokémon
-        randomizerPacks: bytes.includes('randomizer: packs\' Pokemon') };
+        randomizerPacks: bytes.includes('randomizer: packs\' Pokemon'),
+        // no evolution family twice, and starters and Shadow Pokémon of first forms only
+        randomizerNoRepeats: bytes.includes('randomizer: no repeated families'),
+        randomizerBaseForms: bytes.includes('randomizer: base forms only') };
     }
     return onlineBinary;
   } catch (_) {
     return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossPlatinum: false, crossplay: false, spectate: false,
-      randomizer: false, randomizerGenerations: false, randomizerPacks: false };
+      randomizer: false, randomizerGenerations: false, randomizerPacks: false, randomizerNoRepeats: false, randomizerBaseForms: false };
   }
 }
 
@@ -2172,6 +2176,8 @@ function state() {
     randomizerSave: saveRun(currentSaveDirectory(), config.game), randomizerReady: repoReady && randomizerReady(config.repo),
     randomizerGenerations: repoReady && onlineFeatures(config.repo).randomizerGenerations,
     randomizerPacks: repoReady && onlineFeatures(config.repo).randomizerPacks,
+    randomizerNoRepeats: repoReady && onlineFeatures(config.repo).randomizerNoRepeats,
+    randomizerBaseForms: repoReady && onlineFeatures(config.repo).randomizerBaseForms,
     usage: usageCount, online: onlineState(),
     gba: { ...gbaLink.status(config.gba), backupFolder: gbaBackupFolder() }
   };
