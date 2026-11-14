@@ -834,8 +834,25 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .pokedex-stats dd { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 7px; font-variant-numeric: tabular-nums; }
 .pokedex-stats i { display: block; height: 6px; overflow: hidden; border-radius: 4px; background: var(--dex-line); }
 .pokedex-stats i::after { display: block; width: var(--stat); height: 100%; border-radius: inherit; background: var(--dex-accent); content: ''; }
-.pokedex-evolution { margin: 0 4px 2px 0; padding: 1px 7px; border: 1px solid var(--dex-line); border-radius: 6px; background: transparent; color: inherit; font-size: 12px; font-weight: 600; }
-.pokedex-evolution:hover { background: var(--dex-hover); }
+/* The evolution family: each stage, then an arrow saying what the next needs; branches stack (Eevee's, Wurmple's). */
+.pokedex-evolution-section h3 { margin: 0 0 6px; color: var(--dex-muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.pokedex-chain { display: flex; overflow-x: auto; padding-bottom: 2px; }
+.pokedex-chain-empty { color: var(--dex-muted); font-size: 12px; }
+.pokedex-chain-branch { flex: none; display: flex; align-items: center; }
+.pokedex-chain-next { display: flex; flex-direction: column; gap: 4px; }
+.pokedex-chain-link { display: flex; align-items: center; }
+.pokedex-chain-stage { flex: none; display: grid; justify-items: center; gap: 1px; width: 84px; padding: 4px 4px 5px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: inherit; font-size: 11px; font-weight: 650; line-height: 1.2; text-align: center; }
+.pokedex-chain-stage:hover { background: var(--dex-hover); }
+.pokedex-chain-stage.current { border-color: var(--dex-accent); background: var(--dex-selected); }
+.pokedex-chain-stage img, .pokedex-chain-stage .pokedex-no-sprite { width: 40px; height: 40px; font-size: 16px; }
+.pokedex-chain-stage small { color: var(--dex-muted); font-size: 9px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pokedex-chain-way { flex: none; display: grid; justify-items: center; width: 104px; padding: 0 4px; color: var(--dex-muted); font-size: 10.5px; font-weight: 650; line-height: 1.25; text-align: center; }
+.pokedex-chain-way::after { display: block; width: 100%; height: 9px; margin-top: 2px; background: currentColor; clip-path: polygon(0 40%, calc(100% - 7px) 40%, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, calc(100% - 7px) 60%, 0 60%); content: ''; }
+.pokedex-chain-way.noted span::after { content: ' *'; color: var(--dex-accent); }
+.pokedex-chain-way.blocked { opacity: .62; font-style: italic; }
+.pokedex-evolution-notes { display: grid; gap: 2px; margin: 6px 0 0; padding: 0; list-style: none; color: var(--dex-muted); font-size: 11.5px; line-height: 1.35; }
+.pokedex-evolution-notes:empty { display: none; }
+.pokedex-evolution-notes li::before { content: '* '; color: var(--dex-accent); font-weight: 700; }
 
 /* Randomizer */
 .randomizer-options { display: contents; }

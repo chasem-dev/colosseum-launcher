@@ -754,6 +754,30 @@ function generationNote(each) {
   return `${start}. ${each.base.name} stands in for its looks and cry until its Battle Revolution assets are made. ${end}`;
 }
 
+// A row's evolutions as the Pokédex names them: what each evolves into (a loaded Pokémon's key, else the game's
+// Pokémon's National Pokédex number), and how (evolution-ways.js, with how Platinum differs for a later generation's).
+// `from`: the National Pokédex number of the Pokémon the row is, for Platinum's way: given for a later generation's
+// Pokémon, and for the game's own Pokémon's evolutions into one.
+function rowEvolutions(row, start, pokemon, tables, from) {
+  const evolutionWays = require('./evolution-ways');
+  const speciesName = id => pokemon.find(each => each.id === id)?.name || tables.species.find(each => each.id === id)?.name;
+  const out = { evolutions: [], evolutionWays: [] }, names = [];
+  for (let i = 0; i < EVOLUTIONS; i++) {
+    const at = start + i * 6, id = row.readUInt16BE(at + 4);
+    if (!row[at] || !id) continue;
+    const loaded = pokemon.find(each => each.id === id), national = loaded ? loaded.national : tables.species.find(each => each.id === id)?.national;
+    const into = loaded?.key || national;
+    if (!into) continue;
+    const way = evolutionWays.describeBytes(row, at, { speciesName: name => speciesName(name) && pokedex.displayName(speciesName(name)) });
+    const platinum = from && national ? evolutionWays.platinumWay(from, national) : null;
+    out.evolutions.push(into);
+    out.evolutionWays.push(platinum ? { ...way, note: [way.note, platinum].filter(Boolean).join(' ') } : way);
+    names.push(pokedex.displayName(speciesName(id) || ''));
+  }
+  out.evolutionWays = evolutionWays.overlappingLevels(out.evolutionWays, names);
+  return out;
+}
+
 // What the Pokédex shows of each: as its own entries do (pokedex.js), and where it's from.
 function pokedexEntries(pokemon, tables) {
   const TYPES = pokedex.TYPES;
@@ -762,18 +786,14 @@ function pokedexEntries(pokemon, tables) {
     const height = row.readUInt16BE(ROW.height);
     const abilities = [row[ROW.abilities], row[ROW.abilities + 1]].filter(Boolean)
       .map(id => [...tables.abilities].find(([, value]) => value === id)?.[0] ?? laterAbility(id)).filter(Boolean).map(pokedex.displayName);
-    const evolutions = [];
-    for (let i = 0; i < EVOLUTIONS; i++) {
-      const into = row.readUInt16BE(ROW.evolutions + i * 6 + 4);
-      if (row[ROW.evolutions + i * 6] && into) evolutions.push(into);
-    }
+    const { evolutions, evolutionWays } = rowEvolutions(row, ROW.evolutions, pokemon, tables, each.generation ? each.national : null);
     return { pack: { id: each.pack, name: each.packName, author: each.author, credits: each.credits, folder: each.folder, key: each.key },
       packId: each.id, national: each.national || each.base.national, base: each.base.name, form: each.form,
       name: each.form ? `${pokedex.displayName(each.name)} (${each.form})` : pokedex.displayName(each.name), description: each.description,
       types: types[0] === types[1] ? types.slice(0, 1) : types, abilities: [...new Set(abilities)],
       height: `${Math.floor(height / 100)}'${String(height % 100).padStart(2, '0')}"`, weight: `${(row.readUInt16BE(ROW.weight) / 10).toFixed(1)} lbs`,
       catchRate: row[ROW.catchRate], stats: STATS.map((_, i) => row.readUInt16BE(ROW.stats + i * 2)),
-      evolutions: evolutions.map(id => pokemon.find(other => other.id === id)?.key || tables.species.find(s => s.id === id)?.national).filter(Boolean),
+      evolutions, evolutionWays,
       hasModel: Boolean(each.assets.model), hasShinyModel: Boolean(each.assets.modelShiny),
       status: each.generation
         ? { kind: 'generation', label: `Generation ${each.generation}`, locked: false,

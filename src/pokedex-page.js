@@ -447,20 +447,66 @@ function renderInfo(entry) {
   $('pokedex-height').textContent = entry.height;
   $('pokedex-weight').textContent = entry.weight;
   $('pokedex-abilities').textContent = entry.abilities.join(', ') || '—';
-  const link = target => {
+  renderEvolutions(entry);
+}
+
+// The Pokémon's whole family, from its first stage: every evolution, with what it needs on the arrow before it, and the
+// notes on those that need one (that it can't happen in this game, or how Platinum had it) below. Each stage opens
+// its own entry.
+function renderEvolutions(entry) {
+  const byKey = new Map(species.map(item => [item.key, item]));
+  const parentOf = key => species.find(item => item.key !== key && item.evolutions.includes(key));
+  let first = entry;
+  for (const seen = new Set([entry.key]); ;) {
+    const parent = parentOf(first.key);
+    if (!parent || seen.has(parent.key)) break;
+    seen.add(parent.key);
+    first = parent;
+  }
+  const notes = [], placed = new Set();
+  const stage = item => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'pokedex-evolution';
-    button.textContent = target.name;
-    button.addEventListener('click', () => { select(target); entries.get(target.key).scrollIntoView({ block: 'nearest' }); });
+    button.className = `pokedex-chain-stage${item.key === entry.key ? ' current' : ''}`;
+    button.title = item.key === entry.key ? item.name : `Show ${item.name}`;
+    if (item.sprite) button.append(Object.assign(document.createElement('img'), { src: item.sprite, alt: '', width: 40, height: 40, loading: 'lazy' }));
+    else button.append(Object.assign(document.createElement('span'), { className: 'pokedex-no-sprite', textContent: '?' }));
+    button.append(Object.assign(document.createElement('small'), { textContent: number(item.national) }),
+      Object.assign(document.createElement('span'), { textContent: item.name }));
+    if (item.key !== entry.key) button.addEventListener('click', () => { select(item); entries.get(item.key)?.scrollIntoView({ block: 'nearest' }); });
     return button;
   };
-  const next = entry.evolutions.map(key => entries.has(key) ? species.find(item => item.key === key) : null).filter(Boolean);
-  const previous = species.filter(item => item.key !== entry.key && item.evolutions.includes(entry.key));
-  $('pokedex-evolves-label').hidden = $('pokedex-evolves').hidden = !next.length;
-  $('pokedex-evolves').replaceChildren(...next.map(link));
-  $('pokedex-evolves-from-label').hidden = $('pokedex-evolves-from').hidden = !previous.length;
-  $('pokedex-evolves-from').replaceChildren(...previous.map(link));
+  const branch = item => {
+    placed.add(item.key);
+    const out = document.createElement('div');
+    out.className = 'pokedex-chain-branch';
+    out.append(stage(item));
+    const next = item.evolutions.map((key, i) => [byKey.get(key), item.evolutionWays?.[i]]).filter(([target]) => target && !placed.has(target.key));
+    if (!next.length) return out;
+    const column = document.createElement('div');
+    column.className = 'pokedex-chain-next';
+    for (const [target, way = { text: '' }] of next) {
+      const link = document.createElement('div'), arrow = document.createElement('div');
+      link.className = 'pokedex-chain-link';
+      arrow.className = `pokedex-chain-way${way.note ? ' noted' : ''}${way.blocked ? ' blocked' : ''}`;
+      arrow.append(Object.assign(document.createElement('span'), { textContent: way.text }));
+      if (way.note) {
+        arrow.title = way.note;
+        // one note for each evolution of the chosen Pokémon and into it; the same note for two (Wurmple's) is said once
+        const same = notes.find(note => note.from === item && note.text === way.note);
+        if (same) same.into.push(target.name);
+        else if (item.key === entry.key || target.key === entry.key) notes.push({ from: item, into: [target.name], text: way.note });
+      }
+      link.append(arrow, branch(target));
+      column.append(link);
+    }
+    out.append(column);
+    return out;
+  };
+  const tree = branch(first);
+  $('pokedex-chain').replaceChildren(placed.size > 1 ? tree : Object.assign(document.createElement('p'), { className: 'pokedex-chain-empty', textContent: `${entry.name} doesn't evolve.` }));
+  $('pokedex-evolution-notes').replaceChildren(...notes.map(note =>
+    Object.assign(document.createElement('li'), { textContent: `${note.from.name} to ${note.into.join(' or ')}: ${note.text}` })));
 }
 
 function renderForms(entry) {

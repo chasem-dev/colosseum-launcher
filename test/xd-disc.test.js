@@ -101,6 +101,7 @@ test('XD\'s Pokédex: every Pokémon, each with a model and a sprite, and how XD
   const find = national => list.find(entry => entry.national === national);
   assert.equal(find(133).status.note, 'Your partner from the very start of the game.');
   assert.deepEqual(find(133).evolutions, [135, 134, 136, 196, 197]);
+  assert.deepEqual(find(133).evolutionWays.map(way => way.text).slice(3), ['High friendship, Sun Shard in the bag', 'High friendship, Moon Shard in the bag']);
   assert.equal(find(249).status.kind, 'shadow');
   assert.match(find(27).status.note, /Rock Poké Spot/);
   assert.equal(find(1).height, '2\'04"');

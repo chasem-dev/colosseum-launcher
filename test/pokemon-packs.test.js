@@ -308,6 +308,7 @@ test('the Pokédex shows a pack Pokémon as it shows the game\'s, with where it 
   assert.equal(entry.national, 25);
   assert.deepEqual(entry.abilities, ['Static']);
   assert.deepEqual(entry.evolutions, [26]);
+  assert.deepEqual(entry.evolutionWays, [{ text: 'Level 30', level: 30 }]);
   assert.equal(entry.status.kind, 'pack');
   assert.match(entry.status.note, /^Weather, by Me\. Based on Pikachu\. Crackles\. Credits: Them, for the model\.$/);
 });

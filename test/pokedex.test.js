@@ -430,6 +430,11 @@ test('the disc holds every Pokémon, each with a model', withDisc, () => {
   assert.equal(find('Bulbasaur').status.kind, 'hidden');
   assert.equal(find('Espeon').status.kind, 'gift');
   assert.equal(find('Meganium').status.kind, 'evolve');
+  // each evolution says how: Gen 3's own ways, and those the game can't make
+  assert.deepEqual(find('Onix').evolutionWays.map(way => way.text), ['Trade holding Metal Coat']);
+  assert.deepEqual(find('Eevee').evolutionWays.map(way => way.text), ['Thunder Stone', 'Water Stone', 'Fire Stone', 'High friendship in the day', 'High friendship at night']);
+  assert.equal(find('Feebas').evolutionWays[0].blocked, true);
+  assert.deepEqual(list.filter(entry => entry.evolutions.length !== entry.evolutionWays.length), []);
 });
 
 test('every look of every Pokémon parses, with all its motions', withDisc, () => {
