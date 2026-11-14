@@ -8,6 +8,7 @@ const { spawn, execFile } = require('node:child_process');
 const { Worker } = require('node:worker_threads');
 const port = require('./port');
 const games = require('./games');
+const pbrDisc = require('./pbr-disc');
 const saves = require('./saves');
 const gciSave = require('./gci-save');
 const buildTools = require('./build-tools');
@@ -99,8 +100,11 @@ const partialOutput = new Map();
 const sessionLog = createSessionLog(() => app.getPath('userData'), error =>
   logOutput(`Could not save the session log: ${error.message}`, 'launcher'));
 // `--play` (for a Steam shortcut's launch options) starts the game without the
-// launcher's window and quits when the game closes.
-const playOnStart = process.argv.includes('--play');
+// launcher's window and quits when the game closes. `--game=xd` (or `--play=xd`)
+// is the game it opens on and plays; a bare `--play` plays Colosseum, as Steam
+// shortcuts from before XD expect (steam.startOptions).
+const startOptions = steam.startOptions(process.argv.slice(1));
+const playOnStart = startOptions.play;
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 else if (portableRoot && app.isPackaged)
@@ -235,10 +239,6 @@ function loadConfig() {
     quickBattlesOn: true,
     // Only once Metal is on offer: a Mac still on a Rosetta game moves when its game turns native.
     movedToMetal: Boolean(saved.movedToMetal) || port.platformInfo().renderers[0] === 'metal',
-    // Whether Play has offered Add to Steam on SteamOS yet (it does once).
-    steamOffered: Boolean(saved.steamOffered),
-    // Whether the launcher has offered to fix a Steam shortcut without --no-sandbox.
-    steamFixOffered: Boolean(saved.steamFixOffered),
     // The newest launcher version whose changelog the player has been shown.
     changelogSeen: changelog.baseVersion(saved.changelogSeen),
     // Which wording of Beta's notes a Beta build last showed.
@@ -429,6 +429,8 @@ function launcherExe() {
 }
 
 const startedFromSteam = () => Boolean(process.env.SteamGameId || process.env.SteamAppId);
+// The game whose Steam shortcut started this launcher: one without a game is Colosseum's.
+const steamStartedGame = () => startOptions.game || games.DEFAULT;
 
 async function locateSteam() {
   const registryPath = process.platform === 'win32' ? await windowsSteamPath() : null;
@@ -454,31 +456,38 @@ const STEAM_LAUNCH_OPTIONS = process.platform === 'linux' ? '--no-sandbox' : '';
 const sandboxAlwaysOff = process.env.COLO_LAUNCHER_NO_SANDBOX === '1';
 delete process.env.COLO_LAUNCHER_NO_SANDBOX; // not passed on to the game or Steam
 
+// Each game has its own shortcut (steam.js), so the banner is the chosen game's.
 async function readSteamStatus() {
   const exe = launcherExe();
-  if (!exe) return { available: false, reason: process.platform === 'linux' && app.isPackaged
+  const id = config.game, name = steam.appNameFor(id);
+  if (!exe) return { available: false, name, reason: process.platform === 'linux' && app.isPackaged
     ? "Add to Steam isn't offered: the launcher isn't running from its AppImage." : null };
-  if (startedFromSteam()) {
+  if (startedFromSteam() && steamStartedGame() === id) {
     // Steam's shortcut started this launcher, so its options are ours.
     const needsFix = !sandboxAlwaysOff && steam.missingOptions(process.argv.slice(1).join(' '), STEAM_LAUNCH_OPTIONS);
-    return { available: false, inSteam: true, needsFix, reason: needsFix
+    return { available: false, inSteam: true, needsFix, name, reason: needsFix
       ? `Steam: the launcher was started from a Steam shortcut without ${STEAM_LAUNCH_OPTIONS}, so it won't open in Game Mode.`
-      : 'Steam: the launcher was started from Steam, so it is in your Steam library.' };
+      : `Steam: the launcher was started from ${name}'s shortcut in Steam, so it is in your Steam library.` };
   }
   const located = await locateSteam();
-  if (!located) return { available: false, reason: "Add to Steam isn't offered: no signed-in Steam was found on this computer." };
+  if (!located) return { available: false, name, reason: "Add to Steam isn't offered: no signed-in Steam was found on this computer." };
   if (!located.accounts.length)
-    return { available: false, reason: `Add to Steam isn't offered: nobody has signed in to Steam at ${located.root} yet.` };
-  const options = steam.shortcutLaunchOptions({ ...located, exe });
-  const inSteam = steam.hasShortcut({ ...located, exe });
+    return { available: false, name, reason: `Add to Steam isn't offered: nobody has signed in to Steam at ${located.root} yet.` };
+  const options = steam.shortcutLaunchOptions({ ...located, exe, game: id });
+  const inSteam = steam.hasShortcut({ ...located, exe, game: id });
+  if (startedFromSteam()) {
+    // Another game's shortcut started this launcher, and Steam can't close under it to add this one.
+    return { available: false, inSteam, name, reason: inSteam ? `Steam: ${name} is in your Steam library (${located.root}).`
+      : `Add to Steam isn't offered for ${name}: the launcher was started from ${steam.appNameFor(steamStartedGame())}'s shortcut in Steam. Open the launcher outside Steam to add it.` };
+  }
   const steamOS = onSteamOS();
   const needsFix = inSteam && !sandboxAlwaysOff && steam.missingOptions(options, STEAM_LAUNCH_OPTIONS);
-  return { available: true, inSteam, needsFix, skipLauncher: steam.skipsLauncher(options), steamOS,
+  return { available: true, inSteam, needsFix, skipLauncher: steam.skipsLauncher(options), steamOS, name,
     offer: steamOS && !inSteam && !config.steamOffered,
     offerFix: needsFix && !config.steamFixOffered,
-    reason: needsFix ? `Steam: the launcher's shortcut in Steam is missing ${STEAM_LAUNCH_OPTIONS}, so it won't open in Game Mode (${located.root}).`
-      : inSteam ? `Steam: the launcher is in your Steam library (${located.root}).`
-      : `Steam: the launcher isn't in your Steam library yet (${located.root}${steamOS ? ', SteamOS' : ''}), so Add to Steam is offered.` };
+    reason: needsFix ? `Steam: ${name}'s shortcut in Steam is missing ${STEAM_LAUNCH_OPTIONS}, so it won't open in Game Mode (${located.root}).`
+      : inSteam ? `Steam: ${name} is in your Steam library (${located.root}).`
+      : `Steam: ${name} isn't in your Steam library yet (${located.root}${steamOS ? ', SteamOS' : ''}), so Add to Steam is offered.` };
 }
 
 let steamReasonLogged = null;
@@ -491,14 +500,17 @@ async function steamStatus() {
   return status;
 }
 // Play offers Add to Steam on SteamOS only once, and opening the launcher
-// offers to fix a shortcut without --no-sandbox only once, whatever the player chooses.
+// offers to fix a shortcut without --no-sandbox only once, whatever the player
+// chooses: once for each game, as each has its own shortcut (games.FIELDS).
 function markSteamOffered(prompt) {
   config[prompt === 'fix' ? 'steamFixOffered' : 'steamOffered'] = true;
   saveConfig();
 }
 
-// `play` (Skip Launcher) adds `--play`, so Steam starts the game without the launcher's window.
+// Adds (or updates) the chosen game's shortcut. `play` (Skip Launcher) adds
+// `--play`, so Steam starts the game without the launcher's window.
 async function addToSteam({ play = false } = {}) {
+  const id = config.game, name = steam.appNameFor(id), pieces = steam.artworkFor(id);
   const exe = launcherExe();
   if (!exe) throw new Error(process.platform === 'linux' ? 'Add to Steam works from the launcher AppImage.' : 'Add to Steam works from the installed launcher on Windows and Linux.');
   if (startedFromSteam()) throw new Error('The launcher was started from Steam, so it is already in your Steam library.');
@@ -507,13 +519,13 @@ async function addToSteam({ play = false } = {}) {
   const { root, accounts } = located;
   if (!accounts.length) throw new Error('Sign in to Steam once, then try again.');
   log('Downloading Steam artwork from SteamGridDB…');
-  const artwork = await steam.downloadArtwork(downloadImage);
+  const artwork = await steam.downloadArtwork(downloadImage, pieces);
   const wasRunning = await steamRunning();
   const reopen = wasRunning && process.platform === 'win32';
   if (wasRunning) {
     const answer = await dialog.showMessageBox(window, {
       type: 'question', buttons: ['Cancel', 'Close Steam and add'], defaultId: 1, cancelId: 0,
-      message: 'Close Steam to add the launcher?',
+      message: `Close Steam to add ${name}?`,
       detail: `Steam picks up new non-Steam games only when it starts, so it closes for a moment${reopen ? ' and opens again afterwards' : '. Open it again once the launcher says it was added'}.`
     });
     if (answer.response !== 1) return { cancelled: true };
@@ -528,15 +540,15 @@ async function addToSteam({ play = false } = {}) {
     await waitForSteamToClose();
     log(`Steam's non-Steam games after Steam closed: ${steam.describeShortcuts(steam.snapshotShortcuts({ root, backUp: false }))}.`);
   }
-  const results = steam.addShortcut({ root, accounts, exe, startDir: path.dirname(exe), artwork, snapshot,
+  const results = steam.addShortcut({ root, accounts, exe, startDir: path.dirname(exe), game: id, artwork, snapshot,
     launchOptions: STEAM_LAUNCH_OPTIONS, play: Boolean(play) });
   const added = results.some(result => result.added);
   const images = Math.min(...results.map(result => result.artwork));
-  log(`${added ? 'Added' : 'Updated'} ${steam.APP_NAME} in Steam${play ? ' with Skip Launcher' : ''} (${images} of ${steam.ARTWORK.length} artwork images, ${root}).`);
+  log(`${added ? 'Added' : 'Updated'} ${name} in Steam${play ? ' with Skip Launcher' : ''} (${images} of ${pieces.length} artwork images, ${root}).`);
   for (const result of results)
     log(`Steam account ${result.account}: kept its ${result.kept} other non-Steam games${result.backup ? `; the list from before is saved as ${result.backup}` : ''}.`);
   if (reopen) shell.openExternal('steam://open/games').catch(() => {});
-  return { added, play: Boolean(play), name: steam.APP_NAME, artwork: images, total: steam.ARTWORK.length, reopened: reopen };
+  return { added, play: Boolean(play), name, artwork: images, total: pieces.length, reopened: reopen };
 }
 
 
@@ -1056,6 +1068,24 @@ const packLabel = problem => `${problem.pack}${problem.entry ? `/${problem.entry
 // icons and cries for the later generations' Pokémon, which then look and sound as they do there instead of as a
 // stand-in.
 function pbrWork() { return path.join(app.getPath('userData'), 'battle-revolution'); }
+// The last disc file chosen, and what the check found ({ ok, warning, file, message, at }): the renderer shows it in a banner
+let pbrDiscChoice = null;
+// What is wrong with the disc kept in the settings (one chosen before the launcher checked them), or '' when nothing
+// is; read again only when the file changes
+let pbrDiscProblemCache = null;
+function pbrDiscProblem() {
+  const file = config.pbrDisc;
+  if (!file) return '';
+  let stat;
+  try { stat = fs.statSync(file); } catch { return ''; }   // not there: discFound says so
+  const key = `${file}\0${stat.size}\0${stat.mtimeMs}`;
+  if (pbrDiscProblemCache?.key !== key) {
+    let problem = '';
+    try { pbrDisc.validate(file); } catch (error) { problem = error.message; }
+    pbrDiscProblemCache = { key, problem };
+  }
+  return pbrDiscProblemCache.problem;
+}
 function pbrModels() { return path.join(pbrWork(), 'models'); }
 // The National Pokédex numbers a model is wanted for: the Pokémon of each generation imported
 function pbrWanted(settings = config.settings) {
@@ -1074,6 +1104,7 @@ function pbrState() {
   const cries = Boolean(config.repo && port.pbrMakesCries(config.repo));
   const noCry = cries ? present.filter(n => !outdated.has(n) && !fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.cry))).length : 0;
   return { disc: config.pbrDisc || null, discFound: Boolean(config.pbrDisc && fs.existsSync(config.pbrDisc)),
+    discProblem: pbrDiscProblem(), choice: pbrDiscChoice,
     wanted: wanted.length, made: present.length - outdated.size - noCry, outdated: outdated.size, noCry, cries,
     supported: Boolean(config.repo && fs.existsSync(port.pbrModelsScript(config.repo))) };
 }
@@ -1081,6 +1112,8 @@ async function makePbrModels() {
   requireFeature('pbrAssets', 'Battle Revolution assets');
   const root = requireRepo(), wanted = pbrWanted();
   if (!config.pbrDisc || !fs.existsSync(config.pbrDisc)) throw new Error('Choose your Pokémon Battle Revolution disc file first.');
+  const problem = pbrDiscProblem();
+  if (problem) throw new Error(`Your Battle Revolution disc can't be used: ${problem}`);
   if (!wanted.length) throw new Error('Turn on a later generation\'s Pokémon first: their models and cries are what this makes.');
   if (!fs.existsSync(port.pbrModelsScript(root))) throw new Error('This version of the game can\'t make Battle Revolution assets yet. Update it from the Play page.');
   await ensureBuildTools();
@@ -1444,6 +1477,7 @@ async function play(installation = null, battle = null) {
   if (!binaryReady(root)) throw new Error('Set up this version of the game before playing.');
   if (!hdVisualsReady(root, settings))
     throw new Error('HD visuals need to be set up. Return to the main screen to finish setup, or turn them off in Settings.');
+  if (settings.textures) for (const name of port.dropLeftOutTextures(root, chosen.id)) log(`Removed ${name} from the HD texture pack: the game draws its own.`);
   if (supports('languagePacks')) await ensureLanguage(settings);
   // An online battle plays on no save: the memory card stays as it was.
   if (!battle) makeSaveBackup('before-play');
@@ -1498,13 +1532,19 @@ function showPresence() {
   if (!presenceSession || !discordPresence) return;
   const { startedAt, game: latest, online: isOnline } = presenceSession;
   const game = activeGame();
-  discordPresence.set(presence.activity(latest, { startedAt, online: isOnline ? { opponent: battle?.opponent || null } : null,
+  const online = !isOnline ? null : battle?.role === 'watcher' ? { watching: battle.players?.filter(Boolean) || [] } : { opponent: battle?.opponent || null };
+  discordPresence.set(presence.activity(latest, { startedAt, online,
     gameName: game.name, areaImages: game.id === 'colosseum' }));
 }
 
 function startPresence(startedAt, isOnline) {
   if (!config.settings.discordPresence || !supports('discordPresence')) return;
-  discordPresence ||= discord.createPresence({ log });
+  // each game's own Discord application (games.discordAppId), so another game's connection is closed for it
+  const clientId = games.discordAppId(config.game);
+  if (discordPresence?.clientId !== clientId) {
+    discordPresence?.stop();
+    discordPresence = discord.createPresence({ clientId, log });
+  }
   presenceSession = { startedAt, game: null, online: isOnline };
   onPresence = line => {
     const latest = presence.parseLine(line);
@@ -1544,6 +1584,14 @@ function directPlayBlocker() {
   if (config.settings.autoUpdate && !game.isCurrent(config.repo, currentSource())) return 'a game update is ready.';
   if (!hdVisualsReady(config.repo, config.settings)) return 'HD visuals need to be set up.';
   return null;
+}
+
+// The game a Steam shortcut named (`--game=`, `--play=`, or Colosseum for a bare `--play`) is chosen before the
+// launcher opens or plays, as if the player had picked it on the Play page.
+function chooseStartGame(start = startOptions) {
+  if (!start.game || start.game === config.game) return;
+  if (!games.GAMES[start.game]) return log(`Opened on ${gameName()}: the launcher has no game "${start.game}".`);
+  selectGame(start.game);
 }
 
 // Plays with the launcher's settings, without downloading or building anything.
@@ -1620,7 +1668,7 @@ function setupTelemetry() {
 }
 
 // --- Online battles (src/online.js): the room, the game between it and the player.
-let battle = null;     // { session, status, code, role, opponent, rules, bestOf, game, wins, preview }
+let battle = null;     // { session, status, code, role, opponent, rules, bestOf, game, wins, preview, players, watchers }
 let battleResult = null;
 
 function onlineState() {
@@ -1630,9 +1678,14 @@ function onlineState() {
     // rooms for both games, with this game's build for them; Platinum's rules; the game's short name
     crossBuild: binaryReady() && onlineFeatures(config.repo).crossplay ? gameBuild(true).build : null,
     platinumSupported: !binaryReady() || onlineFeatures(config.repo).platinum, game: games.get(config.game).shortName,
+    // and in a room for both games, where both games' Pokémon sets take the fourth generation's under them
+    crossPlatinumSupported: binaryReady() && onlineFeatures(config.repo).crossPlatinum,
+    // watching others' battles: this game plays a battle as a spectator's
+    spectateSupported: binaryReady() && onlineFeatures(config.repo).spectate,
     battle: battle && { status: battle.status, code: online.formatRoomCode(battle.code), role: battle.role, rules: battle.rules,
       opponent: battle.opponent, peerLost: Boolean(battle.peerLost), bestOf: battle.bestOf || 1, game: battle.game || 0,
-      wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null } };
+      wins: battle.wins || [0, 0], side: battle.side ?? null, preview: battle.preview || null,
+      players: battle.players || null, watchers: battle.watchers || 0 } };
 }
 
 function broadcastOnline() { broadcast('online', onlineState()); }
@@ -1661,11 +1714,17 @@ function onlineFeatures(root, id = config.game) {
         timers: xd ? bytes.includes('online: XD turn timer') : bytes.includes('online: turn timer'),
         // the screens around a battle, where the players pick their Pokémon with team preview
         picks: xd ? bytes.includes('online: XD picks, ') : bytes.includes('online: picks, '),
-        // Pokémon Platinum's battle rules (src/generations.js): Colosseum's game only
-        platinum: !xd,
+        // Pokémon Platinum's battle rules (src/generations.js), from the room's rules file: Colosseum's game has always
+        // played them, and XD's once it turns their later generation's numbers into its own (host/xd/online.c)
+        platinum: !xd || bytes.includes('online: XD Platinum rules '),
+        // and in a room for both games: the shared set of Pokémon (host/crossplay.c) has the fourth generation's under
+        // them, in both games' builds of one commit
+        crossPlatinum: bytes.includes('online: crossplay set: the fourth generation\'s under Platinum\'s rules'),
         // rooms for either game's players (online.crossBuildId): XD's knows crossplay=1, and Colosseum's needs nothing
         // more than its rules line and whole Pokémon
         crossplay: rules && (story || xd),
+        // spectators' games, which play a room's battle from both players' lines (config side 2)
+        spectate: bytes.includes(xd ? 'online: XD spectating' : 'online: spectating'),
         // the randomizer (host/randomizer.c), which XD's game has once it prints its run
         randomizer: bytes.includes('randomizer: seed '),
         // the randomizer's fourth generation
@@ -1675,7 +1734,7 @@ function onlineFeatures(root, id = config.game) {
     }
     return onlineBinary;
   } catch (_) {
-    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossplay: false,
+    return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossPlatinum: false, crossplay: false, spectate: false,
       randomizer: false, randomizerGenerations: false, randomizerPacks: false };
   }
 }
@@ -1785,14 +1844,23 @@ function partyNames() {
   } catch (_) { return {}; }
 }
 
+// What a room for both games takes of the fourth generation under Platinum's rules (src/crossplay.js options): its
+// Pokémon, moves and items, and a second ability wherever that generation gives the species one, from the disc.
+function crossLater() {
+  let species = {};
+  try { species = battleData(teamDisc()).generations[4].species; } catch (error) { log(`Team builder: couldn't read abilities from the disc (${error.message}).`); }
+  return { later: true, secondAbility: id => Boolean(species[id]?.abilities?.some(ability => ability.slot === 1)) };
+}
+
 // The party to battle with by a room's rules: what battleParty gives, once it can play by them.
 function partyFor(rules, { cross = false } = {}) {
   const features = onlineFeatures(config.repo);
   if (rules.format !== 'casual' && !features.rules)
     throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
-  if (rules.battleRules === 4 && (!features.platinum || cross)) {
-    const why = cross ? 'a room for both games plays by Colosseum\'s' : `${games.get(config.game).shortName}'s online battles play by Colosseum's`;
-    throw Object.assign(new Error(`Pokémon Platinum's battle rules are for Colosseum's rooms for now: ${why}.`), { problems: ['Platinum\'s battle rules'] });
+  const platinum = rules.battleRules === 4;
+  if (platinum && (!features.platinum || (cross && !features.crossPlatinum))) {
+    const what = cross ? 'A room for both games with Pokémon Platinum\'s battle rules' : `Pokémon Platinum's battle rules in ${games.get(config.game).shortName}`;
+    throw Object.assign(new Error(`${what} need a newer game. Update it from the Play page.`), { problems: ['Platinum\'s battle rules'] });
   }
   // the other game makes a Pokémon from its species differently: each goes whole
   if (cross && config.online.selected !== parties.STORY && !features.members)
@@ -1803,7 +1871,7 @@ function partyFor(rules, { cross = false } = {}) {
   const chosen = battleParty(rules.size, { cross });
   const problems = formats.problems(rules, chosen.party, chosen.members || null, partyNames());
   // a room for both games: only what both games make alike (src/crossplay.js), or the battle would go otherwise
-  if (cross) problems.push(...crossplay.problems(chosen.party, chosen.members || null, partyNames()).filter(each => !problems.includes(each)));
+  if (cross) problems.push(...crossplay.problems(chosen.party, chosen.members || null, partyNames(), platinum ? crossLater() : {}).filter(each => !problems.includes(each)));
   if (problems.length) throw Object.assign(new Error(`Your party can't play ${formats.describe(rules).name}: ${problems.join(' ')}`), { problems });
   return chosen;
 }
@@ -1843,6 +1911,28 @@ const BATTLE_OVER = {
   left: 'The other player left the battle.', dropped: 'The connection to the room was lost.',
   desync: 'The battle stopped: the two games no longer agreed. This is a bug, please report it.'
 };
+
+// How a watched battle ended, as the page says it: by the players' names.
+function watchedOutcome(result, players, set = null) {
+  const name = side => players?.[side] || (side ? 'The challenger' : 'The host');
+  if (result.reason === 'over') {
+    const what = set ? `game ${set.game}` : 'the battle';
+    return { message: result.winner === null ? `${set ? `Game ${set.game}` : 'The battle'} ended in a draw.` : `${name(result.winner)} won ${what}.` };
+  }
+  if (result.reason === 'left') return { message: `${result.side === 0 || result.side === 1 ? name(result.side) : 'A player'} left the battle.` };
+  if (result.reason === 'room-closed') return { message: 'That room closed before its battle began.' };
+  if (result.reason === 'desync') return { message: 'Watching stopped: this game no longer agreed with the players\' games. This is a bug, please report it.' };
+  if (result.reason === 'dropped') return { message: BATTLE_OVER.dropped };
+  return null;
+}
+
+// And how a watched set ended.
+function watchedSetOutcome(set, players) {
+  const [a, b] = set.wins.map(wins => wins || 0);
+  const name = side => players?.[side] || (side ? 'The challenger' : 'The host');
+  if (set.reason === 'disagree') return { message: 'The set stopped: the two players\' games saw different results.' };
+  return { message: a === b ? `The set ended ${a}–${b}.` : `${name(a > b ? 0 : 1)} won the set ${Math.max(a, b)}–${Math.min(a, b)}.` };
+}
 
 function battleOutcome(result, side, set = null) {
   if (result.reason === 'over') {
@@ -1884,7 +1974,8 @@ async function playBattle(session) {
 // Where a set is: which game, and the score so far.
 function noteSet(message) {
   Object.assign(battle, { bestOf: message.bestOf || 1, game: message.game || 1, wins: Array.isArray(message.wins) ? message.wins : [0, 0],
-    side: message.side, rules: message.rules || battle.rules, opponent: message.players[1 - message.side].name });
+    side: message.side ?? null, rules: message.rules || battle.rules, players: message.players.map(player => player.name),
+    opponent: battle.role === 'watcher' ? null : message.players[1 - message.side].name });
 }
 
 function watchSession(session) {
@@ -1901,22 +1992,25 @@ function watchSession(session) {
   session.on('start', message => {
     if (!battle) return;
     noteSet(message);
-    battle.status = 'battling';
+    battle.status = battle.role === 'watcher' ? 'watching' : 'battling';
     battle.preview = null;
     if (battle.bestOf > 1) battleResult = null;
     broadcastOnline();
     showPresence();
   });
-  session.on('peer', peer => { if (battle) { battle.peerLost = peer === 'lost'; broadcastOnline(); } });
+  session.on('peer', (peer, side) => { if (battle) { battle.peerLost = peer === 'lost' ? (side ?? true) : false; broadcastOnline(); } });
+  session.on('watchers', count => { if (battle) { battle.watchers = count; broadcastOnline(); } });
   session.on('end', result => {
     const set = battle && battle.bestOf > 1 && result.reason === 'over' && !session.over ? { game: battle.game } : null;
-    const outcome = battleOutcome(result, session.side, set);
+    // a spectator's game may be a game or more behind the set: each game it plays is named
+    const outcome = session.watcher ? watchedOutcome(result, battle?.players, battle?.bestOf > 1 && result.reason === 'over' ? { game: battle.game } : null)
+      : battleOutcome(result, session.side, set);
     if (outcome) battleResult = { ...outcome, opponent: battle?.opponent || null };
     if (battle) battle.status = set ? 'between' : 'ended';
     broadcastOnline();
   });
   session.on('set', set => {
-    battleResult = { ...setOutcome(set, session.side), opponent: battle?.opponent || null };
+    battleResult = { ...(session.watcher ? watchedSetOutcome(set, battle?.players) : setOutcome(set, session.side)), opponent: battle?.opponent || null };
     if (battle) { battle.wins = set.wins; battle.status = 'ended'; }
     broadcastOnline();
   });
@@ -1992,6 +2086,45 @@ async function joinRoom(input) {
     broadcastOnline();
     throw withProblems(error);
   }
+  playBattle(session).catch(error => log(`✕ ${error.message}`));
+  return { code: online.formatRoomCode(code) };
+}
+
+// Watching a room's battle: this game plays it as a spectator's, from the battle's start, with nobody at its controls.
+// The room can be in battle, or waiting for one (its game starts with the battle).
+async function watchRoom(input) {
+  if (!supports('online')) throw new Error(`Online battles aren't in ${games.get(config.game).shortName} yet. Choose Colosseum on the Play page.`);
+  if (!port.isPort(config.repo, config.game) || !binaryReady()) throw new Error('Set up the game on the Play page first.');
+  if (!onlineFeatures(config.repo).spectate) throw new Error('This version of the game can\'t watch battles yet. Update it from the Play page.');
+  if (active || battle) throw new Error('Finish what the launcher is doing first.');
+  const code = online.parseRoomCode(input);
+  if (!code) throw new Error('A room code looks like KQ7-M2D.');
+  battleResult = null;
+  const info = await online.lookup(code);
+  const cross = online.isCrossBuild(info.build);
+  if (cross && !onlineFeatures(config.repo).crossplay) throw new Error('That room is for both games, which this version of the game can\'t play. Update it from the Play page.');
+  // the spectator's game plays the players' battle, so it has to be the very same build
+  if (gameBuild(cross).build !== info.build) throw new Error(`That battle is on another version of the game (${info.version || 'unknown'}). Watching needs the same version.`);
+  const session = new online.Session({ features: sessionFeatures(cross) });
+  const players = Array.isArray(info.players) ? info.players : [info.name, null];
+  battle = { session, status: 'connecting', role: 'watcher', rules: formats.normalize(info.rules || {}), bestOf: info.bestOf || 1, code, opponent: null, players };
+  broadcastOnline();
+  watchSession(session);
+  try {
+    const answer = await session.watch({ code, ...gameBuild(cross) });
+    // the battle's start may have come with the answer
+    if (battle?.session === session && battle.status === 'connecting') {
+      battle.status = answer.status === 'battling' ? 'watching' : 'watch-waiting';
+      if (Array.isArray(answer.players)) battle.players = answer.players;
+    }
+  } catch (error) {
+    session.close();
+    battle = null;
+    broadcastOnline();
+    throw error;
+  }
+  broadcastOnline();
+  log(`Watching room ${online.formatRoomCode(code)}.`);
   playBattle(session).catch(error => log(`✕ ${error.message}`));
   return { code: online.formatRoomCode(code) };
 }
@@ -2268,6 +2401,7 @@ function registerHandlers() {
   ipcMain.handle('usage-refresh', () => reporter?.refresh());
   ipcMain.handle('online-create', () => createRoom());
   ipcMain.handle('online-join', (_event, code) => joinRoom(code));
+  ipcMain.handle('online-watch', (_event, code) => watchRoom(code));
   ipcMain.handle('online-leave', () => leaveRoom());
   ipcMain.handle('online-pick', (_event, order) => pickPokemon(Array.isArray(order) ? order.map(Number) : []));
   // (the team builder's Pokémon too: Colosseum's disc's, in XD as well)
@@ -2377,7 +2511,18 @@ function registerHandlers() {
       filters: [{ name: 'Wii disc files', extensions: ['rvz', 'iso', 'wbfs', 'ciso', 'gcz', 'wia'] }, { name: 'All files', extensions: ['*'] }]
     });
     if (chosen.canceled) return state();
-    config.pbrDisc = chosen.filePaths[0];
+    // Checked first: a wrong file is turned away with the reason, and the disc chosen before stays
+    const file = chosen.filePaths[0];
+    let disc;
+    try { disc = pbrDisc.validate(file); }
+    catch (error) {
+      pbrDiscChoice = { ok: false, file, message: error.message, at: Date.now() };
+      log(`Battle Revolution disc not used: ${file}: ${error.message}`);
+      return state();
+    }
+    config.pbrDisc = disc.file;
+    pbrDiscChoice = { ok: true, warning: Boolean(disc.warning), file: disc.file, message: pbrDisc.describe(disc), at: Date.now() };
+    log(`Battle Revolution disc chosen: ${disc.file}: ${pbrDisc.describe(disc)}`);
     saveConfig();
     return state();
   });
@@ -2624,6 +2769,7 @@ if (ownsInstance) app.whenReady().then(async () => {
   loadConfig();
   registerHandlers();
   protocol.handle(TEXTURE_SCHEME, hdSpriteResponse);
+  chooseStartGame();
   if (playOnStart && await playDirectly()) return app.quit();
   createWindow();
   // Only with the window: a launcher update installs on quit, which `--play` does as the game closes.

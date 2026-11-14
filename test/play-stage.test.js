@@ -96,3 +96,25 @@ test('a banner on the other game\'s side keeps its logo below it, and a logo of 
     for (const id of ['colosseum', 'xd']) assert.ok(clearOfLine(tall, id, boxOf(placed[id])), `${id} fits at aspect ${JSON.stringify(aspect)}`);
   }
 });
+
+test('the chosen game\'s banner is on its side: ready, its logo goes below it; setting up, the headline goes beside it', () => {
+  for (const [W, H] of SIZES) {
+    // ready: the banner at the chosen side's edge, the logo and headline under it
+    for (const active of ['colosseum', 'xd']) {
+      const banner = active === 'colosseum' ? { left: 28, right: 320, top: 8, bottom: 70 } : { left: W - 320, right: W - 28, top: 8, bottom: 70 };
+      const places = stage.layout(geometry(W, H, active, false, { banner }));
+      assert.ok(places[active].cy - places[active].h / 2 >= banner.bottom + stage.PLAY_GAP - 0.01, `${active} logo below its banner at ${W}x${H}`);
+    }
+    // setting up: the headline between the banner and the line, clear of both
+    for (const active of ['colosseum', 'xd']) {
+      const top = 60, banner = active === 'colosseum' ? { left: 28, right: 428, top, bottom: top + 62 } : { left: W - 428, right: W - 28, top, bottom: top + 62 };
+      const g = geometry(W, H, active, true, { banner }), { headline } = stage.layout(g);
+      const left = headline.cx - headline.maxWidth / 2, right = headline.cx + headline.maxWidth / 2;
+      if (active === 'colosseum') assert.ok(left >= banner.right + stage.PLAY_GAP - 0.01, `headline right of Colosseum's banner at ${W}x${H}`);
+      else assert.ok(right <= banner.left - stage.PLAY_GAP + 0.01, `headline left of XD's banner at ${W}x${H}`);
+      if (headline.maxWidth > 0) assert.ok(clearOfLine(g, active, { left, right, top, bottom: top + g.headlineHeight }), `headline clear of the line at ${W}x${H}`);
+    }
+  }
+  // no banner: setting up, the headline follows the logo as before
+  assert.equal(stage.layout(geometry(1080, 760, 'colosseum', true)).headline, undefined);
+});

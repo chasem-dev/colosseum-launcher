@@ -135,3 +135,13 @@ test('a member from the room is checked for its shape before it reaches the game
   assert.equal(story.validWireMember([...good.slice(0, 26), -1, '-'], 197), false);
   assert.equal(story.validWireMember(good.slice(1), 197), false);
 });
+
+test('an XD save\'s items go in Colosseum\'s numbers', () => {
+  const { xdItem, xdMove } = require('../src/story-party');
+  assert.equal(xdItem(200), 200);              // Leftovers: the same in both
+  assert.equal(xdItem(0x252), 0x224);          // Diamond and Pearl's first, past XD's key items
+  assert.equal(xdItem(0x281), 0x253);          // Life Orb (593 in Colosseum's numbers)
+  assert.equal(xdItem(0x230), 0);              // one of XD's key items: none
+  assert.equal(xdMove(360), 0);                // and an XD Shadow move
+  assert.equal(xdMove(375 + 89), 358 + 89);    // a later generation's move
+});

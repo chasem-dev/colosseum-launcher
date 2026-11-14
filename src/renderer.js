@@ -828,6 +828,8 @@ async function chooseGame(id) {
     wizardStep = null;
     if (result?.config) refresh(result);
     await sync();
+    // each game has its own Steam shortcut, so the banner follows the game
+    await refreshSteamBanner();
   } catch (error) { showError(error); }
   finally {
     choosingGame = null;
@@ -891,13 +893,15 @@ function stageGeometry() {
     play: { ...across(play), top: play.top - page.top },
     // the window's foot
     visibleBottom: viewport.getBoundingClientRect().bottom - page.top - scroll - 8,
-    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), bottom: bannerBox.bottom - page.top } : null,
+    banner: !banner.hidden && bannerBox.height ? { ...across(bannerBox), top: bannerBox.top - page.top, bottom: bannerBox.bottom - page.top } : null,
     band: parseFloat(window.getComputedStyle(home).paddingTop) || 0,
     headlineHeight: $('home-headline').offsetHeight || 0,
     origin: { x: $('game-picker').getBoundingClientRect().left - shell.left, page: page.left - shell.left }
   };
 }
-function layoutPlayStage() {
+// full: measured with the banner whole (its second line), then shortened if the headline needs the room
+function layoutPlayStage(full = true) {
+  if (full) $('add-to-steam').classList.remove('compact');
   const geometry = stageGeometry();
   if (!geometry || !window.ColoPlayStage) return false;
   let places = window.ColoPlayStage.layout(geometry);
@@ -906,8 +910,17 @@ function layoutPlayStage() {
     const at = places.headline || { cx: places[geometry.active].cx };
     headline.style.setProperty('--x', px(at.cx - geometry.origin.page));
     if (places.headline) { headline.style.setProperty('--top', px(at.top)); headline.style.setProperty('--max', px(at.maxWidth)); }
+    else headline.style.setProperty('--max', '');
   };
   placeHeadline();
+  // setting up beside the chosen game's banner: the banner keeps only its title when the headline wouldn't fit in one line
+  const banner = $('add-to-steam');
+  if (geometry.panel && !banner.hidden) {
+    headline.style.maxWidth = 'none';
+    const wide = headline.offsetWidth;
+    headline.style.maxWidth = '';
+    if (full && places.headline && wide > places.headline.maxWidth) { banner.classList.add('compact'); return layoutPlayStage(false); }
+  }
   // the headline wraps to the width it is given, which moves the logo above it: once more with its new height
   if (places.headline && Math.abs((headline.offsetHeight || 0) - geometry.headlineHeight) > 1) {
     places = window.ColoPlayStage.layout({ ...geometry, headlineHeight: headline.offsetHeight || 0 });
@@ -1095,7 +1108,7 @@ function refresh(data) {
 
 // The settings that are a list or a range, and the ones that are a switch: each saves under its element's id.
 const SELECTS = ['buttonPrompts', 'promptPad', 'battleRules', 'widescreen', 'resolution', 'frameRate', 'vsync', 'fullscreenMode', 'exclusiveResolution', 'display', 'msaa', 'anisotropic', 'sharpen', 'brightness', 'aspect', 'presentFilter', 'fsrMode', 'textureLoading', 'renderer', 'hdText', 'language', 'battleSpeed', 'fastForward', 'fastForwardSpeed', 'padMode', 'updateChannel', 'randomizerSeed'];
-const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerPacks', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'quickMoves', 'quickStatus', 'shinyShadow', 'shinyStarters', 'chooseStarters', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
+const SWITCHES = ['randomizer', 'randomizerStarters', 'randomizerShadow', 'randomizerTrainers', 'randomizerGifts', 'randomizerGen1', 'randomizerGen2', 'randomizerGen3', 'randomizerGen4', 'randomizerPacks', 'randomizerSimilar', 'randomizerNoLegendaries', 'generation4Pokemon', 'fullscreen', 'hudEdges', 'skipMovies', 'skipBattleAnimations', 'quickMoves', 'quickStatus', 'shinyShadow', 'shinyStarters', 'chooseStarters', 'tmNames', 'overlay', 'backgroundInput', 'gbaAutoPower', 'fxaa', 'textures', 'hdModels', 'shaderWarmup', 'autoUpdate', 'autoBackups', 'shareUsage', 'discordPresence', 'darkMode'];
 
 // The languages: English, the launcher's packs and any found in the languages folder. One chosen and then
 // removed from the folder stays listed, as the game plays in English without it.
@@ -1414,9 +1427,42 @@ function renderPbr(data) {
           : pbr.outdated ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. A fix changed ${pbr.outdated === 1 ? '1 Pokémon\'s model' : `${pbr.outdated} Pokémon's models`}: press Make assets to make ${pbr.outdated === 1 ? 'it' : 'them'} again.`
             : pbr.noCry ? `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. ${pbr.noCry === 1 ? '1 Pokémon has' : `${pbr.noCry} Pokémon have`} a model but no cry of its own yet: press Make assets to add ${pbr.noCry === 1 ? 'it' : 'them'}.`
               : `${pbr.disc}: ${pbr.made} of ${pbr.wanted} made. Making them takes a few minutes, and only makes what's missing.`);
-  $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbr.disc;
+  $('make-pbr-models').disabled = Boolean(data.active) || !pbr.supported || !pbr.wanted || !pbrDiscUsable(pbr);
   $('choose-pbr-disc').disabled = Boolean(data.active);
+  renderPbrCheck('pbr-check', pbr);
   renderPbrBanner(data);
+}
+
+// The disc chosen is there and is Battle Revolution
+function pbrDiscUsable(pbr) { return Boolean(pbr?.discFound && !pbr.discProblem); }
+function fileName(file) { return String(file || '').split(/[\\/]/).pop(); }
+
+// What the last disc chosen was, or what is wrong with the one kept, in a banner under the Battle Revolution row (and
+// in the disc offer): a wrong file was otherwise turned away, or failed minutes into making the assets, with the reason
+// only in the activity log. Each can be dismissed; a new choice shows again.
+let pbrCheckDismissed = null;
+function pbrCheck(pbr) {
+  const choice = pbr.choice;
+  if (choice && !choice.ok) return { kind: 'error', key: `choice:${choice.at}`, title: `${fileName(choice.file)} can't be used`,
+    detail: `${choice.message}${pbr.disc && pbrDiscUsable(pbr) ? ` Your disc stays ${fileName(pbr.disc)}.` : ''}` };
+  if (pbr.disc && pbr.discProblem) return { kind: 'error', key: `problem:${pbr.disc}:${pbr.discProblem}`, title: 'Your Battle Revolution disc can\'t be used',
+    detail: `${fileName(pbr.disc)}: ${pbr.discProblem}` };
+  if (pbr.disc && !pbr.discFound) return { kind: 'warn', key: `missing:${pbr.disc}`, title: 'Your Battle Revolution disc isn\'t where it was',
+    detail: `${pbr.disc} can't be found. Choose it again.` };
+  if (choice?.ok && choice.file === pbr.disc) return { kind: choice.warning ? 'warn' : 'ok', key: `choice:${choice.at}`,
+    title: choice.warning ? 'Battle Revolution disc found, but check it' : 'Battle Revolution disc found', detail: choice.message };
+  return null;
+}
+function renderPbrCheck(id, pbr, { dismissible = true } = {}) {
+  const check = pbrCheck(pbr || {});
+  const show = Boolean(check && !(dismissible && pbrCheckDismissed === check.key));
+  $(id).hidden = !show;
+  if (!show) return;
+  $(id).classList.toggle('ok', check.kind === 'ok');
+  $(id).classList.toggle('warn', check.kind === 'warn');
+  $(id).dataset.key = check.key;
+  $(`${id}-title`).textContent = check.title;
+  $(`${id}-detail`).textContent = check.detail;
 }
 
 // Above Play: models made before a converter fix that changed them, Pokémon whose models were made before the game made
@@ -1426,27 +1472,34 @@ function renderPbrBanner(data) {
   const pbr = data.pbr || {}, making = Boolean(pbrProgress(data.active));
   const missing = (pbr.wanted || 0) - (pbr.made || 0) - (pbr.outdated || 0) - (pbr.noCry || 0);
   // hidden while they're being made: the progress bar below shows that
-  const show = Boolean(pbr.supported && pbr.wanted && pbr.disc && !making && (pbr.outdated || pbr.noCry || (missing > 0 && pbr.made > 0)));
+  const show = Boolean(pbr.supported && pbr.wanted && pbr.disc && !making && (pbr.discProblem || pbr.outdated || pbr.noCry || (missing > 0 && pbr.made > 0)));
   $('pbr-banner').hidden = !show;
   if (!show) return;
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-  $('pbr-banner-title').textContent = pbr.outdated ? 'Your Battle Revolution assets need making again'
+  $('pbr-banner-title').textContent = pbr.discProblem ? 'Your Battle Revolution disc can\'t be used'
+    : pbr.outdated ? 'Your Battle Revolution assets need making again'
     : !missing && pbr.noCry ? 'Your Generation 4 Pokémon can have their own cries' : 'Some Battle Revolution assets aren\'t made yet';
-  $('pbr-banner-detail').textContent = (!pbr.discFound
-    ? `Your Battle Revolution disc isn't where it was. Choose it again under Settings → Gameplay, then make them.`
+  $('pbr-banner-detail').textContent = (pbr.discProblem && pbr.discFound
+    ? `${pbr.discProblem} Choose it under Settings → Gameplay.`
+    : !pbr.discFound ? `Your Battle Revolution disc isn't where it was. Choose it again under Settings → Gameplay, then make them.`
     : pbr.outdated ? `A fix changed ${count(pbr.outdated, 'Generation 4 Pokémon\'s model', 'Generation 4 Pokémon\'s models')}. Until they're made again, they look as they did before the fix.`
       : !missing && pbr.noCry ? `${count(pbr.noCry, 'Generation 4 Pokémon cries', 'Generation 4 Pokémon cry')} with a Colosseum Pokémon's voice. Battle Revolution's own is on your disc.`
         : `${count(missing, 'Generation 4 Pokémon has', 'Generation 4 Pokémon have')} no model of its own yet.`);
-  $('pbr-banner-make').textContent = pbr.discFound ? 'Make assets' : 'Open Settings';
+  $('pbr-banner-make').textContent = pbrDiscUsable(pbr) ? 'Make assets' : 'Open Settings';
   $('pbr-banner-make').disabled = Boolean(data.active);
 }
 
-// Choosing the disc starts making the assets it has for the Pokémon still without theirs, so it's one step.
+// Choosing the disc starts making the assets it has for the Pokémon still without theirs, so it's one step. The
+// launcher checks the file first: one that isn't Battle Revolution is turned away, and the banner says why. Returns
+// the check ({ ok, file, message }), or null when the player closed the file picker.
 async function choosePbrDisc() {
-  const before = current?.pbr?.disc;
+  const before = current?.pbr?.disc, last = current?.pbr?.choice?.at;
+  pbrCheckDismissed = null;
   await action('choosePbrDisc');
   const pbr = current?.pbr || {};
-  if (!current?.active && pbr.discFound && pbr.disc !== before && pbr.supported && pbr.made < pbr.wanted) action('makePbrModels');
+  const choice = pbr.choice && pbr.choice.at !== last ? pbr.choice : null;
+  if (choice?.ok && !current?.active && pbrDiscUsable(pbr) && pbr.disc !== before && pbr.supported && pbr.made < pbr.wanted) action('makePbrModels');
+  return choice;
 }
 
 // Turning on Generation 4 Pokémon asks for the Battle Revolution disc their models and cries come from, and says what
@@ -1455,10 +1508,12 @@ function offerPbrModels() {
   const pbr = current?.pbr || {};
   if (!gameHas(current, 'pbrAssets') || current?.active || !pbr.supported || !pbr.wanted || pbr.made >= pbr.wanted) return;
   const remake = pbr.made > 0 || pbr.outdated > 0 || pbr.noCry > 0;
-  $('pbr-offer-lead').textContent = pbr.discFound
+  $('pbr-offer-check').hidden = true;
+  if (pbr.disc && !pbrDiscUsable(pbr)) renderPbrCheck('pbr-offer-check', pbr, { dismissible: false });
+  $('pbr-offer-lead').textContent = pbrDiscUsable(pbr)
     ? `Your Battle Revolution disc is chosen: ${pbr.disc}. Make ${remake ? 'what\'s still missing' : `their ${pbrAssets(pbr, true)}`} from it now? It takes a few minutes.`
     : `Each one can have its own ${pbr.cries ? 'model, icons and cry' : 'model and icons'}, as in Pokémon Battle Revolution, made from a file of your own Wii disc (RVZ, ISO or WBFS). Choose it and they're made in a few minutes. No Blender needed.`;
-  $('pbr-offer-confirm').textContent = pbr.discFound ? 'Make assets' : 'Choose disc';
+  $('pbr-offer-confirm').textContent = pbrDiscUsable(pbr) ? 'Make assets' : pbr.disc ? 'Choose another file' : 'Choose disc';
   closeModal();
   $('pbr-offer').showModal();
 }
@@ -1821,19 +1876,22 @@ async function refreshSteamBanner() {
   renderSteamBanner();
 }
 // One Steam dialog: from the banner (add, or update once in Steam), or offered
-// once by Play on SteamOS, which then plays whatever the player chooses.
+// once by Play on SteamOS, which then plays whatever the player chooses. Each
+// game has its own shortcut: the dialog is the chosen game's (steam.name).
 const STEAM_MODES = {
-  add: { kicker: 'Add to Steam', intro: 'Adds Pokémon Colosseum to your Steam library, with artwork.', cancel: 'Cancel', confirm: 'Add to Steam' },
-  update: { kicker: 'In your Steam library', intro: "It's already in Steam. Update it to refresh its artwork, or to turn Skip Launcher on or off.",
-    cancel: 'Cancel', confirm: 'Update in Steam' },
-  offer: { kicker: 'Play from Steam?', intro: "Add Pokémon Colosseum to your Steam library and start it from Game Mode like your other games. We'll only ask once: the Add to Steam banner on the home screen does it any time.",
-    cancel: 'Not now', confirm: 'Add to Steam & play' },
-  fix: { kicker: 'Fix for Game Mode', intro: "Pokémon Colosseum is in your Steam library, but its shortcut is missing the --no-sandbox launch option, so it won't open in Game Mode. Let the launcher fix it: it keeps the shortcut's play time, collections and controller layout, and adds the artwork.",
-    cancel: 'Not now', confirm: 'Fix shortcut' }
+  add: name => ({ kicker: 'Add to Steam', intro: `Adds ${name} to your Steam library, with artwork.`, cancel: 'Cancel', confirm: 'Add to Steam' }),
+  update: () => ({ kicker: 'In your Steam library', intro: "It's already in Steam. Update it to refresh its artwork, or to turn Skip Launcher on or off.",
+    cancel: 'Cancel', confirm: 'Update in Steam' }),
+  offer: name => ({ kicker: 'Play from Steam?', intro: `Add ${name} to your Steam library and start it from Game Mode like your other games. We'll only ask once: the Add to Steam banner on the home screen does it any time.`,
+    cancel: 'Not now', confirm: 'Add to Steam & play' }),
+  fix: name => ({ kicker: 'Fix for Game Mode', intro: `${name} is in your Steam library, but its shortcut is missing the --no-sandbox launch option, so it won't open in Game Mode. Let the launcher fix it: it keeps the shortcut's play time, collections and controller layout, and adds the artwork.`,
+    cancel: 'Not now', confirm: 'Fix shortcut' })
 };
 let playAfterSteam = false;
 function openSteamDialog(mode) {
-  const text = STEAM_MODES[mode];
+  const name = steam.name || chosenGame(current).name;
+  const text = STEAM_MODES[mode](name);
+  $('steam-add-title').textContent = name;
   $('steam-add-kicker').textContent = text.kicker;
   $('steam-add-intro').textContent = text.intro;
   $('steam-add-cancel').textContent = text.cancel;
@@ -1963,8 +2021,9 @@ for (const type of ['dragover', 'drop']) window.addEventListener(type, event => 
 $('open-custom-textures').addEventListener('click', () => window.colo.openCustomTextures().catch(showError));
 $('choose-pbr-disc').addEventListener('click', choosePbrDisc);
 $('make-pbr-models').addEventListener('click', () => action('makePbrModels'));
+$('pbr-check-close').addEventListener('click', () => { pbrCheckDismissed = $('pbr-check').dataset.key; $('pbr-check').hidden = true; });
 $('pbr-banner-make').addEventListener('click', () => {
-  if (current?.pbr?.discFound) action('makePbrModels');
+  if (pbrDiscUsable(current?.pbr)) action('makePbrModels');
   else { showPage('settings'); showSettingsTab('gameplay'); }
 });
 $('open-languages').addEventListener('click', () => window.colo.openLanguages().catch(showError));
@@ -1973,9 +2032,19 @@ $('generation4Pokemon').addEventListener('change', async () => {
   await saveSettings();
   if (current?.config.settings.generation4Pokemon) offerPbrModels();
 });
-$('pbr-offer-confirm').addEventListener('click', () => {
-  $('pbr-offer').close();
-  if (current?.pbr?.discFound) action('makePbrModels'); else choosePbrDisc();
+// The offer stays open until a disc passes the check, showing why a file was turned away, so the player can choose
+// another without finding the setting
+$('pbr-offer-confirm').addEventListener('click', async () => {
+  if (pbrDiscUsable(current?.pbr)) { $('pbr-offer').close(); action('makePbrModels'); return; }
+  $('pbr-offer-confirm').disabled = true;
+  try {
+    const choice = await choosePbrDisc();
+    if (choice?.ok) { $('pbr-offer').close(); return; }
+    if (!choice) return;
+    renderPbrCheck('pbr-offer-check', current?.pbr, { dismissible: false });
+    $('pbr-offer-confirm').textContent = 'Choose another file';
+    if (!$('pbr-offer').open) $('pbr-offer').showModal();
+  } finally { $('pbr-offer-confirm').disabled = false; }
 });
 $('randomizer-reroll').addEventListener('click', async () => {
   try {

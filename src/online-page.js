@@ -319,6 +319,15 @@
       row.append(Object.assign(document.createElement('span'), { textContent: room.name }));
       row.append(Object.assign(document.createElement('small'), { textContent: `${rulesText(rules)}${gamesText(room.bestOf || 1)}${crossText}${detail}` }));
       row.title = [F.rulesText(rules).join(', '), ...problems].join('\n');
+      // a battle under way can be watched, by a game of the same build
+      if (!waiting) {
+        const watch = Object.assign(document.createElement('button'), { className: 'subtle', type: 'button', textContent: 'Watch' });
+        watch.disabled = Boolean(state.battle) || !sameGame || !state.spectateSupported;
+        watch.title = !sameGame ? `Watching needs the same version of the game: ${room.version}` : !state.spectateSupported ? 'Update the game from the Play page to watch battles.' : `Watch ${room.name}'s battle`;
+        watch.addEventListener('click', () => watchRoom(room.code));
+        row.append(watch);
+        return row;
+      }
       const join = Object.assign(document.createElement('button'), { className: 'solid', type: 'button', textContent: 'Join' });
       join.disabled = busy || !waiting || !sameGame || needsGame || problems.length > 0;
       join.addEventListener('click', () => joinRoom(room.code));
@@ -364,23 +373,48 @@
     catch (error) { showResult(message(error)); render(); }
   }
 
+  async function watchRoom(code) {
+    showResult('');
+    try { await window.colo.onlineWatch(code); }
+    catch (error) { showResult(message(error)); render(); }
+  }
+
+  // Watching others' battle: the two players by name, and the set's score.
+  function renderWatching(battle) {
+    const [first, second] = battle.players || [];
+    const vs = first && second ? `${first} vs ${second}` : `room ${battle.code}`;
+    const game = battle.bestOf > 1 && battle.game ? ` · game ${battle.game} of ${battle.bestOf}` : '';
+    const title = { connecting: 'Connecting…', 'watch-waiting': `Watching room ${battle.code}`, watching: `Watching ${vs}${game}`,
+      between: `Game ${battle.game} over`, ended: battle.bestOf > 1 ? 'Set over' : 'Battle over' };
+    $('online-banner-title').textContent = title[battle.status] || 'Watching a battle';
+    const score = battle.bestOf > 1 && battle.game && first && second ? ` ${first} ${battle.wins[0]}, ${second} ${battle.wins[1]}.` : '';
+    const lost = battle.peerLost === 0 || battle.peerLost === 1 ? battle.players?.[battle.peerLost] : null;
+    $('online-banner-detail').textContent = battle.peerLost ? `${lost || 'A player'} lost their connection. Waiting for them to come back.`
+      : battle.status === 'watch-waiting' ? `Waiting for the battle to start. ${rulesText(battle.rules)}${gamesText(battle.bestOf)}.`
+      : `${rulesText(battle.rules)}.${score}`;
+    $('online-leave').textContent = 'Stop watching';
+  }
+
   function renderBanner() {
     const battle = state.battle;
     $('online-banner').hidden = !battle;
     if (!battle) return;
+    if (battle.role === 'watcher') { renderWatching(battle); renderPick(); return; }
+    $('online-leave').textContent = 'Leave';
     const set = battle.bestOf > 1, game = set && battle.game ? ` · game ${battle.game} of ${battle.bestOf}` : '';
     const title = { connecting: 'Connecting…', waiting: `Room ${battle.code}`, picking: `Choosing for ${battle.opponent || 'a player'}${game}`,
       battling: `Battling ${battle.opponent || 'a player'}${game}`, between: `Game ${battle.game} over`, ended: set ? 'Set over' : 'Battle over' };
     $('online-banner-title').textContent = title[battle.status] || 'Online battle';
     const score = set && battle.side !== null && battle.game ? ` You ${battle.wins[battle.side]}, ${battle.opponent || 'them'} ${battle.wins[1 - battle.side]}.` : '';
+    const watchers = battle.watchers ? ` ${battle.watchers} watching.` : '';
     $('online-banner-detail').textContent = battle.peerLost ? `${battle.opponent || 'The other player'} lost their connection. Waiting for them to come back.`
-      : battle.status === 'waiting' ? `Waiting for a challenger. ${rulesText(battle.rules)}${gamesText(battle.bestOf)}.` : `${rulesText(battle.rules)}.${score}`;
+      : battle.status === 'waiting' ? `Waiting for a challenger. ${rulesText(battle.rules)}${gamesText(battle.bestOf)}.${watchers}` : `${rulesText(battle.rules)}.${score}${watchers}`;
     renderPick();
   }
 
   // --- Team preview: both parties, and this player's picks in order
   function renderPick() {
-    const preview = state.battle?.status === 'picking' ? state.battle.preview : null;
+    const preview = state.battle?.status === 'picking' && state.battle.role !== 'watcher' ? state.battle.preview : null;
     $('online-pick').hidden = !preview;
     clearInterval(pickTimer);
     if (!preview) { picking = []; return; }
@@ -442,12 +476,13 @@
     $('online-size').value = String(setup.size);
     $('online-rules').value = String(setup.battleRules || 3);
     $('online-listed').checked = setup.listed;
-    // rooms for both games, when this game can play them; such a room has no timers, and Colosseum's rules
+    // rooms for both games, when this game can play them; such a room has no timers, and Platinum's rules once both games' sets have them
     $('online-crossplay-row').hidden = !state.crossBuild;
     $('online-crossplay').checked = Boolean(setup.crossplay) && Boolean(state.crossBuild);
     // the game's own battle rules: Colosseum's, or XD's (the third generation's in both)
     $('online-rules').querySelector('option[value="3"]').textContent = `${state.game || 'Colosseum'}'s`;
-    $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported || Boolean(setup.crossplay && state.crossBuild);
+    $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported
+      || Boolean(setup.crossplay && state.crossBuild && !state.crossPlatinumSupported);
     renderParties();
     renderFormat();
     renderBanner();
@@ -467,6 +502,8 @@
     }
     $('online-create').disabled = busy || short || problems.length > 0 || (rules.format !== 'casual' && !state.rulesSupported);
     $('online-code-join').disabled = busy;
+    $('online-code-watch').disabled = Boolean(state.battle);
+    $('online-code-watch').title = state.spectateSupported ? 'Watch this room\'s battle' : 'Update the game from the Play page to watch battles.';
   }
 
   $('party-new').addEventListener('click', () => openEditor(null));
@@ -488,6 +525,9 @@
   $('online-code-form').addEventListener('submit', event => {
     event.preventDefault();
     if ($('online-code').value.trim()) joinRoom($('online-code').value);
+  });
+  $('online-code-watch').addEventListener('click', () => {
+    if ($('online-code').value.trim()) watchRoom($('online-code').value);
   });
 
   window.colo.onOnline(next => {

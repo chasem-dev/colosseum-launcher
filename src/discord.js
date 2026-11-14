@@ -9,9 +9,10 @@ const net = require('node:net');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-// The launcher's Discord application: its name is what Discord shows as the game being played,
-// and its Rich Presence art assets are the image keys in src/presence.js.
-const CLIENT_ID = '1568804288413835405';
+// The launcher's Discord application, Colosseum's: its name is what Discord shows as the game being played,
+// and its Rich Presence art assets are the image keys in src/presence.js. Each game names its own in games.js
+// (discordAppId); one without its own uses this one.
+const CLIENT_ID = require('./games').discordAppId('colosseum');
 const OP = { HANDSHAKE: 0, FRAME: 1, CLOSE: 2, PING: 3, PONG: 4 };
 // Discord accepts five activity updates per 20 seconds.
 const MIN_INTERVAL = 4000;
@@ -116,6 +117,7 @@ function createPresence({ clientId = CLIENT_ID, platform = process.platform, pat
   }
 
   return {
+    clientId,
     set(activity) { wanted = activity; update(); },
     stop() {
       wanted = null; sent = null;

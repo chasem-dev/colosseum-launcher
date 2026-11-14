@@ -102,11 +102,13 @@ Beta has the newest launcher and the newest game before they are released, and i
 
 On Windows and Linux, **Add to Steam** on the main screen adds the game to your Steam library as a non-Steam game, with artwork from [SteamGridDB](https://www.steamgriddb.com), so it starts from Big Picture and Game Mode. The artwork is not part of the launcher: it downloads when you choose Add to Steam and is saved only in Steam's artwork folder. Steam closes for a moment while the launcher saves its shortcut. Your other non-Steam games stay as they are, and the launcher keeps a copy of Steam's list from before.
 
+Each game has its own shortcut. Choose Pokémon XD on the Play page and its Add to Steam adds **Pokémon XD: Gale of Darkness** next to Pokémon Colosseum, with its own artwork, and it opens the launcher on XD.
+
 Turn on **Skip Launcher** to have Steam start the game straight away. On a Steam Deck, the **Steam Deck** preset under **Settings → Graphics** suits its screen.
 
 ### Start the game from Steam or a shortcut
 
-**Skip Launcher** adds `--play` to the shortcut's launch options, and you can add it to any shortcut yourself. `--play` never downloads or builds anything. If the game needs setup, an update (with **Update automatically** on) or HD textures, or if it closes with an error, the launcher opens instead so you can see why.
+**Skip Launcher** adds `--play` to the shortcut's launch options, and you can add it to any shortcut yourself. `--play` starts Pokémon Colosseum; `--play=xd` (or `--game=xd --play`, as XD's shortcut has) starts Pokémon XD. `--game=xd` alone opens the launcher on XD. `--play` never downloads or builds anything. If the game needs setup, an update (with **Update automatically** on) or HD textures, or if it closes with an error, the launcher opens instead so you can see why.
 
 ### Crash reports
 
@@ -163,6 +165,8 @@ Your game starts and waits in the stadium, and your room appears for everyone on
 
 Both players need the same build of the game. A room on another version says which one it needs.
 
+**Watch** a battle under way from the room list, or type its code and choose **Watch**. Your game plays the battle from its start with the same screens and battle camera the players see, without their menus: while they choose, the text box says *Players are selecting moves...*. Come in late and it fast-forwards until it has caught up. You don't need a party to watch, only the same version of the game as the room, and the players see how many are watching. **Stop watching** closes it.
+
 **Pokémon XD** battles online too. Its parties come from the team builder, which reads the Pokémon from your Colosseum disc, so set up Colosseum's disc as well. Tick **Colosseum and XD players can join** when you create a room, and a player of either game can take it: the two games play one battle, with XD following Colosseum's rules where they differ. XD's online battles have Colosseum's timers, the in-game pick screen with team preview, and the screens around a battle. Rooms for both games don't have Platinum's rules yet, and both games must come from the same version of the port.
 
 ### Game Boy Advance
@@ -188,6 +192,7 @@ Open the activity log with **Activity log** in the status bar, choose **Copy log
 | <img src="https://github.com/chasem-dev.png?size=96" width="48" height="48" alt=""> | **[Chase Myers](https://github.com/chasem-dev)** | The launcher and the PC port |
 | <img src="https://github.com/snatcherLeo.png?size=96" width="48" height="48" alt=""> | **[snatcherLeo](https://github.com/snatcherLeo)** | Engine expertise |
 | <img src="https://github.com/dougchansan.png?size=96" width="48" height="48" alt=""> | **[dougchansan](https://github.com/dougchansan)** | The [pkmn-colosseum](https://github.com/dougchansan/pkmn-colosseum) decompilation the game is built from |
+| <img src="https://github.com/imyourhuckleberryponcho.png?size=96" width="48" height="48" alt=""> | **[imyourhuckleberryponcho](https://github.com/imyourhuckleberryponcho)** | The [pokemon-xd-decomp](https://github.com/imyourhuckleberryponcho/pokemon-xd-decomp) decompilation XD is built from |
 | <img src="https://github.com/SteamGridDB.png?size=96" width="48" height="48" alt=""> | **[SteamGridDB](https://www.steamgriddb.com)** | The artwork used by **Add to Steam** |
 | <img src="https://github.com/StarsMmd.png?size=96" width="48" height="48" alt=""> | **[StarsMmd](https://github.com/StarsMmd)** | Years of work on Colosseum, XD and Battle Revolution's files: the [GoD Tool](https://github.com/StarsMmd/GoD-Tool) and the [Blender add-on for GameCube models](https://github.com/StarsMmd/Blender-Addon-Gamecube-Models), which Battle Revolution Pokémon packs are made with |
 | <img src="https://github.com/mgba-emu.png?size=96" width="48" height="48" alt=""> | **[mGBA](https://mgba.io)** | The Game Boy Advance in the game (Mozilla Public License 2.0) |
@@ -234,13 +239,13 @@ Every game version builds in a folder of its own, so a build keeps what it compi
 
 ### Versions and releases
 
-Every push to `main` also rebuilds the Beta (`refresh-beta.yml`, `build.yml`), which checks hourly for new commits on the port's branch. A pull request becomes a preview when **Build launcher** is run by hand with its number. **Game source** under Manage game builds from another port or decomp for testing.
+Every push to `main` also rebuilds the Beta (`refresh-beta.yml`, `build.yml`), which checks hourly for new commits on the port's branch. Beta builds Colosseum and Pokémon XD from that branch's newest commit, each with the decomp the commit names in its `tools/ci/linux-build.sh` (`DECOMP_REF` and `XD_DECOMP_REF`), so a room for both games pairs them. A pull request becomes a preview when **Build launcher** is run by hand with its number. **Game source** under Manage game builds from another port or decomp for testing.
 
 Each published Beta is announced in Discord when the `DISCORD_BETA_WEBHOOK` repository secret holds a channel webhook URL (in Discord: the channel's **Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL**, then `gh secret set DISCORD_BETA_WEBHOOK`). The message has the launcher and game versions, links to the release and both commits, and the notes added to Beta in `changelog.json` since the last Beta (all of them if the last Beta's notes can't be read). Without the secret, or if Discord is unreachable, Beta still publishes.
 
 Pushing a higher `version` in `package.json` to `main` releases it: `release.yml` makes the tag and a draft, packages all three systems and attaches the tool archives while it requires the pinned game to build everywhere (`game-build.yml`), then publishes. That build is skipped when the pull request merged for the release already passed it on every system with exactly the same files, so let its checks finish before merging for a faster release.
 
-`npm run update:game` selects the newest commit of the port's branch and the decomp and renderer commits it pins, bumps the version and drafts the changelog. Stable stays on the x86_64 game until then: `"rosetta": true` in `src/game-release.json` marks a game from before the native Apple Silicon build, and on that mark the launcher keeps Rosetta and Vulkan and CI expects x86_64. Beta's build drops the mark, and so does moving the pin, which brings Apple Silicon to Stable. See [AGENTS.md](AGENTS.md) for the changelog's rules.
+`npm run update:game` selects the newest commit of the port's branch and the decomp and renderer commits it pins, bumps the version and drafts the changelog. It moves Pokémon XD's pin (`src/xd-release.json`) to the same commit, with the `XD_DECOMP_REF` that commit names, because rooms for both games pair only builds of one port commit; commit `src/xd-release.json` with the rest. `npm test` fails for a release from 0.4.1 on whose XD pin isn't at Colosseum's commit. For a launcher-only release, `npm run update:game -- <the commit in src/game-release.json>` moves only XD there, without a version bump. Stable stays on the x86_64 game until then: `"rosetta": true` in `src/game-release.json` marks a game from before the native Apple Silicon build, and on that mark the launcher keeps Rosetta and Vulkan and CI expects x86_64. Beta's build drops the mark, and so does moving the pin, which brings Apple Silicon to Stable. See [AGENTS.md](AGENTS.md) for the changelog's rules.
 
 ### Launcher updates and Mac signing
 

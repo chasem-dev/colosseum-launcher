@@ -62,7 +62,7 @@
 
   // g: { W, H, pageTop, active ('colosseum' or 'xd'), panel (whether a panel is over the art), aspect: { colosseum, xd }
   //      (each logo's width / height, or 0 for its name), play: { left, right, top } (the Play panel), visibleBottom (the
-  //      window's foot), banner: { left, right, bottom } or null, band (the logo's room at the top while setting up),
+  //      window's foot), banner: { left, right, top, bottom } or null, band (the logo's room at the top while setting up),
   //      headlineHeight }
   function layout(g) {
     const out = {}, chosen = g.active === 'xd' ? 'xd' : 'colosseum', waiting = other(chosen);
@@ -82,6 +82,14 @@
       const h = Math.max(0, g.band - TOP - STATE - 4), cy = TOP + h / 2;
       const w = Math.min(widest(g, side, cy, a) * BAND_SHARE, BAND_MAX, a * h);
       out[chosen] = place(g, side, TOP + w / a / 2, w, a, middle);
+      // the headline, beside the chosen game's banner at the window's edge: centred in the room between it and the line
+      if (g.banner && reaches(g, chosen, g.banner, g.banner.bottom)) {
+        const hh = g.headlineHeight || 0, top = g.banner.top ?? g.banner.bottom - hh;
+        let [low, high] = span(g, side, top + hh / 2, hh);
+        if (side === 'left') low = Math.max(low, g.banner.right + PLAY_GAP);
+        else high = Math.min(high, g.banner.left - PLAY_GAP);
+        out.headline = { cx: (low + high) / 2, top, maxWidth: Math.max(0, high - low) };
+      }
     } else {
       // ready: centred above Play with the headline under it, the whole of it in the middle of the space
       const below = STATE + LINE_GAP + (g.headlineHeight || 0), cy = (g.top + g.bottom - below) / 2;

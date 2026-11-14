@@ -27,6 +27,10 @@ on:
         description: The decomp commit game-commit uses
         type: string
         default: ''
+      game-xd-decomp:
+        description: The XD decomp commit game-commit uses; with it, XD builds game-commit too
+        type: string
+        default: ''
       game-renderer:
         description: The renderer commit game-commit uses
         type: string
@@ -72,6 +76,7 @@ jobs:
         env:
           COMMIT: ${{ inputs.game-commit }}
           DECOMP: ${{ inputs.game-decomp }}
+          XD_DECOMP: ${{ inputs.game-xd-decomp }}
           RENDERER: ${{ inputs.game-renderer }}
           RENDERER_DECOMP: ${{ inputs.game-renderer-decomp }}
           VERSION: ${{ inputs.game-version }}

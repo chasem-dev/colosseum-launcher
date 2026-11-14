@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('colo', {
   usageRefresh: () => ipcRenderer.invoke('usage-refresh'),
   onlineCreate: () => ipcRenderer.invoke('online-create'),
   onlineJoin: code => ipcRenderer.invoke('online-join', code),
+  onlineWatch: code => ipcRenderer.invoke('online-watch', code),
   onlineLeave: () => ipcRenderer.invoke('online-leave'),
   onlinePick: order => ipcRenderer.invoke('online-pick', order),
   pokedex: () => ipcRenderer.invoke('pokedex'),

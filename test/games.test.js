@@ -34,7 +34,7 @@ test('the registry has Colosseum, the default, with every feature, and XD with o
   assert.equal(games.get('nonsense').id, 'colosseum');
   assert.equal(games.get('colosseum').release, game.release, 'Colosseum builds the pin it always has');
   assert.deepEqual(games.FEATURES.filter(feature => games.supports('colosseum', feature)), games.FEATURES);
-  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdTextures', 'discordPresence', 'storyParty', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters', 'shiny', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves']);
+  assert.deepEqual(games.FEATURES.filter(feature => games.supports('xd', feature)), ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdTextures', 'discordPresence', 'storyParty', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters', 'shiny', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves', 'tmNames']);
   const { name, discId, executable, decompFolder, buildEnv, needsMainDol } = games.get('xd');
   assert.deepEqual({ name, discId, executable, decompFolder, buildEnv, needsMainDol },
     { name: 'Pokémon XD: Gale of Darkness', discId: 'GXXE01', executable: 'xd', decompFolder: 'pkmn-xd', buildEnv: { COLO_GAME: 'xd' }, needsMainDol: false });
@@ -54,10 +54,10 @@ test('the registry has Colosseum, the default, with every feature, and XD with o
   assert.deepEqual(summary.list.map(each => each.id), ['colosseum', 'xd']);
 });
 
-test("XD's pin is the port's XD branch and the XD decomp, each at a whole commit, with no launcher patch", () => {
+test("XD's pin is the port's branch and the XD decomp, each at a whole commit, with no launcher patch", () => {
   assert.equal(xdRelease.game, 'xd');
   assert.equal(xdRelease.repository, game.release.repository, 'one port builds both games');
-  assert.equal(xdRelease.branch, 'feat/xd-bringup');
+  assert.equal(xdRelease.branch, game.release.branch, 'Beta builds both games from one branch');
   assert.match(xdRelease.commit, /^[0-9a-f]{40}$/);
   assert.equal(xdRelease.decompRepository, 'https://github.com/chasem-dev/Pokemon-XD-Decomp.git');
   assert.match(xdRelease.decomp, /^[0-9a-f]{40}$/);
@@ -223,6 +223,17 @@ test("XD checks out the port's XD commit with its own decomp in deps/pkmn-xd", {
   assert.notEqual(path.dirname(game.snapshotPath(games.checkoutPath(home, 'colosseum'))), path.dirname(game.snapshotPath(root, pinned)));
 });
 
+test("a Stable release pins XD at Colosseum's port commit, with the XD decomp that commit names", () => {
+  const { xdReleaseFor } = require('../scripts/game-pins');
+  const colosseum = { ...game.release, version: '2026.11.13.2', commit: 'a'.repeat(40) };
+  const next = xdReleaseFor(xdRelease, colosseum, 'b'.repeat(40));
+  assert.deepEqual(next, { ...xdRelease, version: '2026.11.13.xd2', commit: 'a'.repeat(40), decomp: 'b'.repeat(40) });
+  assert.match(next.version, /^\d{4}\.\d{2}\.\d{2}\.xd\d+$/, "the form XD's pin always has");
+  assert.throws(() => xdReleaseFor(xdRelease, colosseum, ''), /doesn't build XD: .*XD_DECOMP_REF/);
+  assert.throws(() => xdReleaseFor({ ...xdRelease, branch: 'other' }, colosseum, 'b'.repeat(40)), /repository and branch/);
+  assert.throws(() => xdReleaseFor(xdRelease, { ...colosseum, version: 'ci' }, 'b'.repeat(40)), /YYYY\.MM\.DD\.N/);
+});
+
 test("a custom source for XD takes XD's decomp from the port's CI script, or keeps its pin's, and says it is XD's", async () => {
   const override = gameSource.normalizeOverride({ port: { ref: 'a'.repeat(40) } }, xdRelease);
   assert.equal(override.port.repository, xdRelease.repository);
@@ -248,8 +259,9 @@ test('preferences from before XD stay Colosseum\'s, and XD gets its own folder',
   const loaded = games.loadGames(old, { defaultRepo });
   assert.equal(loaded.game, 'colosseum');
   assert.deepEqual(games.pickFields(loaded), { repo: old.repo, rom: old.rom, installRoot: old.installRoot, previousInstall: old.previousInstall,
-    completedSetup: true, gameSource: null });
-  assert.deepEqual(loaded.games.xd, { repo: path.join('/data', 'game-xd'), rom: '', installRoot: null, previousInstall: null, completedSetup: false, gameSource: null });
+    completedSetup: true, gameSource: null, steamOffered: false, steamFixOffered: false });
+  assert.deepEqual(loaded.games.xd, { repo: path.join('/data', 'game-xd'), rom: '', installRoot: null, previousInstall: null, completedSetup: false,
+    gameSource: null, steamOffered: false, steamFixOffered: false });
   // A fresh launcher's Colosseum is where it always was
   assert.equal(games.loadGames({}, { defaultRepo }).repo, path.join('/data', 'game'));
 });
@@ -278,6 +290,21 @@ test('choosing XD brings up its fields and keeps Colosseum\'s at the top level o
   assert.deepEqual(Object.keys(games.allFields(back)).sort(), ['colosseum', 'xd']);
 });
 
+test("Steam's offers from before XD stay Colosseum's, and XD's shortcut is offered on its own", () => {
+  const config = games.loadGames({ repo: '/c', steamOffered: true, steamFixOffered: true }, { defaultRepo });
+  assert.deepEqual([config.steamOffered, config.steamFixOffered], [true, true]);
+  const xd = games.switchGame(config, 'xd', { defaultRepo });
+  assert.deepEqual([xd.steamOffered, xd.steamFixOffered], [false, false], "XD's shortcut hasn't been offered yet");
+  xd.steamOffered = true;
+  const stored = games.storedGames(xd);
+  // an older launcher still reads Colosseum's at the top level
+  assert.deepEqual([stored.steamOffered, stored.steamFixOffered, stored.games.xd.steamOffered, stored.games.xd.steamFixOffered], [true, true, true, false]);
+  const back = games.switchGame(games.loadGames(JSON.parse(JSON.stringify(stored)), { defaultRepo }), 'colosseum', { defaultRepo });
+  assert.deepEqual([back.steamOffered, back.steamFixOffered, back.games.xd.steamOffered], [true, true, true]);
+  // a fresh launcher has offered neither
+  assert.deepEqual([games.loadGames({}, { defaultRepo }).steamOffered, games.loadGames({}, { defaultRepo }).games.xd.steamOffered], [false, false]);
+});
+
 test("a portable folder keeps XD's paths relative too", () => {
   const base = path.resolve('/portable');
   const stored = portable.storedPaths({ repo: path.join(base, 'game'), games: { xd: { repo: path.join(base, 'game-xd'), rom: path.join(base, 'xd.iso'),
@@ -287,7 +314,7 @@ test("a portable folder keeps XD's paths relative too", () => {
 });
 
 // main.js with Electron stubbed, as the launcher loads and saves its preferences.
-function launcher(t, saved) {
+function launcher(t, saved, modules = {}) {
   const root = temporary(t, 'colo xd main-');
   if (saved) fs.writeFileSync(path.join(root, 'preferences.json'), JSON.stringify(saved));
   const filename = path.resolve(__dirname, '../src/main.js');
@@ -295,15 +322,49 @@ function launcher(t, saved) {
   const electron = { ipcMain: { handle() {} }, app: { requestSingleInstanceLock: () => true, commandLine: { appendSwitch() {} }, on() {},
     whenReady: () => ({ then() {} }), getPath: () => root, getVersion: () => '0.1.3', isPackaged: false },
   BrowserWindow: class {}, dialog: {}, shell: {}, clipboard: {}, net: {}, screen: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} } };
-  const context = { require: id => id === 'electron' ? electron : localRequire(id), __dirname: path.dirname(filename), process, setTimeout, setInterval,
-    module: { exports: {} } };
+  const context = { require: id => id === 'electron' ? electron : modules[id] || localRequire(id), __dirname: path.dirname(filename), process, setTimeout,
+    setInterval, module: { exports: {} } };
   vm.runInNewContext(`${fs.readFileSync(filename, 'utf8')}
-    module.exports = { loadConfig, saveConfig, currentSource, config: () => config, choose: id => { config = games.switchGame(config, id, gameFieldOptions); saveConfig(); } };`,
+    module.exports = { loadConfig, saveConfig, currentSource, startPresence, stopPresence, config: () => config,
+      choose: id => { config = games.switchGame(config, id, gameFieldOptions); saveConfig(); } };`,
   context, { filename });
   const main = context.module.exports;
   main.loadConfig();
   return { main, root, saved: () => JSON.parse(fs.readFileSync(path.join(root, 'preferences.json'), 'utf8')) };
 }
+
+test("each game's Discord activity goes through its own Discord application, XD's through Colosseum's until it has one", t => {
+  assert.equal(games.discordAppId('colosseum'), '1568804288413835405');
+  assert.equal(require('../src/discord').CLIENT_ID, games.discordAppId('colosseum'));
+  const own = games.GAMES.xd.discordAppId;
+  assert.ok(own === null || /^\d{17,20}$/.test(own), "XD's application ID is Discord's number, as a string");
+  assert.equal(games.discordAppId('xd'), own || games.discordAppId('colosseum'));
+  // the launcher connects with the chosen game's application, and again when the game changes
+  const made = [];
+  const fakeDiscord = { createPresence: ({ clientId }) => {
+    const client = { clientId, stopped: false, set() {}, stop() { client.stopped = true; } };
+    made.push(client);
+    return client;
+  } };
+  const { main } = launcher(t, { settings: { discordPresence: true } }, { './discord': fakeDiscord });
+  main.config().settings.discordPresence = true;
+  main.startPresence(1, false);
+  main.stopPresence();
+  main.startPresence(2, false);
+  assert.equal(made.length, 1, 'the same game keeps its connection');
+  main.choose('xd');
+  main.startPresence(3, false);
+  assert.deepEqual(made.map(client => client.clientId), [games.discordAppId('colosseum'), games.discordAppId('xd')].filter((id, i, all) => all.indexOf(id) === i));
+  // with XD's own application, Colosseum's connection is closed for it
+  const fakeGames = { ...games, discordAppId: id => (id === 'xd' ? '123456789012345678' : games.discordAppId(id)) };
+  made.length = 0;
+  const other = launcher(t, { settings: { discordPresence: true } }, { './discord': fakeDiscord, './games': fakeGames }).main;
+  other.config().settings.discordPresence = true;
+  other.startPresence(1, false);
+  other.choose('xd');
+  other.startPresence(2, false);
+  assert.deepEqual(made.map(client => [client.clientId, client.stopped]), [['1568804288413835405', true], ['123456789012345678', false]]);
+});
 
 test('the launcher loads an existing Colosseum setup unchanged, and saves XD beside it', t => {
   const { main, root, saved } = launcher(t, { repo: '/games/Colosseum Game', rom: '/discs/colosseum.iso', completedSetup: true, installId: '11111111-1111-4111-8111-111111111111' });
@@ -347,6 +408,18 @@ test('each game has its own HD texture pack: Colosseum its pinned one, XD its ow
   fs.writeFileSync(path.join(folder, '.release'), JSON.stringify({ sha256: xd.sha256 }));
   assert.equal(port.texturePackInstalled(root, 'xd'), true);
   assert.equal(port.texturePackInstalled(root, 'colosseum'), false, 'XD\'s pack is not Colosseum\'s');
+  // images the game draws better itself come out of an installed pack (the window atlas of "Your name?" and others)
+  assert.ok(xd.leaveOut.length > 0);
+  for (const name of xd.leaveOut) assert.match(name, /^tex1_\w+\.png$/);
+  const atlas = path.join(folder, xd.leaveOut[0]), kept = path.join(folder, 'tex1_8x8_0000000000000000_9.png');
+  fs.writeFileSync(atlas, 'png');
+  fs.writeFileSync(kept, 'png');
+  assert.deepEqual(port.dropLeftOutTextures(root, 'colosseum'), [], 'Colosseum\'s pack is not installed here');
+  assert.deepEqual(port.dropLeftOutTextures(root, 'xd'), [xd.leaveOut[0]]);
+  assert.equal(fs.existsSync(atlas), false);
+  assert.equal(fs.existsSync(kept), true, 'the rest of the pack stays');
+  assert.equal(port.texturePackInstalled(root, 'xd'), true, 'and still counts as installed');
+  assert.deepEqual(port.dropLeftOutTextures(root, 'xd'), [], 'once removed, nothing to do');
   assert.equal(port.textureCommand(root, 'linux', {}).args[2], require('../src/texture-pack.json').url);
   assert.equal(port.textureCommand(root, 'linux', {}).args.length, 6, 'Colosseum\'s pack is one zip');
 });

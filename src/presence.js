@@ -64,7 +64,8 @@ function fit(text) {
 }
 
 // The latest game presence and the session -> a Discord activity. `online` is an online battle's
-// opponent, as the room names them: the launcher knows that one better than the game. `gameName` is the game being
+// opponent, as the room names them: the launcher knows that one better than the game (or `watching`, the two players'
+// names, for a battle watched). `gameName` is the game being
 // played (Colosseum's unless given), `areaImages` whether the floor table's area numbers are Colosseum's.
 function activity(game, { startedAt, online = null, gameName = GAME, areaImages = true } = {}) {
   const result = {
@@ -76,7 +77,8 @@ function activity(game, { startedAt, online = null, gameName = GAME, areaImages 
   };
   if (online) {
     result.details = 'Online battle';
-    result.state = online.opponent ? `Battling ${online.opponent}` : 'Waiting for a challenger';
+    result.state = online.watching ? (online.watching.length === 2 ? `Watching ${online.watching[0]} vs ${online.watching[1]}` : 'Watching a battle')
+      : online.opponent ? `Battling ${online.opponent}` : 'Waiting for a challenger';
     result.assets.large_image = 'orre_colosseum';
     return clean(result);
   }

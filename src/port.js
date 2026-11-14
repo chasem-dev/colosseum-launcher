@@ -176,6 +176,8 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     shinyStarters: input.shinyStarters !== false,
     // A New Game asks whether to begin with Espeon and Umbreon, or two Pokémon the player picks. On unless turned off.
     chooseStarters: input.chooseStarters !== false,
+    // The bag and shops list a TM by its move (Thunderbolt), its number in a tab over the description. On unless turned off.
+    tmNames: input.tmNames !== false,
     // The frame-time overlay at start.
     overlay: Boolean(input.overlay),
     // The fonts drawn sharp from the Inter typeface (on), the game's own upscaled, or as on the disc.
@@ -265,6 +267,20 @@ function texturePackInstalled(root, game = games.DEFAULT) {
 
 function hdVisualsInstalled(root, settings, game = games.DEFAULT) { return !settings.textures || texturePackInstalled(root, game); }
 
+// Images a published pack has that the game draws better on its own (the pack's `leaveOut`: the port's
+// tools/colo-texall LEAVE_OUT, named after the pack was published). They come out of an installed pack before each
+// launch, so a player needn't download the whole pack again for them. Returns the names removed.
+function dropLeftOutTextures(root, game = games.DEFAULT) {
+  const pack = texturePack(game);
+  if (!pack?.leaveOut?.length || !texturePackInstalled(root, game)) return [];
+  const folder = path.join(texturePackDirectory(root), pack.folder), removed = [];
+  for (const name of pack.leaveOut) {
+    if (path.basename(name) !== name) continue;   // a file in the pack's own folder, nothing else
+    try { fs.unlinkSync(path.join(folder, name)); removed.push(name); } catch (_) { /* gone already, or not there */ }
+  }
+  return removed;
+}
+
 // Custom textures: texture packs the player adds, made for Dolphin's "Load Custom Textures" (tex1_*.png or .dds
 // in any sub-folder), in a folder of the launcher's own, so a new game folder keeps them.
 function customTextureDirectory(userData) { return path.join(userData, 'custom-textures'); }
@@ -308,6 +324,7 @@ const FEATURE_ENVIRONMENT = {
   shiny: ['COLO_SHINY_SHADOW'],
   shinyStarters: ['COLO_SHINY_STARTERS'],
   starters: ['COLO_CHOOSE_STARTERS'],
+  tmNames: ['COLO_TM_NAMES'],
   battleSpeed: ['COLO_BATTLE_SPEED'],
   quickMoves: ['COLO_QUICK_MOVES', 'COLO_FAST_STATUS', 'SMS_BUTTON_PROMPTS', 'SMS_BUTTON_PROMPT_PAD'],
   hdText: ['COLO_HD_TEXT']
@@ -362,6 +379,7 @@ function buildEnvironment(settings, disc, root, { customTextures = null, laterGe
   if (settings.shinyShadow === false) env.COLO_SHINY_SHADOW = '0';
   if (settings.shinyStarters === false) env.COLO_SHINY_STARTERS = '0';
   if (settings.chooseStarters === false) env.COLO_CHOOSE_STARTERS = '0';
+  if (settings.tmNames === false) env.COLO_TM_NAMES = '0';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   if (settings.quickMoves) env.COLO_QUICK_MOVES = '1';
@@ -598,6 +616,6 @@ function gameRuntimeFolders(environment = process.env) {
 }
 
 module.exports = { PORT_URL, TEXTURE_PACK, texturePack, gameArch, platformInfo, dependencyPaths, isPort, placeMainDol, validateRom, normalizeSettings, moveToMetal, turnOnQuickBattles,
-  texturePackDirectory, texturePackInstalled, hdVisualsInstalled, customTextureDirectory, customTexturesPresent, texturePackFolders,
+  texturePackDirectory, texturePackInstalled, hdVisualsInstalled, dropLeftOutTextures, customTextureDirectory, customTexturesPresent, texturePackFolders,
   buildEnvironment, binaryPath, longPathProblem, pathCharacterProblem, playableInstall, useLauncherScripts, launcherScript,
   gameBuildEnvironment, buildCommand, textureCommand, pbrModelsScript, pbrModelsCommand, pbrOutdated, pbrMakesCries, playsPackCries, gameRunCommand, gameRuntimeFolders, systemLibdrmAmdgpu };

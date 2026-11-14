@@ -1,7 +1,7 @@
 'use strict';
 
 // Add to Steam: adds the launcher to the player's Steam library as a non-Steam
-// game, with the game's artwork from SteamGridDB. Steam keeps
+// game, one shortcut for each game, with the game's artwork from SteamGridDB. Steam keeps
 // non-Steam games in userdata/<account>/config/shortcuts.vdf (binary VDF) and
 // their artwork in that folder's grid/, named after each shortcut's app ID.
 // Steam reads shortcuts.vdf only when it starts and writes its own copy when it
@@ -13,19 +13,32 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const APP_NAME = 'Pokémon Colosseum';
+// The game a shortcut without `--game=` starts: every shortcut from before XD is Colosseum's.
+const DEFAULT_GAME = 'colosseum';
 
-// Pieces from the game's SteamGridDB page, each saved under the shortcut's app ID with the suffix Steam looks for:
-// { suffix: 'p.png', url }, the 600x900 library capsule; '.png', the 920x430 wide capsule; '_hero.png', the 1920x620
-// library header; '_logo.png', the logo over it; '_icon.png', the 256x256 icon. Steam uses its own placeholder for
-// any piece not listed.
-const ARTWORK = [
-  { suffix: 'p.png', url: 'https://cdn2.steamgriddb.com/grid/8147268d4f135bde0f49115734cacc45.png' }, // library capsule, 600x900
-  { suffix: '.png', url: 'https://cdn2.steamgriddb.com/grid/3b5baa4288a1ba4f0ce32ab6f6350603.png' }, // wide capsule, 460x215
-  { suffix: '_hero.png', url: 'https://cdn2.steamgriddb.com/hero/191b624691ab236e4958bcac976a1de6.png' }, // library header, 1920x620
-  { suffix: '_logo.png', url: 'https://cdn2.steamgriddb.com/logo/6f79287fb6ba44555025707f936f52d9.png' }, // logo over the header
-  { suffix: '_icon.png', url: 'https://cdn2.steamgriddb.com/icon/972c16f442eba60469680bf869dd6a89.png' } // icon, 256x256
-];
+// Each game's shortcut: its name in Steam, and pieces from the game's SteamGridDB page, each saved under the
+// shortcut's app ID with the suffix Steam looks for: { suffix: 'p.png', url }, the 600x900 library capsule; '.png',
+// the 920x430 wide capsule; '_hero.png', the 1920x620 library header; '_logo.png', the logo over it; '_icon.png', the
+// 256x256 icon. Steam uses its own placeholder for any piece not listed.
+const SHORTCUTS = {
+  colosseum: { appName: 'Pokémon Colosseum', artwork: [
+    { suffix: 'p.png', url: 'https://cdn2.steamgriddb.com/grid/8147268d4f135bde0f49115734cacc45.png' }, // library capsule, 600x900
+    { suffix: '.png', url: 'https://cdn2.steamgriddb.com/grid/3b5baa4288a1ba4f0ce32ab6f6350603.png' }, // wide capsule, 460x215
+    { suffix: '_hero.png', url: 'https://cdn2.steamgriddb.com/hero/191b624691ab236e4958bcac976a1de6.png' }, // library header, 1920x620
+    { suffix: '_logo.png', url: 'https://cdn2.steamgriddb.com/logo/6f79287fb6ba44555025707f936f52d9.png' }, // logo over the header
+    { suffix: '_icon.png', url: 'https://cdn2.steamgriddb.com/icon/972c16f442eba60469680bf869dd6a89.png' } // icon, 256x256
+  ] },
+  // SteamGridDB game 35162. Only its capsules for now: Steam shows its own header, logo and icon until some are chosen.
+  xd: { appName: 'Pokémon XD: Gale of Darkness', artwork: [
+    { suffix: 'p.png', url: 'https://cdn2.steamgriddb.com/grid/eadbbf17b9a31e7eea1b30ba163856df.png' }, // library capsule, 600x900
+    { suffix: '.png', url: 'https://cdn2.steamgriddb.com/grid/1105b034d58ea8f7a4dea7d595e82607.png' } // wide capsule, 460x215
+  ] }
+};
+const shortcutOf = game => SHORTCUTS[game] || SHORTCUTS[DEFAULT_GAME];
+const APP_NAME = SHORTCUTS[DEFAULT_GAME].appName;
+const ARTWORK = SHORTCUTS[DEFAULT_GAME].artwork;
+const artworkFor = game => shortcutOf(game).artwork;
+const appNameFor = game => shortcutOf(game).appName;
 
 // Binary VDF. A map is a list of [type, key, value] in file order, and values
 // are kept as read (floats and 64-bit numbers as their bytes), so everything
@@ -119,35 +132,56 @@ function samePath(a, b, platform) {
   return normal(a) === normal(b);
 }
 
-// The shortcut in a shortcuts.vdf list that starts exe, added by this or by hand.
-const findShortcut = (list, exe, platform) =>
-  list.find(entry => entry[0] === MAP && field(entry[2], 'exe') && samePath(unquote(field(entry[2], 'exe')[2]), exe, platform));
+const words = options => String(options || '').split(/\s+/).filter(Boolean);
+
+// What the launcher's arguments (or a shortcut's launch options) ask for: `--play` starts the game without the
+// launcher's window (Skip Launcher), and `--game=<id>` (or `--play=<id>`) is the game, which the launcher opens on and
+// `--play` starts. A bare `--play` is Colosseum's, as every shortcut's was before XD; without either the launcher
+// opens on the game chosen last.
+function startOptions(args) {
+  const list = Array.isArray(args) ? args : words(args);
+  const play = list.some(option => option === '--play' || option.startsWith('--play='));
+  const named = list.map(option => /^--(?:game|play)=(.+)$/.exec(option)?.[1]).find(Boolean) || null;
+  return { play, game: named || (play ? DEFAULT_GAME : null) };
+}
+// The game a shortcut starts, from its launch options: one without a game is Colosseum's.
+const shortcutGame = options => startOptions(options).game || DEFAULT_GAME;
+// What a shortcut for a game other than Colosseum adds to its launch options so it opens on that game.
+const gameOption = game => (game && game !== DEFAULT_GAME ? `--game=${game}` : '');
+
+// The game's shortcut in a shortcuts.vdf list: the one that starts exe (added by this or by hand) for that game.
+const findShortcut = (list, exe, platform, game = DEFAULT_GAME) =>
+  list.find(entry => entry[0] === MAP && field(entry[2], 'exe') && samePath(unquote(field(entry[2], 'exe')[2]), exe, platform)
+    && shortcutGame(field(entry[2], 'launchoptions')?.[2]) === game);
 
 // Launch options with `--play` (Skip Launcher: Steam starts the game without
 // the launcher's window) added or removed, keeping the player's other options.
+// A `--play=<id>` typed by hand goes too: the shortcut's `--game=` names the game.
 function withPlay(options, play) {
-  const rest = options.split(/\s+/).filter(option => option && option !== '--play');
+  const rest = words(options).filter(option => option !== '--play' && !option.startsWith('--play='));
   return [...rest, ...(play ? ['--play'] : [])].join(' ');
 }
 
-// Launch options with each of `needed` (the AppImage's `--no-sandbox`) that is
-// missing put first, keeping the player's own. Without it a shortcut added by
-// hand opens the launcher in Desktop Mode but not in Game Mode.
-const words = options => String(options || '').split(/\s+/).filter(Boolean);
+// Launch options with each of `needed` (the AppImage's `--no-sandbox`, and a
+// game's `--game=`) that is missing put first, keeping the player's own. Without
+// --no-sandbox a shortcut added by hand opens the launcher in Desktop Mode but
+// not in Game Mode.
 const withOptions = (options, needed) => [...words(needed).filter(option => !words(options).includes(option)), ...words(options)].join(' ');
 const missingOptions = (options, needed) => words(needed).some(option => !words(options).includes(option));
 
-// Adds the launcher to a parsed shortcuts.vdf, or finds it by its Exe when it
-// is already there (added before, or by hand) and fixes it in place, keeping
+// Adds the game's shortcut to a parsed shortcuts.vdf, or finds it by its Exe and
+// game when it is already there (added before, or by hand) and fixes it in place, keeping
 // that entry's app ID so its play time, collections, controller layout and the
 // player's name for it stay, as removing it and adding it again would not.
 // `play` turns Skip Launcher on or off; left out, the options stay as they are.
-function upsertShortcut(root, { exe, startDir, appName = APP_NAME, launchOptions = '', play, platform = process.platform }) {
+function upsertShortcut(root, { exe, startDir, game = DEFAULT_GAME, appName = appNameFor(game), launchOptions: own = '', play,
+  platform = process.platform }) {
   let shortcuts = field(root, 'shortcuts');
   if (!shortcuts) { shortcuts = [MAP, 'shortcuts', []]; root.push(shortcuts); }
   const list = shortcuts[2];
   const quotedExe = `"${exe}"`;
-  const existing = findShortcut(list, exe, platform);
+  const launchOptions = [own, gameOption(game)].filter(Boolean).join(' ');
+  const existing = findShortcut(list, exe, platform, game);
   if (existing) {
     const fields = existing[2];
     const name = field(fields, 'appname')?.[2] || appName;
@@ -225,28 +259,28 @@ async function downloadArtwork(download, pieces = ARTWORK) {
 
 // Whether every account already has the launcher in its library. A file that
 // cannot be read counts as not there, so Add to Steam is still offered.
-function hasShortcut({ root, accounts, exe, platform = process.platform, files = fs }) {
+function hasShortcut({ root, accounts, exe, game = DEFAULT_GAME, platform = process.platform, files = fs }) {
   return accounts.length > 0 && accounts.every(account => {
     try {
       const shortcuts = field(parseVdf(files.readFileSync(path.join(root, 'userdata', account, 'config', 'shortcuts.vdf'))), 'shortcuts');
-      return Boolean(shortcuts && findShortcut(shortcuts[2], exe, platform));
+      return Boolean(shortcuts && findShortcut(shortcuts[2], exe, platform, game));
     } catch { return false; }
   });
 }
 
 // The launcher's launch options in Steam, from the first account that has it,
 // or null when none does. The banner shows Skip Launcher as it is set there.
-function shortcutLaunchOptions({ root, accounts, exe, platform = process.platform, files = fs }) {
+function shortcutLaunchOptions({ root, accounts, exe, game = DEFAULT_GAME, platform = process.platform, files = fs }) {
   for (const account of accounts) {
     try {
       const shortcuts = field(parseVdf(files.readFileSync(path.join(root, 'userdata', account, 'config', 'shortcuts.vdf'))), 'shortcuts');
-      const entry = shortcuts && findShortcut(shortcuts[2], exe, platform);
+      const entry = shortcuts && findShortcut(shortcuts[2], exe, platform, game);
       if (entry) return String(field(entry[2], 'launchoptions')?.[2] || '');
     } catch { /* not readable: try the next account */ }
   }
   return null;
 }
-const skipsLauncher = options => String(options || '').split(/\s+/).includes('--play');
+const skipsLauncher = options => startOptions(options).play;
 
 // SteamOS, as on the Steam Deck: its os-release names it (or a system based on
 // it), or the firmware names Valve as the maker, as a Deck's does under any system.
@@ -351,11 +385,12 @@ function stopIfSteamLostGames({ snapshot, account, vdf, data, files }) {
   throw error;
 }
 
-// Adds the launcher to each account's shortcuts.vdf (backing up the old file
-// first) and saves its artwork. Steam must be closed. `snapshot` is each
+// Adds the game's shortcut to each account's shortcuts.vdf (backing up the old
+// file first) and saves its artwork. Steam must be closed. `snapshot` is each
 // folder's list from before Steam closed: when Steam wrote an account's list
 // short, it is put back as it was and nothing is added to any account.
-function addShortcut({ root, accounts, exe, startDir, appName = APP_NAME, launchOptions = '', play, artwork = [], snapshot, platform = process.platform, files = fs }) {
+function addShortcut({ root, accounts, exe, startDir, game = DEFAULT_GAME, appName = appNameFor(game), launchOptions = '', play, artwork = [], snapshot,
+  platform = process.platform, files = fs }) {
   const lists = accounts.map(account => {
     const config = path.join(root, 'userdata', account, 'config');
     const vdf = path.join(config, 'shortcuts.vdf');
@@ -369,7 +404,7 @@ function addShortcut({ root, accounts, exe, startDir, appName = APP_NAME, launch
     const parsed = data ? parseVdf(data) : [[MAP, 'shortcuts', []]];
     const before = field(parsed, 'shortcuts')?.[2] || [];
     const count = before.length, bytes = shortcutBytes(before);
-    const shortcut = upsertShortcut(parsed, { exe, startDir, appName, launchOptions, play, platform });
+    const shortcut = upsertShortcut(parsed, { exe, startDir, game, appName, launchOptions, play, platform });
     const others = bytes.filter((_, index) => before[index][2] !== shortcut.fields);
     const pieces = artwork.filter(piece => piece.data);
     const image = piece => path.join(config, 'grid', `${shortcut.appId}${piece.suffix}`);
@@ -398,7 +433,8 @@ function endOnSigterm(target = process) {
 }
 
 module.exports = {
-  APP_NAME, ARTWORK, MAP, STRING, INT32, parseVdf, serializeVdf, shortcutAppId, upsertShortcut,
+  APP_NAME, ARTWORK, SHORTCUTS, DEFAULT_GAME, artworkFor, appNameFor, startOptions, shortcutGame, MAP, STRING, INT32, parseVdf, serializeVdf,
+  shortcutAppId, upsertShortcut,
   steamRoots, registrySteamPath, findSteam, steamAccounts, downloadArtwork, hasShortcut, shortcutLaunchOptions, skipsLauncher, missingOptions,
   isSteamOS, checkedVdf, snapshotShortcuts, describeShortcuts, addShortcut, endOnSigterm
 };

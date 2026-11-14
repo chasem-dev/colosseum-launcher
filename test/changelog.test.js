@@ -73,6 +73,9 @@ test('after an update the releases since the last one seen show once', () => {
   assert.deepEqual(unseen({ seen: '0.1.2', current: 'dev' }), []);
 });
 
+// The first launcher release that ships Pokémon XD, whose pin must then match Colosseum's.
+const FIRST_RELEASE_WITH_XD = '0.4.1';
+
 test("this repository's changelog describes the current launcher release and its game pin", () => {
   const root = path.join(__dirname, '..');
   const raw = JSON.parse(fs.readFileSync(path.join(root, changelog.FILE), 'utf8'));
@@ -89,6 +92,13 @@ test("this repository's changelog describes the current launcher release and its
   const game = require('../src/game-release.json');
   assert.deepEqual([entry.game.version, entry.game.commit], [game.version, game.commit],
     `changelog.json v${pkg.version} must list the game pinned in src/game-release.json`);
+  // Pokémon XD first comes to Stable after 0.4.0 (main pinned XD on its own until then). From that release on, both
+  // games are pinned at one port commit, as rooms for both games pair only builds of the same commit.
+  if (changelog.compareVersions(pkg.version, FIRST_RELEASE_WITH_XD) >= 0) {
+    const xd = require('../src/xd-release.json');
+    assert.equal(xd.commit, game.commit, `v${pkg.version} must pin Pokémon XD in src/xd-release.json at Colosseum's commit in src/game-release.json: ` +
+      "npm run update:game moves both, and npm run update:game -- <Colosseum's pinned commit> moves only XD");
+  }
   assert.ok(pkg.build.files.includes(changelog.FILE), 'package the changelog for offline launchers');
 });
 
