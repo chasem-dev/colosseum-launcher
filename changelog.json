@@ -68,7 +68,8 @@
       "Fixed setting up the game on Windows stopping with \"'NoneType' object has no attribute 'splitlines'\" when a build tool printed letters Windows' code page couldn't read, such as an accented name in the folder path.",
       "Randomizer: runs can have no repeated evolution families and first-form starters and Shadow Pokémon. With both off, a seed chooses the same Pokémon as before.",
       "In Colosseum, Generation 4 Pokémon close their eyes when they fall asleep, open them when they wake and blink now and then while they wait, and their eyes and mouths change during moves, hits and fainting, as in Battle Revolution. Press Make assets when the launcher asks, to make their models again.",
-      "Under Pokémon Platinum's battle rules, a fainted Pokémon's replacement now comes out at the end of the turn, after the weather and the turn's other effects, as in Diamond, Pearl and Platinum, instead of straight away; a move whose target has fainted by then turns to the other foe in a double battle, or says \"But there was no target...\" and still uses its PP. This is in Colosseum only for now: in Pokémon XD and in online rooms for both games, a replacement still comes out straight away."
+      "Under Pokémon Platinum's battle rules, a fainted Pokémon's replacement now comes out at the end of the turn, after the weather and the turn's other effects, as in Diamond, Pearl and Platinum, instead of straight away; a move whose target has fainted by then turns to the other foe in a double battle, or says \"But there was no target...\" and still uses its PP. This is in Colosseum only for now: in Pokémon XD and in online rooms for both games, a replacement still comes out straight away.",
+      "Fixed the game keeping the textures of every battle, so its memory use grew the longer you played and a long run of battles could crash it on Windows with low_alloc failed."
     ]
   },
   "releases": [
