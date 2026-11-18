@@ -180,6 +180,29 @@ test('cancel brings a waiting Pokémon back; one already gone can\'t be', async 
   assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA']);
 });
 
+test('a randomizer\'s Gen 4 Shadow Pokémon can\'t go, and one an earlier launcher took comes back when cancelled', async t => {
+  const server = fakeServer();
+  const SNOVER = pokemon({ species: 485, rnd: 5, trainer: A_ID, nickname: 'SNOVER', shadowId: 1, heart: 1500 });
+  const a = player(t, server, { trainerId: A_ID, party: [UMBREON, SNOVER] });
+  await assert.rejects(a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 }), /Gen 4/);
+  assert.deepEqual(a.party(), ['UMBREON', 'SNOVER']);
+  assert.equal(a.trade.view().trades.length, 0);
+  // as an earlier launcher left it: out of the save, refused by the server (it never saw it)
+  const identity = { species: 485, rnd: 5, trainer: A_ID }, place = { area: 'party', box: 0, slot: 1 };
+  sp.editCard(a.dir, 'colosseum', ctx => sp.takeFrom(ctx, identity, place));
+  assert.deepEqual(a.party(), ['UMBREON']);
+  a.trade.state.journal.push({ tradeId: 'f'.repeat(32), game: 'colosseum', pool: 'colosseum', stage: 'taken', createdAt: Date.now(), trainerName: 'WES', accepts: [],
+    sent: { data: SNOVER.toString('base64'), record: null, identity, place, summary: { species: 485, shadowId: 1, level: 30, nickname: 'SNOVER', shiny: false }, traded: false } });
+  // the running game takes back only Shadowtrade's species: it waits for the game to close
+  const live = { mode: 'live', game: 'colosseum' };
+  await a.trade.cancel('f'.repeat(32), () => live);
+  assert.match(a.trade.view().trades[0].message, /Close the game and SNOVER comes back/);
+  const view = await a.trade.sync(a.accessFor);
+  assert.equal(view.trades.length, 0);
+  assert.equal(view.history[0].returned, true);
+  assert.deepEqual(a.party(), ['UMBREON', 'SNOVER']);
+});
+
 test('a received Pokémon waits while its save can\'t be reached, and lands when it can', async t => {
   const server = fakeServer();
   const a = player(t, server, { trainerId: A_ID, party: [UMBREON, MAKUHITA] });
@@ -200,6 +223,7 @@ test('received Pokémon are checked before they go into a save', () => {
   assert.throws(() => checkReceived('xd', ok), /damaged/);
   const odd = Buffer.from(BAYLEEF); odd.writeUInt16BE(260, 0);
   assert.throws(() => checkReceived('colosseum', { pokemon: { data: odd.toString('base64') } }), /isn't one this game has/);
+  assert.equal(checkReceived('colosseum', { pokemon: { data: odd.toString('base64') } }, { returned: true }).data.readUInt16BE(0), 260, 'its own comes back');
 });
 
 // A game on the other end of a real launcher link (src/game-link.js): it sends its live picture and does each

@@ -46,13 +46,14 @@ function summary(pokemon) {
 }
 
 // Reads a received Pokémon's bytes as the game would (save-pokemon.js), and checks it is one this game can take:
-// the right size, a species the game has, not an egg, a Shadow of the story.
-function checkReceived(game, received) {
+// the right size, a species the game has, not an egg, a Shadow of the story. One coming back (a cancelled trade) left
+// this same save, so its species isn't checked: a randomizer's Gen 4 or pack Shadow must still come home.
+function checkReceived(game, received, { returned = false } = {}) {
   const data = unb64(received?.pokemon?.data), record = received?.pokemon?.record ? unb64(received.pokemon.record) : null;
   const size = game === 'xd' ? savePokemon.XD.size : savePokemon.COLOSSEUM.size;
   if (data.length !== size || (game === 'xd' && (!record || record.length !== savePokemon.XD.recordSize))) throw new Error('The Pokémon received is damaged.');
   const species = data.readUInt16BE(0);
-  if (!((species >= 1 && species <= 251) || (species >= 277 && species <= 411))) throw new Error('The Pokémon received isn\'t one this game has.');
+  if (!returned && !savePokemon.shadowtradeSpecies(species)) throw new Error('The Pokémon received isn\'t one this game has.');
   if (game === 'xd') {
     const id = data.readUInt16BE(savePokemon.XD.at.shadow);
     if ((data[savePokemon.XD.at.flags] & 0x80) || id < 1 || id > 0x53 || id === 73 || (record[0] >> 5) !== 3) throw new Error('The Pokémon received isn\'t a Shadow Pokémon.');
@@ -417,8 +418,14 @@ class Shadowtrade {
   async deliver(entry, access) {
     if (!access) return;
     let checked;
-    try { checked = checkReceived(entry.game, { pokemon: { data: entry.received.data, record: entry.received.record } }); } catch (error) {
+    try { checked = checkReceived(entry.game, { pokemon: { data: entry.received.data, record: entry.received.record } }, { returned: Boolean(entry.received.returned) }); } catch (error) {
       entry.message = error.message;
+      this.save();
+      return;
+    }
+    if (entry.received.returned && access.mode === 'live' && !savePokemon.shadowtradeSpecies(checked.data.readUInt16BE(0))) {
+      // the running game takes back only the species it trades (host/shadowtrade.c): the card takes any, once it's closed
+      entry.message = `Close the game and ${entry.received.summary?.nickname || 'your Pokémon'} comes back into your save.`;
       this.save();
       return;
     }

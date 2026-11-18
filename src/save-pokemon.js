@@ -306,10 +306,15 @@ function findPokemon(ctx, identity, place) {
 }
 
 // Why a Pokémon of this save can't go to Shadowtrade, or null when it can. pokemon: one of the model's.
+// The species Shadowtrade carries: the third generation's (1-251, 277-411), numbered the same in both games and on every
+// launcher. Gen 4 and pack Pokémon (a randomizer can make them Shadows) aren't in every player's game.
+const shadowtradeSpecies = species => (species >= 1 && species <= 251) || (species >= 277 && species <= 411);
+
 function offerProblem(saveModel, pokemon) {
   if (!pokemon) return 'There is no Pokémon there.';
   if (pokemon.egg) return 'Eggs can\'t be traded.';
   if (!pokemon.shadow) return 'Only Shadow Pokémon can go to Shadowtrade.';
+  if (!shadowtradeSpecies(pokemon.species)) return 'Gen 4 and Pokémon pack Shadow Pokémon can\'t go to Shadowtrade: other players\' games may not have them.';
   if (saveModel.game === 'xd') {
     if (pokemon.shadowId === XD_LUGIA) return 'XD-001 can\'t be traded: the Purify Chamber needs it.';
     if (!pokemon.traded) {
@@ -518,4 +523,4 @@ function editCard(saveDir, gameId, change) {
 }
 
 module.exports = { COLOSSEUM, XD, COLOSSEUM_STORY_IDS, XD_STATUS, XD_WHERE, PARTY_SIZE, model, readCard, readLive, liveFrom, parseLive, cardCopies,
-  colosseumFlag, offerProblem, tradeProblem, shadowAccepts, acceptsAfterTaking, outgoing, allPlaces, restoreTo, mergeXdRecord, takeFrom, giveTo, editCard, findPokemon, allPokemon, keyOf, xdElsewhere };
+  colosseumFlag, offerProblem, shadowtradeSpecies, tradeProblem, shadowAccepts, acceptsAfterTaking, outgoing, allPlaces, restoreTo, mergeXdRecord, takeFrom, giveTo, editCard, findPokemon, allPokemon, keyOf, xdElsewhere };

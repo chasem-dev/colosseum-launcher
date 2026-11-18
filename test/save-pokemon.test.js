@@ -80,7 +80,7 @@ test('reads a Colosseum save: party, boxes, Shadow flags and gauges', t => {
 
 test('only a Shadow Pokémon can go, never an egg, and never the last one that can battle', () => {
   const save = { game: 'colosseum', party: [], boxes: [], shadows: {} };
-  const p = (over) => ({ key: Math.random(), area: 'party', egg: false, hp: 10, shadow: true, shadowId: 1, ...over });
+  const p = (over) => ({ key: Math.random(), area: 'party', egg: false, hp: 10, shadow: true, shadowId: 1, species: 296, ...over });
   save.party = [p({ shadow: false, key: 'u' }), p({ key: 's' })];
   assert.equal(sp.offerProblem(save, save.party[0]), 'Only Shadow Pokémon can go to Shadowtrade.');
   assert.equal(sp.offerProblem(save, save.party[1]), null);
@@ -91,6 +91,8 @@ test('only a Shadow Pokémon can go, never an egg, and never the last one that c
   assert.equal(sp.offerProblem(save, { ...save.party[0], area: 'box' }), null, 'from a box it can go');
   assert.match(sp.offerProblem(save, p({ shadowId: 0x30 })), /story/);
   assert.match(sp.offerProblem(save, p({ egg: true })), /Eggs/);
+  assert.match(sp.offerProblem(save, p({ species: 485 })), /Gen 4/, 'a randomizer\'s Gen 4 Shadow stays');
+  assert.match(sp.offerProblem(save, p({ species: 260 })), /pack/);
 });
 
 test('Colosseum: taking from the party closes the gap in every copy of the save', t => {
