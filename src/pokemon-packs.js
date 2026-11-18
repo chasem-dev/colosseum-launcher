@@ -1,7 +1,7 @@
 'use strict';
 
 // Pokémon packs: Pokémon of the player's own making, each in a folder of a pack's,
-// mods/pokemon/<pack>/<pokemon>/, with a pokemon.json and, if it has its own looks, a model
+// mods/pokemon/<pack>/<pokemon>/ (or a lone mods/pokemon/<pokemon>/), with a pokemon.json and, if it has its own looks, a model
 // and sprites. docs/pokemon-packs.md is the guide for making one.
 //
 // The launcher reads them, checks them against the game on the player's disc, and writes
@@ -580,6 +580,12 @@ function loadPacks(dir, tables, registry) {
       catch (error) { problems.push({ pack, message: error.message }); continue; }
     }
     const folders = listFolders(path.join(dir, pack)).filter(folder => fs.existsSync(path.join(dir, pack, folder, ENTRY_FILE)));
+    // A Pokémon's own folder put straight into mods/pokemon is a pack of just that one. Its key is
+    // <name>/<name>, so it keeps its row if it's later moved into a pack folder of the same name.
+    if (!folders.length && fs.existsSync(path.join(dir, pack, ENTRY_FILE))) {
+      found.push({ pack, folder: pack, key: `${pack}/${pack}`, about, dir: path.join(dir, pack) });
+      continue;
+    }
     if (!folders.length) problems.push({ pack, message: `has no Pokémon: each goes in a folder of its own with a ${ENTRY_FILE}` });
     for (const folder of folders) found.push({ pack, folder, key: `${pack}/${folder}`, about, dir: path.join(dir, pack, folder) });
   }

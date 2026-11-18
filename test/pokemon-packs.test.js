@@ -247,14 +247,18 @@ test('packs are read from their folders; what is wrong is left out and said', ()
       ['shinyonly', { base: 'Umbreon', name: 'Shiny' }, { 'model-shiny.pkx': model }]
     ], JSON.stringify({ name: 'Moon Pack', author: 'Someone' }));
     writePack(root, 'empty', []);
+    fs.mkdirSync(path.join(root, 'lone'));
+    fs.writeFileSync(path.join(root, 'lone', 'pokemon.json'), JSON.stringify({ base: 'Umbreon', name: 'Lone' }));
+    fs.writeFileSync(path.join(root, 'lone', 'body.png'), png);
     fs.mkdirSync(path.join(root, '..bad'), { recursive: true });
     const loaded = packs.loadPacks(root, tables(), { ids: { 'gone/old': 252 } });
-    assert.deepEqual(loaded.pokemon.map(each => [each.key, each.id, each.name]), [['moon/eclipse', 254, 'ECLIPSE'], ['moon/moonfang', 255, 'MOONFANG']]);
-    const moonfang = loaded.pokemon[1];
+    assert.deepEqual(loaded.pokemon.map(each => [each.key, each.id, each.name]), [['lone/lone', 253, 'LONE'], ['moon/eclipse', 255, 'ECLIPSE'], ['moon/moonfang', 256, 'MOONFANG']]);
+    assert.ok(loaded.pokemon[0].assets.body, 'a Pokémon folder put straight into mods/pokemon is a pack of its own');
+    const moonfang = loaded.pokemon[2];
     assert.equal(moonfang.packName, 'Moon Pack');
     assert.deepEqual(moonfang.assets.model, model);
     assert.ok(moonfang.assets.body && moonfang.assets.face && !moonfang.assets.modelShiny);
-    assert.deepEqual([moonfang.row[0x9c], moonfang.row.readUInt16BE(0xa0)], [4, 254], 'evolves into Eclipse');
+    assert.deepEqual([moonfang.row[0x9c], moonfang.row.readUInt16BE(0xa0)], [4, 255], 'evolves into Eclipse');
     assert.equal(moonfang.row[0x9c + 6], 0, 'the evolution into a Pokémon that was left out is gone');
     const problems = loaded.problems.map(problem => `${problem.pack}/${problem.entry || ''}: ${problem.message}`);
     assert.ok(problems.some(text => text.startsWith('moon/broken: pokemon.json isn\'t valid JSON')), problems.join('\n'));
@@ -262,7 +266,7 @@ test('packs are read from their folders; what is wrong is left out and said', ()
     assert.ok(problems.some(text => text.startsWith('moon/moonfang: evolves into a Pokémon that couldn\'t be loaded')), problems.join('\n'));
     assert.ok(problems.some(text => text.startsWith('empty/: has no Pokémon')), problems.join('\n'));
     assert.deepEqual(loaded.missing, ['gone/old']);
-    assert.equal(loaded.registry.ids['moon/broken'], 253, 'a Pokémon with a problem keeps its row for when it\'s fixed');
+    assert.equal(loaded.registry.ids['moon/broken'], 254, 'a Pokémon with a problem keeps its row for when it\'s fixed');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
