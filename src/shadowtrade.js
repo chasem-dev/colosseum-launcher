@@ -9,8 +9,10 @@
 //      game closed, the launcher edits the card (save-pokemon.js editCard); with it running, the game takes it out
 //      itself and saves (a command: SPEC in host/shadowtrade.c), as the launcher must never write a card the game is
 //      using.
-//   2. Only once the save no longer has it is it sent. The server answers to the same trade id the same way, so
-//      sending again after a lost answer is safe.
+//   2. Only once the save no longer has it is it sent, and it counts as sent only when the server's answer says so
+//      for this trade id. Without that answer (no server, a refusal, a lost answer) the trade is called off: the
+//      server is asked to cancel it, as it may hold the Pokémon though its answer was lost, and the Pokémon comes back
+//      once the server says it doesn't have it. Nothing unconfirmed is ever sent again.
 //   3. The Pokémon received is put into the save the same two ways, then acknowledged, and only then forgotten here.
 // After a crash at any step, sync() picks the trade up where it was, by looking at the save itself.
 //
@@ -369,7 +371,13 @@ class Shadowtrade {
       this.save();
       this.log(`Shadowtrade: ${pokemon.nickname} left the save for the ${entry.pool} pool.`);
       await this.send(entry);
+      const returned = entry.received?.returned;
       if (entry.stage === 'received') await this.deliver(entry, access);
+      if (returned) {
+        const back = entry.stage === 'given' || !this.state.journal.includes(entry);
+        throw new Error(`${pokemon.nickname} couldn't be sent to Shadowtrade (${entry.recall || 'the server didn\'t confirm it'}), so the trade was called off${back ? ' and it\'s back in your save' : `: ${entry.message || 'it\'s coming back to your save'}`}.`);
+      }
+      if (entry.stage === 'taken') throw new Error(entry.message);
       return this.view();
     });
   }
@@ -383,18 +391,47 @@ class Shadowtrade {
       entries: 'Your save holds as many traded-in Shadow Pokémon as it can: purify some, and the next one comes.', missing: 'That Pokémon isn\'t in the save any more.' }[result.code] || `The game couldn't trade (${result.code}${result.message ? `: ${result.message}` : ''}).`;
   }
 
-  // Sends a taken Pokémon (again, if an answer was lost). Leaves it 'taken' when the server can't be reached.
+  // Sends a taken Pokémon. It is sent only when the server answers for this trade that it's in the pool or already
+  // matched; anything else calls the trade off (recall).
   async send(entry) {
+    let trade = null, problem;
     try {
       const reply = await this.post('offer', { pool: entry.pool, tradeId: entry.tradeId, trainerName: entry.trainerName, accepts: entry.accepts,
         pokemon: { data: entry.sent.data, ...(entry.sent.record ? { record: entry.sent.record } : {}) } });
-      this.apply(entry, reply.trade);
-    } catch (error) {
-      entry.message = `Not sent yet: ${error.message} It's kept safe and sent when the server can be reached.`;
-      this.log(`Shadowtrade: ${error.message}`);
-      if (error.status === 400 || error.status === 409) entry.message = `The server refused it: ${error.message} Cancel to get it back.`;
-    }
+      if (reply?.trade?.tradeId === entry.tradeId && ['waiting', 'received'].includes(reply.trade.status)) trade = reply.trade;
+      else problem = 'the server didn\'t confirm it';
+    } catch (error) { problem = error.message.replace(/\.$/, ''); }
+    if (trade) { this.apply(entry, trade); this.save(); return; }
+    this.log(`Shadowtrade: ${entry.sent.summary?.nickname || 'the Pokémon'} wasn't sent (${problem}): calling the trade off.`);
+    entry.recall = problem;
     this.save();
+    await this.recall(entry);
+  }
+
+  // Calls off a trade the server never confirmed. Afterwards the entry is 'received' (its own Pokémon on its way back,
+  // or, had the server taken it after all, what it was matched with), 'waiting' (the server had it and sent it on), or
+  // still 'taken' when the server can't be reached: then each sync asks again.
+  async recall(entry) {
+    try { await this.callOff(entry); } catch (error) {
+      entry.message = `It couldn't be sent (${entry.recall || error.message.replace(/\.$/, '')}), so it's coming back: as soon as the Shadowtrade server can be reached, it's back in your save.`;
+      this.save();
+      return;
+    }
+    if (entry.stage !== 'taken') { entry.recall = undefined; entry.message = null; }
+    this.save();
+  }
+
+  // Asks the server to take a trade back out of the pool. One it never saw (404) comes straight back. Throws when the
+  // server can't be reached.
+  async callOff(entry) {
+    let reply;
+    try { reply = await this.post('cancel', { pool: entry.pool, tradeId: entry.tradeId }); } catch (error) {
+      if (error.status !== 404) throw error;
+      entry.stage = 'received';
+      entry.received = { data: entry.sent.data, record: entry.sent.record, from: entry.trainerName, returned: true, own: !entry.sent.traded, summary: entry.sent.summary };
+      return;
+    }
+    this.apply(entry, reply?.trade);
   }
 
   // The server's view of a trade, into the journal.
@@ -491,7 +528,8 @@ class Shadowtrade {
           entry.stage = 'taken';
           this.save();
         }
-        if (entry.stage === 'taken') await this.send(entry);
+        // never confirmed by the server (the launcher stopped, or it couldn't be sent): called off, never sent again
+        if (entry.stage === 'taken') await this.recall(entry);
       }
       const accepts = {};
       for (const pool of new Set(this.state.journal.filter(entry => entry.stage === 'waiting').map(entry => entry.pool))) {
@@ -524,17 +562,11 @@ class Shadowtrade {
       if (entry.stage === 'taken' || entry.stage === 'waiting') {
         // A taken one may have reached the server even if its answer was lost: ask. Only one the server has never
         // seen comes straight back.
-        let reply;
-        try { reply = await this.post('cancel', { pool: entry.pool, tradeId }); } catch (error) {
-          if (error.status !== 404) throw new Error(`The Shadowtrade server can't be reached, so it can't be cancelled yet: ${error.message}`);
-          entry.stage = 'received';
-          entry.received = { data: entry.sent.data, record: entry.sent.record, from: entry.trainerName, returned: true, own: !entry.sent.traded, summary: entry.sent.summary };
-        }
-        if (reply) {
-          if (entry.stage === 'taken') entry.stage = 'waiting';
-          this.apply(entry, reply.trade);
+        try { await this.callOff(entry); } catch (error) {
+          throw new Error(`The Shadowtrade server can't be reached, so it can't be cancelled yet: ${error.message}`);
         }
         if (entry.stage === 'waiting') { this.save(); throw new Error('It has already gone to another player: yours is on its way.'); }
+        if (entry.stage === 'taken') { this.save(); throw new Error('The Shadowtrade server didn\'t answer the cancel: try again in a moment.'); }
       } else throw new Error('That trade can\'t be cancelled now.');
       this.save();
       await this.deliver(entry, accessFor(entry.game));

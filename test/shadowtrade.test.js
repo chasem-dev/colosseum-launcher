@@ -40,14 +40,16 @@ const folder = t => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'colo-sh
 // The server, pairing as colosseum-server-api's pool does (oldest accepted first), in memory.
 function fakeServer() {
   const trades = new Map();
-  let order = 0, failNext = null;
+  let order = 0, failNext = null, failTimes = 0;
   const server = {
     trades,
-    failNext(kind) { failNext = kind; },
+    failNext(kind, times = 1) { failNext = kind; failTimes = times; },
     async fetch(url, init) {
       const action = url.split('/').pop(), body = JSON.parse(init.body);
       const reply = (value, status = 200) => ({ ok: status < 400, status, json: async () => value });
-      if (failNext === 'down') { failNext = null; throw new Error('fetch failed'); }
+      if (failNext === 'down') { if (--failTimes <= 0) failNext = null; throw new Error('fetch failed'); }
+      if (failNext === 'refuse' && action === 'offer') { failNext = null; return reply({ error: 'That isn\'t a Shadow Pokémon this pool takes.' }, 400); }
+      if (failNext === 'nonsense' && action === 'offer') { failNext = null; return reply({ ok: true }); }
       const view = t => ({ tradeId: t.id, status: t.status, received: t.got ? { pokemon: t.got.pokemon, from: t.got.trainer, ...t.got.summary } : undefined,
         returned: t.status === 'cancelled' ? { pokemon: t.pokemon } : undefined });
       if (action === 'offer') {
@@ -123,28 +125,42 @@ test('a refused Pokémon never leaves the save', async t => {
   assert.equal(a.trade.view().trades.length, 0);
 });
 
-test('with the server down, a taken Pokémon is kept and sent at the next sync', async t => {
+test('an offer the server doesn\'t confirm is called off, and the Pokémon comes back at once', async t => {
   const server = fakeServer();
   const a = player(t, server, { trainerId: A_ID, party: [UMBREON, MAKUHITA] });
-  server.failNext('down');
-  const view = await a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 });
-  assert.equal(view.trades[0].stage, 'taken');
-  assert.match(view.trades[0].message, /kept safe/);
-  assert.equal(server.trades.size, 0);
-  await a.trade.sync(a.accessFor);
-  assert.equal(a.trade.view().trades[0].stage, 'waiting');
-  assert.equal(server.trades.size, 1);
+  for (const kind of ['down', 'refuse', 'nonsense']) {
+    server.failNext(kind);
+    await assert.rejects(a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 }), /couldn't be sent to Shadowtrade .*back in your save/, kind);
+    assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA'], kind);
+    assert.equal(a.trade.view().trades.length, 0, kind);
+    assert.equal(a.trade.view().history[0].returned, true, kind);
+  }
+  assert.equal(server.trades.size, 0, 'nothing in the pool');
 });
 
-test('a lost answer is asked again, and the Pokémon is in the pool once', async t => {
+test('with the server unreachable, it is never sent later: each sync asks to call it off, then it comes back', async t => {
+  const server = fakeServer();
+  const a = player(t, server, { trainerId: A_ID, party: [UMBREON, MAKUHITA] });
+  server.failNext('down', 2);   // the offer and its cancel
+  await assert.rejects(a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 }), /coming back/);
+  const [trade] = a.trade.view().trades;
+  assert.equal(trade.stage, 'taken');
+  assert.match(trade.message, /as soon as the Shadowtrade server can be reached/);
+  assert.deepEqual(a.party(), ['UMBREON']);
+  await a.trade.sync(a.accessFor);
+  assert.equal(a.trade.view().trades.length, 0);
+  assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA']);
+  assert.equal(server.trades.size, 0, 'never sent');
+});
+
+test('a lost answer: the server had it, so it is taken back out of the pool before it comes home', async t => {
   const server = fakeServer();
   const a = player(t, server, { trainerId: A_ID, party: [UMBREON, MAKUHITA] });
   server.failNext('lost');
-  await a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 });
-  assert.equal(a.trade.view().trades[0].stage, 'taken');
-  await a.trade.sync(a.accessFor);
-  assert.equal(a.trade.view().trades[0].stage, 'waiting');
-  assert.equal(server.trades.size, 1);
+  await assert.rejects(a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 }), /back in your save/);
+  assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA']);
+  assert.equal([...server.trades.values()][0].inPool, false, 'not left in the pool');
+  assert.equal([...server.trades.values()][0].status, 'done');
 });
 
 test('a launcher that stopped mid-take settles it by looking at the save', async t => {
@@ -156,12 +172,14 @@ test('a launcher that stopped mid-take settles it by looking at the save', async
   await a.trade.sync(a.accessFor);
   assert.equal(a.trade.view().trades.length, 0);
   assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA']);
-  // stopped after: it is sent
+  // stopped after: never sent, so it is called off and comes back
   sp.editCard(a.dir, 'colosseum', ctx => sp.takeFrom(ctx, { species: 296, rnd: 2, trainer: A_ID }));
   a.trade.state.journal.push({ tradeId: 'e'.repeat(32), game: 'colosseum', pool: 'colosseum', stage: 'taking', trainerName: 'WES', accepts: [],
     sent: { data: MAKUHITA.toString('base64'), record: null, identity: { species: 296, rnd: 2, trainer: A_ID }, place: { area: 'party', box: 0, slot: 1 }, summary: {} } });
   await a.trade.sync(a.accessFor);
-  assert.equal(a.trade.view().trades[0].stage, 'waiting');
+  assert.equal(a.trade.view().trades.length, 0);
+  assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA']);
+  assert.equal(server.trades.size, 0);
 });
 
 test('cancel brings a waiting Pokémon back; one already gone can\'t be', async t => {
@@ -173,9 +191,9 @@ test('cancel brings a waiting Pokémon back; one already gone can\'t be', async 
   assert.equal(view.trades.length, 0);
   assert.equal(view.history[0].returned, true);
   assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA']);
-  // never reached the server (down when sent): comes straight back after the server says it never saw it
-  server.failNext('down');
-  await a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 });
+  // stuck coming back (server down for the offer and its call-off): Cancel asks again and brings it home
+  server.failNext('down', 2);
+  await assert.rejects(a.trade.offer(a.access, { area: 'party', box: 0, slot: 1 }), /coming back/);
   await a.trade.cancel(a.trade.view().trades[0].tradeId, a.accessFor);
   assert.deepEqual(a.party(), ['UMBREON', 'MAKUHITA']);
 });

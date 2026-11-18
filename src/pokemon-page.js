@@ -16,7 +16,7 @@ const TRADE_STAGE = {
   received: 'Arrived: going into your save', giving: 'Going into your save…', given: 'In your save', evolving: 'Evolving…'
 };
 const STAGE = {
-  taking: 'Leaving your save…', taken: 'Waiting to reach the Shadowtrade server', waiting: 'In the pool: a Shadow Pokémon comes back when another player trades one your save can take',
+  taking: 'Leaving your save…', taken: 'Not sent: coming back to your save', waiting: 'In the pool: a Shadow Pokémon comes back when another player trades one your save can take',
   received: 'Received: going into your save', giving: 'Going into your save…', given: 'In your save'
 };
 
@@ -121,7 +121,7 @@ function describeTrade(trade) {
   row.className = 'shadowtrade-row';
   const text = document.createElement('div');
   const sent = `${trade.sent.nickname || `#${trade.sent.species}`} (Lv. ${trade.sent.level})`;
-  text.append(Object.assign(document.createElement('strong'), { textContent: trade.received?.returned ? `${sent} is coming back` : `Sent ${sent}` }));
+  text.append(Object.assign(document.createElement('strong'), { textContent: trade.received?.returned || trade.stage === 'taken' ? `${sent} is coming back` : `Sent ${sent}` }));
   let line = STAGE[trade.stage] || trade.stage;
   if (trade.received && !trade.received.returned) line = `${STAGE[trade.stage]}: ${trade.received.nickname || `#${trade.received.species}`} from ${trade.received.from || 'another player'}`;
   if (trade.message) line = trade.message;
