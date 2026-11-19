@@ -1,56 +1,53 @@
 'use strict';
 // Online co-op (the game's host/netcoop.c): two players play the story together, each on their own screen. One hosts
-// their own save; the other joins it by the host's address and plays the host's game beside them. The game does the
-// networking (UDP straight to the host, as the SMS Launcher's multiplayer does); the launcher only starts it hosting or
-// joining with these settings.
+// their own save and gets a co-op code; the other joins with the code and plays the host's game beside them. The games
+// talk through the room server (src/coop-relay.js): nobody forwards a port. The launcher starts each game hosting or
+// joining on this computer, and the relay passes the packets on.
 
-const DEFAULT_PORT = 24300;
+const { parseCode } = require('./coop-relay');
+
 const NAME_LENGTH = 23;
-
-function port(value) {
-  const text = String(value ?? '').trim();
-  if (!text) return DEFAULT_PORT;
-  if (!/^\d{1,5}$/.test(text) || Number(text) < 1 || Number(text) > 65535) throw new Error('The port must be a number from 1 to 65535.');
-  return Number(text);
-}
-
-// "host", "host:port", "1.2.3.4", "[::1]:24300": what the game's COLO_MULTIPLAYER_ADDRESS takes
-function address(value) {
-  const text = String(value ?? '').trim();
-  if (!text) throw new Error('Enter the host\'s address to join.');
-  if (text.length > 255 || /\s/.test(text)) throw new Error('That isn\'t an address: use a name or an IP address, with :port after it if the host chose one.');
-  return text;
-}
+const COOP_BUILD = 64;   // what the room keeps of a build
 
 function name(value) {
   const text = String(value ?? '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, NAME_LENGTH);
   return text || 'Player';
 }
 
-// A request from the Online page, checked: { mode: 'host' | 'join', port, address, name }
+// A request from the Online page, checked: { mode: 'host' | 'join', code (joining), name }
 function request(value = {}) {
   const mode = value.mode === 'join' ? 'join' : value.mode === 'host' ? 'host' : null;
   if (!mode) throw new Error('Choose to host or to join.');
-  return { mode, port: port(value.port), ...(mode === 'join' ? { address: address(value.address) } : {}), name: name(value.name) };
+  if (mode === 'host') return { mode, name: name(value.name) };
+  const code = parseCode(value.code);
+  if (!code) throw new Error('Enter the host\'s co-op code: six letters and numbers, like KQ7-M2D.');
+  return { mode, code, name: name(value.name) };
 }
 
-// The game's settings for it. `build` is the installed game's build: a game of another build is refused.
-function environment(together, build = '') {
+// Which games play together: the same game at the very same commit (the save's layout and the co-op messages must be
+// alike), "colosseum-0123abcd4567ef89"
+function coopBuild(game, installed) {
+  const commit = installed?.commit || installed?.gameVersion || 'unknown';
+  return `${game}-${String(commit).slice(0, 16)}`.slice(0, COOP_BUILD);
+}
+
+// The game's settings: hosting on `port` of this computer only, or joining the relay's port; its name, the code to
+// show, and the build
+function environment(together) {
   if (!together) return {};
   return {
     COLO_MULTIPLAYER: together.mode,
-    COLO_MULTIPLAYER_PORT: String(together.port),
-    ...(together.mode === 'join' ? { COLO_MULTIPLAYER_ADDRESS: together.address } : {}),
     COLO_MULTIPLAYER_NAME: together.name,
-    ...(build ? { COLO_GAME_VERSION: String(build).slice(0, 60) } : {}),
+    ...(together.mode === 'host'
+      ? { COLO_MULTIPLAYER_PORT: String(together.port), COLO_MULTIPLAYER_LOCAL: '1', COLO_MULTIPLAYER_CODE: together.code }
+      : { COLO_MULTIPLAYER_ADDRESS: `127.0.0.1:${together.port}` }),
+    ...(together.build ? { COLO_GAME_VERSION: together.build } : {}),
   };
 }
 
-// What the Online page keeps between visits
+// What the Online page keeps between visits: the last code joined
 function remembered(value = {}) {
-  let kept = DEFAULT_PORT;
-  try { kept = port(value.port); } catch { kept = DEFAULT_PORT; }
-  return { port: kept, address: typeof value.address === 'string' ? value.address.trim().slice(0, 255) : '' };
+  return { code: parseCode(value?.code) || '' };
 }
 
-module.exports = { DEFAULT_PORT, request, environment, remembered };
+module.exports = { request, coopBuild, environment, remembered };

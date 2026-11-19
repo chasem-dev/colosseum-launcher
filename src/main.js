@@ -38,6 +38,7 @@ const crashReports = require('./crash-reports');
 const telemetry = require('./telemetry');
 const online = require('./online');
 const together = require('./together');
+const { CoopRelay, formatCode } = require('./coop-relay');
 const replays = require('./replays');
 const discord = require('./discord');
 const presence = require('./presence');
@@ -1766,7 +1767,7 @@ async function play(installation = null, battle = null) {
     ...(storyLink ? storyLink.environment() : {}),
     ...(battle ? { COLO_ONLINE: String(battle.port), COLO_SKIP_MOVIES: '1', COLO_NOCARD: '1' } : {}),
     // online co-op (src/together.js): hosting or joining the story, for this play only
-    ...(!battle && playingTogether ? together.environment(playingTogether, gameBuild().build) : {}),
+    ...(!battle && playingTogether ? together.environment(playingTogether) : {}),
     ...(config.settings.discordPresence && supports('discordPresence') ? { COLO_PRESENCE: '1' } : {}),
     ...(packsFile ? { COLO_POKEMON_PACKS: packsFile } : {}) };
   // an online battle's players in their colours: the HD images made for them, read before the HD pack's
@@ -2156,16 +2157,39 @@ async function launchGame(update = config.settings.autoUpdate) {
   return play();
 }
 
-// Online co-op (src/together.js): the Online page's Host and Join play the installed game hosting or joining
+// Online co-op (src/together.js, src/coop-relay.js): the Online page's Host and Join play the installed game hosting
+// or joining, its packets through a co-op room on the room server. The room's code shows on the page while it plays.
 let playingTogether = null;
 async function playTogether(value) {
   const request = together.request(value);
-  config.together = together.remembered({ port: request.port, address: request.address ?? config.together?.address });
-  saveConfig();
-  playingTogether = request;
-  log(request.mode === 'host' ? `Hosting the story on port ${request.port}: the other player joins your game at your address.`
-    : `Joining the story at ${request.address}.`);
-  try { return await playInstalled(); } finally { playingTogether = null; }
+  const chosen = activeGame();
+  const build = together.coopBuild(chosen.id, game.installed(config.repo, config.game));
+  const hello = { name: request.name, game: chosen.id, build, version: game.installed(config.repo, config.game)?.gameVersion || '', launcher: app.getVersion() };
+  const relay = new CoopRelay({ fetch: (...args) => net.fetch(...args) });
+  const tell = state => broadcast('together-state', state);
+  relay.on('peer', peer => { tell({ code: relay.code, playing: true, peer: peer.name }); log(`${peer.name} is playing with you.`); });
+  relay.on('peer-lost', () => log('The other player\'s connection dropped: they have a minute to come back.'));
+  relay.on('left', () => { tell({ code: relay.code, playing: false }); log('The other player has left.'); });
+  try {
+    if (request.mode === 'host') {
+      const { code, gamePort } = await relay.host(hello);
+      playingTogether = { mode: 'host', port: gamePort, code: formatCode(code), name: request.name, build };
+      tell({ code: formatCode(code), hosting: true });
+      log(`Hosting co-op: the other player joins with the code ${formatCode(code)}.`);
+    } else {
+      const { relayPort, host } = await relay.join(request.code, hello);
+      config.together = together.remembered({ code: request.code });
+      saveConfig();
+      playingTogether = { mode: 'join', port: relayPort, name: request.name, build };
+      tell({ code: formatCode(request.code), playing: true, peer: host });
+      log(`Joining ${host}'s co-op game.`);
+    }
+    return await playInstalled();
+  } finally {
+    playingTogether = null;
+    relay.close();
+    tell(null);
+  }
 }
 
 async function playInstalled() {
@@ -3306,7 +3330,8 @@ function registerHandlers() {
     throw new Error('No such trade action.');
   });
   ipcMain.handle('play-together', (_event, value) => exclusive(playLabel(), () => playTogether(value), true));
-  ipcMain.handle('together-state', () => ({ ...together.remembered(config.together), trainer: config.online?.trainer || '' }));
+  ipcMain.handle('together-state', () => together.remembered(config.together));
+  ipcMain.handle('together-copy', (_event, code) => { clipboard.writeText(String(code || '').slice(0, 7)); return true; });
   ipcMain.handle('online-save', (_event, value) => {
     config.online = parties.normalize(value);
     saveConfig();
