@@ -14,7 +14,8 @@
       "Fixed Settings → Controls on Windows saying a GameCube adapter in Wii U mode was ready when Windows hadn't started it. It now says so and tells you to install WinUSB for it with Zadig, as Dolphin needs, and Get Zadig opens Zadig's site. With Windows' own driver, it suggests the same if the controller does nothing in the game.",
       "Replace all models: Bulbasaur to Deoxys can have their Pokémon Battle Revolution models too, in the game and the Pokédex, so every Pokémon looks as it does there. It's off unless you turn it on under Gameplay, beside Battle Revolution assets, and it says first how much longer Make assets takes with it: about 4½ times as long as Generation 4 alone.",
       "Fixed custom heroes in XD standing still while pushing crates and jumping down from them on the S.S. Libra: they now move as Michael does, with his timing.",
-      "Battle Revolution HD textures: your Battle Revolution models can show Pokémon Battle Revolution's own textures, upscaled for sharper detail, in both games and the Pokédex. It's a one-time download of about 275 MB: turn it on under Gameplay, below Battle Revolution assets."
+      "Battle Revolution HD textures: your Battle Revolution models can show Pokémon Battle Revolution's own textures, upscaled for sharper detail, in both games and the Pokédex. It's a one-time download of about 275 MB: turn it on under Gameplay, below Battle Revolution assets.",
+      "Split-screen co-op: new settings under Gameplay choose who player 2 walks as, whether the screen splits side by side or one above the other, and whether the keyboard stays player 1 so a lone controller can be player 2. Co-op is on unless you turn it off."
     ],
     "game": [
       "Fixed the game crashing when an opponent's Pokémon knows Heal Bell or Aromatherapy, such as in Pokémon XD's last battle with Miror B. Colosseum had the same fault, and it's fixed there too.",
@@ -27,7 +28,8 @@
       "Make assets keeps going when one Pokémon's model can't be made, and says which one, instead of stopping there.",
       "Battle Revolution models: shiny Pokémon show their own Battle Revolution colours (184 of Bulbasaur to Deoxys looked like their normal selves), Ninjask's wings no longer vanish as they turn, Flygon, Metagross and 11 others lose the boxes stuck to them, and Makuhita, Vaporeon and Nuzleaf aren't inside out. Make assets offers to make them again.",
       "Fixed being unable to jump down from ledges and crates on the S.S. Libra in XD at 60 fps: the hero walked on the spot at the edge instead.",
-      "Battle Revolution models: Omanyte's eyes and the black of Tentacruel, Kabuto and Beldum are solid again, Gengar's and Jigglypuff's eyes lose their grainy edges as textures stay at full size, Tyranitar's belly stripes are smooth, and about 90 Pokémon get Battle Revolution's shine back, such as Kyogre's gloss, Dialga's metal and Anorith's dark, glossy eyes. Make assets offers to make them all again."
+      "Battle Revolution models: Omanyte's eyes and the black of Tentacruel, Kabuto and Beldum are solid again, Gengar's and Jigglypuff's eyes lose their grainy edges as textures stay at full size, Tyranitar's belly stripes are smooth, and about 90 Pokémon get Battle Revolution's shine back, such as Kyogre's gloss, Dialga's metal and Anorith's dark, glossy eyes. Make assets offers to make them all again.",
+      "Split-screen co-op: in the field, press START on a second controller and player 2 joins as Red, or the hero you choose, with their own controller and camera in their own half of the screen. They come along through every door and back from every battle. Hold START to leave, press Z to come back beside player 1, or X to change hero. Battles, cutscenes and menus fill the whole screen."
     ]
   },
   "releases": [

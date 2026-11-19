@@ -10,7 +10,7 @@ const path = require('node:path');
 const FEATURES = ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdModels', 'hdTextures', 'languagePacks',
   'discordPresence', 'storyParty', 'pcBoxes', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters',
   'shiny', 'shinyStarters', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves', 'tmNames', 'playAs', 'customize',
-  'partnerPass', 'pokeSpots'];
+  'partnerPass', 'pokeSpots', 'coop'];
 
 const GAMES = {
   colosseum: {

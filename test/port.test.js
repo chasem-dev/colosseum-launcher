@@ -256,6 +256,31 @@ test('Walk through Rui is on unless turned off, and is Colosseum only', () => {
   }
 });
 
+test('Split-screen co-op is on unless turned off, with player 2\'s hero, layout and controls, and is Colosseum only', () => {
+  const env = (settings, options) => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port', options);
+  const keys = ['COLO_COOP', 'COLO_COOP_HERO', 'COLO_COOP_SPLIT', 'COLO_COOP_PADS'];
+  const saved = keys.map(key => process.env[key]);
+  for (const key of keys) delete process.env[key];
+  try {
+    const normal = port.normalizeSettings({});
+    assert.equal(normal.coop, true);
+    assert.equal(normal.coopHero, 'auto');
+    assert.equal(normal.coopSplit, 'side');
+    assert.equal(normal.coopPads, 'controllers');
+    assert.equal(port.normalizeSettings({ coopHero: 'mewtwo', coopSplit: 'diagonal', coopPads: 'mouse' }).coopHero, 'auto');
+    assert.equal(env({}).COLO_COOP, '1');
+    assert.equal(env({}).COLO_COOP_HERO, undefined);
+    assert.equal(env({ coop: false }).COLO_COOP, '0');
+    const chosen = env({ coopHero: 'leaf', coopSplit: 'stacked', coopPads: 'keyboard' });
+    assert.equal(chosen.COLO_COOP_HERO, 'leaf');
+    assert.equal(chosen.COLO_COOP_SPLIT, 'stacked');
+    assert.equal(chosen.COLO_COOP_PADS, 'keyboard');
+    for (const key of keys) assert.equal(env({ coopHero: 'leaf', coopSplit: 'stacked', coopPads: 'keyboard' }, { game: 'xd' })[key], undefined, 'XD has no co-op yet');
+  } finally {
+    keys.forEach((key, i) => { if (saved[i] !== undefined) process.env[key] = saved[i]; });
+  }
+});
+
 test('More Poké Spot Pokémon is on unless turned off, and is XD only', () => {
   const env = (settings, options) => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port', options);
   const saved = process.env.COLO_POKESPOT_POOL;
