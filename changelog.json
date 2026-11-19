@@ -16,7 +16,8 @@
       "Fixed custom heroes in XD standing still while pushing crates and jumping down from them on the S.S. Libra: they now move as Michael does, with his timing.",
       "Battle Revolution HD textures: your Battle Revolution models can show Pokémon Battle Revolution's own textures, upscaled for sharper detail, in both games and the Pokédex. It's a one-time download of about 275 MB: turn it on under Gameplay, below Battle Revolution assets.",
       "Fixed the Pokémon tab showing a question mark instead of the sprite and name for Generation 4 Pokémon and Pokémon from packs, such as a Shadow Snover in XD.",
-      "Import from a GBA or DS save: under Import on the Pokémon tab, open a save from Ruby, Sapphire, Emerald, FireRed, LeafGreen, Diamond, Pearl or Platinum (.sav, .srm or .dsv), pick Pokémon from its party and PC boxes, and a copy of each goes into your Colosseum or XD save. That save file isn't changed. A DS save needs Generation 4 Pokémon turned on, and the launcher says which Pokémon can't come and why."
+      "Import from a GBA or DS save: under Import on the Pokémon tab, open a save from Ruby, Sapphire, Emerald, FireRed, LeafGreen, Diamond, Pearl or Platinum (.sav, .srm or .dsv), pick Pokémon from its party and PC boxes, and a copy of each goes into your Colosseum or XD save. That save file isn't changed. A DS save needs Generation 4 Pokémon turned on, and the launcher says which Pokémon can't come and why.",
+      "Fixed setup and update checks showing only \"getaddrinfo ENOTFOUND github.com\" when the computer can't look up the download server: the launcher now says to check the connection, and what can block it (a VPN, firewall, ad blocker or DNS setting)."
     ],
     "game": [
       "Fixed the game crashing when an opponent's Pokémon knows Heal Bell or Aromatherapy, such as in Pokémon XD's last battle with Miror B. Colosseum had the same fault, and it's fixed there too.",

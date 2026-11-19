@@ -3146,6 +3146,11 @@ function applyUpdateChannel() {
   updater.allowDowngrade = channel !== 'stable' || app.getVersion().includes('-');
 }
 
+// Why the update check failed, in words when the update server's name couldn't be looked up.
+function updateFailure(error) {
+  return buildTools.nameLookupFailed(error) ? `${buildTools.nameLookupSummary(error)}. Check your internet connection.` : error.message;
+}
+
 async function checkAppUpdate() {
   if (!updater) return appUpdate;
   try { await updater.checkForUpdates(); }
@@ -3153,7 +3158,7 @@ async function checkAppUpdate() {
     const missing = config.settings.updateChannel !== 'stable' && /\b404\b/.test(error.message);
     appUpdate = { state: 'error', kind: 'auto', message: missing
       ? `${updateChannel.channelLabel(config.settings.updateChannel)} is no longer available. Choose another update channel in Settings.`
-      : `Launcher update check failed: ${error.message}` };
+      : `Launcher update check failed: ${updateFailure(error)}` };
     broadcast('app-update', appUpdate);
     log(appUpdate.message);
   }
@@ -3277,7 +3282,7 @@ function setupAppUpdater() {
   updater.on('error', error => {
     // A download asked for with Update now that failed: the update is still out, ready to try again.
     if (appUpdate.state === 'downloading' && !updater.autoDownload) set('available', `Launcher update download failed: ${error.message}`);
-    else set('error', `Launcher update check failed: ${error.message}`);
+    else set('error', `Launcher update check failed: ${updateFailure(error)}`);
   });
   // Checks run whether or not updates are automatic; with them off, nothing downloads by itself.
   const check = () => { if (!['downloading', 'ready'].includes(appUpdate.state)) checkAppUpdate(); };

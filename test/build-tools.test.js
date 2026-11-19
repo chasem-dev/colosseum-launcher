@@ -605,3 +605,21 @@ test('unpacking without hard links writes each one as a copy of its file', async
     assert.equal(fs.existsSync(path.join(staging, 'other')), false);
   }
 });
+
+test('a server name that cannot be looked up says to check the connection and DNS', () => {
+  const node = Object.assign(new Error('getaddrinfo ENOTFOUND github.com'), { code: 'ENOTFOUND' });
+  const hint = tools.hintedError(node, { dataFolder: 'C:\\Users\\me\\AppData\\Roaming\\colosseum-launcher', platform: 'win32' });
+  assert.equal(hint.buildHint, 'name-lookup');
+  assert.match(hint.message, /^Your computer could not find github\.com on the internet \(getaddrinfo ENOTFOUND github\.com\), so nothing could be downloaded\./);
+  assert.match(hint.message, /1\.1\.1\.1/);
+  // Git's words, in a step's output.
+  const git = Object.assign(new Error('Download port source exited with code 128. See the activity log.'),
+    { output: ["fatal: unable to access 'https://github.com/chasem-dev/x.git/': Could not resolve host: github.com"] });
+  assert.match(tools.nameLookupError(git).message, /could not find github\.com/);
+  // Chromium's, from the update check, which doesn't name the server.
+  assert.ok(tools.nameLookupFailed(new Error('net::ERR_NAME_NOT_RESOLVED')));
+  assert.equal(tools.nameLookupSummary(new Error('net::ERR_NAME_NOT_RESOLVED')), 'your computer could not find the server on the internet');
+  // Other network errors, and one that already says this, are left alone.
+  assert.equal(tools.nameLookupError(new Error('connect ECONNREFUSED 127.0.0.1:443')), null);
+  assert.equal(tools.nameLookupError(hint), null);
+});
