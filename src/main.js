@@ -37,6 +37,7 @@ const steam = require('./steam');
 const crashReports = require('./crash-reports');
 const telemetry = require('./telemetry');
 const online = require('./online');
+const together = require('./together');
 const replays = require('./replays');
 const discord = require('./discord');
 const presence = require('./presence');
@@ -1764,6 +1765,8 @@ async function play(installation = null, battle = null) {
     COLO_SETTINGS_SAVE: gameSettingsFile,
     ...(storyLink ? storyLink.environment() : {}),
     ...(battle ? { COLO_ONLINE: String(battle.port), COLO_SKIP_MOVIES: '1', COLO_NOCARD: '1' } : {}),
+    // online co-op (src/together.js): hosting or joining the story, for this play only
+    ...(!battle && playingTogether ? together.environment(playingTogether, gameBuild().build) : {}),
     ...(config.settings.discordPresence && supports('discordPresence') ? { COLO_PRESENCE: '1' } : {}),
     ...(packsFile ? { COLO_POKEMON_PACKS: packsFile } : {}) };
   // an online battle's players in their colours: the HD images made for them, read before the HD pack's
@@ -2151,6 +2154,18 @@ async function launchGame(update = config.settings.autoUpdate) {
   if (!hdVisualsReady(config.repo, config.settings)) await installTextures();
   await ensurePbrTextures();
   return play();
+}
+
+// Online co-op (src/together.js): the Online page's Host and Join play the installed game hosting or joining
+let playingTogether = null;
+async function playTogether(value) {
+  const request = together.request(value);
+  config.together = together.remembered({ port: request.port, address: request.address ?? config.together?.address });
+  saveConfig();
+  playingTogether = request;
+  log(request.mode === 'host' ? `Hosting the story on port ${request.port}: the other player joins your game at your address.`
+    : `Joining the story at ${request.address}.`);
+  try { return await playInstalled(); } finally { playingTogether = null; }
 }
 
 async function playInstalled() {
@@ -3290,6 +3305,8 @@ function registerHandlers() {
     if (action === 'sync') { await syncLocalTrades(); return view(); }
     throw new Error('No such trade action.');
   });
+  ipcMain.handle('play-together', (_event, value) => exclusive(playLabel(), () => playTogether(value), true));
+  ipcMain.handle('together-state', () => ({ ...together.remembered(config.together), trainer: config.online?.trainer || '' }));
   ipcMain.handle('online-save', (_event, value) => {
     config.online = parties.normalize(value);
     saveConfig();
