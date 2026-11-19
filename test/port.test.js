@@ -256,7 +256,7 @@ test('Walk through Rui is on unless turned off, and is Colosseum only', () => {
   }
 });
 
-test('Split-screen co-op is on unless turned off, with player 2\'s hero, layout and controls, and is Colosseum only', () => {
+test('Split-screen co-op is on unless turned off, with player 2\'s hero, layout and controls, in both games', () => {
   const env = (settings, options) => port.buildEnvironment(port.normalizeSettings(settings), 'disc', '/port', options);
   const keys = ['COLO_COOP', 'COLO_COOP_HERO', 'COLO_COOP_SPLIT', 'COLO_COOP_PADS'];
   const saved = keys.map(key => process.env[key]);
@@ -275,7 +275,11 @@ test('Split-screen co-op is on unless turned off, with player 2\'s hero, layout 
     assert.equal(chosen.COLO_COOP_HERO, 'leaf');
     assert.equal(chosen.COLO_COOP_SPLIT, 'stacked');
     assert.equal(chosen.COLO_COOP_PADS, 'keyboard');
-    for (const key of keys) assert.equal(env({ coopHero: 'leaf', coopSplit: 'stacked', coopPads: 'keyboard' }, { game: 'xd' })[key], undefined, 'XD has no co-op yet');
+    const xd = env({ coopHero: 'michael', coopSplit: 'stacked', coopPads: 'keyboard' }, { game: 'xd' });
+    assert.equal(xd.COLO_COOP, '1');
+    assert.equal(xd.COLO_COOP_HERO, 'michael');
+    assert.equal(xd.COLO_COOP_SPLIT, 'stacked');
+    assert.equal(xd.COLO_COOP_PADS, 'keyboard');
   } finally {
     keys.forEach((key, i) => { if (saved[i] !== undefined) process.env[key] = saved[i]; });
   }

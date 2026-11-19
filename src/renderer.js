@@ -772,6 +772,9 @@ function renderGame(data) {
   renderPokemonText(chosen);
   renderGbaText(chosen);
   for (const node of document.querySelectorAll('[data-feature]')) node.classList.toggle('feature-off', !gameHas(data, node.dataset.feature));
+  // split-screen co-op's player 2: Michael is XD's own hero; Colosseum's game picks another for a save made in XD
+  $('coop-michael').hidden = chosen.id !== 'xd';
+  if (chosen.id !== 'xd' && $('coopHero').value === 'michael') $('coopHero').value = 'auto';
   if (!gameHas(data, 'gbaLink') && settingsTab === 'gba') settingsTab = 'gameplay';
   if (pages[page] && !gameHas(data, { pokedex: 'pokedex', jukebox: 'jukebox', online: 'online', customize: 'customize' }[page] || '')) showPage('play');
 }

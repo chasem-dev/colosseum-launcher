@@ -182,10 +182,11 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     // Colosseum: Wes walks through Rui in the field instead of pushing her back. On unless turned off.
     partnerPass: input.partnerPass !== false,
     // Split-screen co-op: a second controller's START in the field brings in player 2, with their own camera and half of
-    // the screen. On unless turned off. Player 2's hero (auto: Red, or Wes when player 1 plays as another hero), the
+    // the screen. On unless turned off. Player 2's hero (auto: Red, or Wes when player 1 plays as another hero; in XD
+    // Wes, or Michael; Michael is XD's only), the
     // halves side by side or one above the other, and whether the keyboard keeps player 1 so a lone controller is player 2.
     coop: input.coop !== false,
-    coopHero: choiceSetting(input.coopHero, ['auto', 'wes', 'brendan', 'may', 'red', 'leaf'], 'auto'),
+    coopHero: choiceSetting(input.coopHero, ['auto', 'michael', 'wes', 'brendan', 'may', 'red', 'leaf'], 'auto'),
     coopSplit: choiceSetting(input.coopSplit, ['side', 'stacked'], 'side'),
     coopPads: choiceSetting(input.coopPads, ['controllers', 'keyboard'], 'controllers'),
     // XD: a Poké Spot draws from every Pokémon a player could find in the wild, not only its own three. Off unless chosen.
