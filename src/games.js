@@ -10,7 +10,7 @@ const path = require('node:path');
 const FEATURES = ['online', 'generations', 'randomizer', 'widescreen', 'hdText', 'hdModels', 'hdTextures', 'languagePacks',
   'discordPresence', 'storyParty', 'pcBoxes', 'gbaLink', 'quickMoves', 'battleSpeed', 'fastForward', 'skipMovies', 'starters',
   'shiny', 'shinyStarters', 'pokemonPacks', 'pbrAssets', 'pokedex', 'jukebox', 'teamBuilder', 'gciSaves', 'tmNames', 'playAs', 'customize',
-  'partnerPass', 'pokeSpots'];
+  'partnerPass', 'pokeSpots', 'coop'];
 
 const GAMES = {
   colosseum: {
@@ -60,10 +60,10 @@ const GAMES = {
     // Jukebox read XD's own disc (xd-disc.js: its species, models, streamed cries and streamed music). TMs listed by their
     // moves' names are host/tmnames.c's, with XD's own bag and shop calls. Language packs are host/language.c's, XD's own
     // packs in their own folder (language-packs.js): none official yet, fan translations from the extras tool's template.
-    // More Poké Spot Pokémon is XD's own (host/xd/pokespot.c)
+    // More Poké Spot Pokémon is XD's own (host/xd/pokespot.c). Split-screen co-op is host/xd/coop.c
     features: ['online', 'teamBuilder', 'generations', 'widescreen', 'hdText', 'hdTextures', 'fastForward', 'skipMovies', 'gciSaves', 'discordPresence',
       'battleSpeed', 'quickMoves', 'shiny', 'starters', 'pokemonPacks', 'pbrAssets', 'gbaLink', 'randomizer', 'storyParty', 'pokedex', 'jukebox', 'tmNames', 'playAs', 'customize',
-      'languagePacks', 'pokeSpots']
+      'languagePacks', 'pokeSpots', 'coop']
   }
 };
 

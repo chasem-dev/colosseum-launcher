@@ -181,6 +181,14 @@ function normalizeSettings(input = {}, platform = process.platform, arch = gameA
     tmNames: input.tmNames !== false,
     // Colosseum: Wes walks through Rui in the field instead of pushing her back. On unless turned off.
     partnerPass: input.partnerPass !== false,
+    // Split-screen co-op: a second controller's START in the field brings in player 2, with their own camera and half of
+    // the screen. On unless turned off. Player 2's hero (auto: Red, or Wes when player 1 plays as another hero; in XD
+    // Wes, or Michael; Michael is XD's only), the
+    // halves side by side or one above the other, and whether the keyboard keeps player 1 so a lone controller is player 2.
+    coop: input.coop !== false,
+    coopHero: choiceSetting(input.coopHero, ['auto', 'michael', 'wes', 'brendan', 'may', 'red', 'leaf'], 'auto'),
+    coopSplit: choiceSetting(input.coopSplit, ['side', 'stacked'], 'side'),
+    coopPads: choiceSetting(input.coopPads, ['controllers', 'keyboard'], 'controllers'),
     // XD: a Poké Spot draws from every Pokémon a player could find in the wild, not only its own three. Off unless chosen.
     pokeSpotPool: input.pokeSpotPool !== false,
     // A New Game asks who to play as (Wes, or a Game Boy Advance hero Mt. Battle shows) before the name, and the save
@@ -358,6 +366,7 @@ const FEATURE_ENVIRONMENT = {
   tmNames: ['COLO_TM_NAMES'],
   partnerPass: ['COLO_PARTNER_PASS'],
   pokeSpots: ['COLO_POKESPOT_POOL'],
+  coop: ['COLO_COOP', 'COLO_COOP_HERO', 'COLO_COOP_SPLIT', 'COLO_COOP_PADS'],
   playAs: ['COLO_CHOOSE_HERO', 'COLO_PLAYER'],
   battleSpeed: ['COLO_BATTLE_SPEED'],
   quickMoves: ['COLO_QUICK_MOVES', 'COLO_FAST_STATUS', 'SMS_BUTTON_PROMPTS', 'SMS_BUTTON_PROMPT_PAD'],
@@ -421,6 +430,10 @@ function buildEnvironment(settings, disc, root, { customTextures = null, pbrText
   if (settings.partnerPass === false) env.COLO_PARTNER_PASS = '0';
   if (settings.pokeSpotPool === false) env.COLO_POKESPOT_POOL = '0';
   if (settings.chooseHero === false) env.COLO_CHOOSE_HERO = '0';
+  env.COLO_COOP = settings.coop === false ? '0' : '1';
+  if (settings.coopHero && settings.coopHero !== 'auto') env.COLO_COOP_HERO = settings.coopHero;
+  if (settings.coopSplit === 'stacked') env.COLO_COOP_SPLIT = 'stacked';
+  if (settings.coopPads === 'keyboard') env.COLO_COOP_PADS = 'keyboard';
   if (settings.skipBattleAnimations) env.COLO_BATTLE_SPEED = 'skip';
   else if (settings.battleSpeed !== 1) env.COLO_BATTLE_SPEED = String(settings.battleSpeed);
   if (settings.quickMoves) env.COLO_QUICK_MOVES = '1';
