@@ -31,6 +31,8 @@ mods/pokemon/
       pokemon.json
 ```
 
+A Pokémon's folder on its own, put straight into `mods/pokemon/`, works too: it's a pack of just that one Pokémon.
+
 Folder names may use letters, numbers, `-` and `_`. Press **Reload** in the Pokédex after you change a pack: it shows each Pokémon
 it could load, and says what's wrong with any it couldn't. The launcher reads the packs again each time you play.
 
