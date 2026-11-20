@@ -15,6 +15,7 @@ const LATER_SPECIES = [413, 519];             // Colosseum's fourth generation (
 const XD_BONSLY = 413, XD_MUNCHLAX = 414, COLO_BONSLY = 464, COLO_MUNCHLAX = 472;
 const SHADOW_MOVES = { colosseum: [355, 357], xd: [355, 374] };
 const LATER_MOVES = [358, 470];               // Colosseum's numbers (national + 3); XD's are 17 more
+const FAIRY_MOVES = [577, 580, 586, 587, 588, 608, 611];   // the Fairy type's, in Colosseum's numbers too
 const LATER_ITEMS = [0x224, 0x289];           // Colosseum's; XD's are 0x2E more
 const KEY_ITEMS = { colosseum: [0x1f4, 0x223], xd: [0x1f4, 0x251] };
 // the third generation's held items both games have alike (src/crossplay.js, host/crossplay.c ITEMS)
@@ -109,7 +110,9 @@ function problems(p, receiver = {}) {
   const kept = p.moves.filter(m => !m.shadow);
   if (kept.some(m => within(LATER_MOVES, m.id)) && !receiver.laterMoves)
     say('later-move', 'It knows a Generation 4 move the other player\'s game doesn\'t have turned on.');
-  if (kept.some(m => m.id > LATER_MOVES[1] || m.id < 1)) say('move', 'It knows a move the other game doesn\'t have.');
+  // the Fairy type's moves (src/generations.js), which a trade doesn't carry: the other game may not have the type
+  if (kept.some(m => FAIRY_MOVES.includes(m.id))) say('move', 'It knows a Fairy-type move, which trades don\'t carry: make it forget the move first.');
+  else if (kept.some(m => m.id > LATER_MOVES[1] || m.id < 1)) say('move', 'It knows a move the other game doesn\'t have.');
   if (!kept.length) say('no-moves', 'It knows only Shadow moves: teach it another move first.');
   if (p.item < 0) say('key-item', 'It holds an item that can\'t be traded: take it off first.');
   else if (p.item && within(LATER_ITEMS, p.item)) { if (!receiver.laterItems) say('later-item', 'It holds a Generation 4 item the other player\'s game can\'t have: take it off first.'); }

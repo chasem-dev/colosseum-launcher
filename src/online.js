@@ -47,7 +47,9 @@ const formats = require('./formats');
 //    have them: a launcher before 8 would start its game without them.
 // 9: a game that declares its battle version (host/battleversion.h in the game) goes in rooms by it (buildId), so a
 //    launcher before 9 names the very same game by its commits, and the two wouldn't find each other's rooms.
-const PROTOCOL = 9;
+// 10: a room may have the Fairy type (fairy, src/formats.js), whose games then have it: a launcher before 10 would
+//    start its game without it.
+const PROTOCOL = 10;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list

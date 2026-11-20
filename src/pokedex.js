@@ -24,6 +24,8 @@ const ABILITY_MESSAGES = 3100;
 const HEAD = 0x200;
 
 const TYPES = ['Normal', 'Fighting', 'Flying', 'Poison', 'Ground', 'Rock', 'Bug', 'Ghost', 'Steel', '???', 'Fire', 'Water', 'Grass', 'Electric', 'Psychic', 'Ice', 'Dragon', 'Dark'];
+// and the names shown, with the Fairy type's (18), which the game has with the Fairy type setting (src/generations.js)
+const TYPE_NAMES = [...TYPES, 'Fairy'];
 
 // The game's gifts, by species (heroPokemonGet... in the decompilation). Trainers' teams
 // show the rest of what can be had: a Shadow Pokémon can be snagged.
@@ -344,4 +346,4 @@ function create() {
 }
 
 module.exports = { create, readPokedex, discLooks, classify, displayName, messageText, png, relData, readMessages, readDol, dolOffset, spritesOf,
-  SPECIES, TYPES, ABILITY_MESSAGES, GIFTS, BONUS_DISC_GIFTS };
+  SPECIES, TYPES, TYPE_NAMES, ABILITY_MESSAGES, GIFTS, BONUS_DISC_GIFTS };

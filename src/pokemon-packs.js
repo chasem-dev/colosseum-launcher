@@ -692,11 +692,12 @@ function loadPacks(dir, tables, registry) {
 
 // The game's file (host/pokemonpacks.c): chunks of Pokémon (SPEC), new moves (MOVE), battle rules (MECH, host/
 // mechanics.c), the game's own Pokémon as a later generation has them (ROWS, host/evolutions.c) and the game's own
-// Pokémon with models of their own (LOOK, host/packlooks.c). `contents` is { pokemon, moves, rules, ownRows,
-// relearner, looks } (src/generations.js build makes moves and rules, ownRows its ownSpecies, ownModels the looks), or
-// just the Pokémon. `relearner` has the Move Deleter offer to make a Pokémon remember a move too.
+// Pokémon with models of their own (LOOK, host/packlooks.c), and the Fairy type (TYPE, host/types.c). `contents` is
+// { pokemon, moves, rules, ownRows, relearner, looks, types } (src/generations.js build makes moves, rules and types,
+// ownRows its ownSpecies, ownModels the looks), or just the Pokémon. `relearner` has the Move Deleter offer to make a
+// Pokémon remember a move too.
 function compile(contents) {
-  const { pokemon = [], moves = [], rules = null, ownRows: own = [], relearner = false, looks = [] } = Array.isArray(contents) ? { pokemon: contents } : contents;
+  const { pokemon = [], moves = [], rules = null, ownRows: own = [], relearner = false, looks = [], types = null } = Array.isArray(contents) ? { pokemon: contents } : contents;
   const padded = buffer => Buffer.concat([buffer, Buffer.alloc((4 - buffer.length % 4) % 4)]);
   const utf16 = text => { const out = Buffer.alloc(text.length * 2); [...text].forEach((c, i) => out.writeUInt16BE(c.charCodeAt(0), i * 2)); return out; };
   const u32 = value => { const out = Buffer.alloc(4); out.writeUInt32BE(value >>> 0, 0); return out; };
@@ -748,6 +749,17 @@ function compile(contents) {
       parts.push(id, each.evolutions, gap, each.moves);
     }
     chunk('ROWS', parts);
+  }
+  if (types) {
+    // the Fairy type (host/types.c): u8 version 1, u8 the types the game has (19), u16 0, u16 species count, u16 move
+    // count, then each species: u16 species, u8 u8 its two types; then each move: u16 move, u8 its type, u8 0. The game
+    // writes them into its tables as it does the rules' (MECH). A game from before skips the chunk, and has no Fairy type.
+    const head = Buffer.alloc(8), list = Buffer.alloc(types.species.length * 4 + types.moves.length * 4);
+    head[0] = 1; head[1] = types.count; head.writeUInt16BE(types.species.length, 4); head.writeUInt16BE(types.moves.length, 6);
+    types.species.forEach((each, i) => { list.writeUInt16BE(each.id, i * 4); list[i * 4 + 2] = each.types[0]; list[i * 4 + 3] = each.types[1]; });
+    const at = types.species.length * 4;
+    types.moves.forEach((each, i) => { list.writeUInt16BE(each.id, at + i * 4); list[at + i * 4 + 2] = each.type; });
+    chunk('TYPE', [head, list]);
   }
   const crying = pokemon.filter(each => each.cry);
   if (crying.length) {
@@ -863,7 +875,8 @@ function ownModels(tables, modelsDirectory, numbers = OWN_NATIONALS) {
 function generationPokemon(tables, built, { modelsDirectory = null } = {}) {
   const generationsLib = require('./generations');
   // the generation's moves, and its abilities where its rules are on (the game has them then: host/gen4.c)
-  const withMoves = { ...tables, moves: new Map([...tables.moves, ...built.moves.map(move => [key(move.name), move.id])]),
+  const withMoves = { ...tables, ...(built.typeNames ? { types: built.typeNames } : {}),
+    moves: new Map([...tables.moves, ...built.moves.map(move => [key(move.name), move.id])]),
     abilities: new Map([...tables.abilities, ...(built.abilities || []).map(([name, id]) => [key(name), id])]) };
   const target = value => {
     const match = /^generation:(\d+)$/.exec(String(value));
@@ -1109,7 +1122,7 @@ function rowEvolutions(row, start, pokemon, tables, from) {
 
 // What the Pokédex shows of each: as its own entries do (pokedex.js), and where it's from.
 function pokedexEntries(pokemon, tables) {
-  const TYPES = pokedex.TYPES;
+  const TYPES = pokedex.TYPE_NAMES;
   return pokemon.map(each => {
     const row = each.row, types = [TYPES[row[ROW.types]], TYPES[row[ROW.types + 1]]];
     const height = row.readUInt16BE(ROW.height);

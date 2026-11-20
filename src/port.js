@@ -136,7 +136,7 @@ function generationSettings(input) {
   const listed = Array.isArray(input.generationPokemon) ? input.generationPokemon : [];
   const switched = generations.available().map(each => each.generation).filter(n => input[`generation${n}Pokemon`] !== undefined);
   const chosen = switched.length ? switched.filter(n => Boolean(input[`generation${n}Pokemon`])) : listed;
-  const settings = generations.normalize({ battleRules: input.battleRules, generationPokemon: chosen });
+  const settings = generations.normalize({ battleRules: input.battleRules, generationPokemon: chosen, fairyType: input.fairyType });
   for (const { generation } of generations.available()) settings[`generation${generation}Pokemon`] = settings.generationPokemon.includes(generation);
   return settings;
 }

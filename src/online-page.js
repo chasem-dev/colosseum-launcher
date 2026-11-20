@@ -205,8 +205,8 @@
   // --- Formats: a room's format, and a host's changes to it. A game from before timers plays without them, as the
   // main process makes its room.
   const chosenRules = () => setup.format === 'casual'
-    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size, turnTime: setup.turnTime, battleTime: setup.battleTime, battleRules: setup.battleRules })
-    : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format, battleRules: setup.battleRules });
+    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size, turnTime: setup.turnTime, battleTime: setup.battleTime, battleRules: setup.battleRules, fairy: setup.fairy === true })
+    : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format, battleRules: setup.battleRules, fairy: setup.fairy === true });
   const currentRules = () => state.timersSupported ? chosenRules() : F.withoutTimers(chosenRules());
 
   // A change to the chosen format: what differs from its own settings is kept.
@@ -722,6 +722,10 @@
     $('online-level').value = String(setup.level);
     $('online-size').value = String(setup.size);
     $('online-rules').value = String(setup.battleRules || 3);
+    // the Fairy type, once the game has it (host/types.c)
+    $('online-fairy').value = setup.fairy && state.fairySupported ? '1' : '0';
+    $('online-fairy').disabled = !state.fairySupported;
+    $('online-fairy').title = state.fairySupported ? '' : 'Update the game from the Play page to battle with the Fairy type.';
     $('online-listed').checked = setup.listed;
     // rooms for both games, when this game can play them, and Platinum's rules there once both games' sets have them
     $('online-crossplay-row').hidden = !state.crossBuild;
@@ -757,6 +761,7 @@
   for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number], ['online-rules', 'battleRules', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
+  $('online-fairy').addEventListener('change', event => { setup.fairy = event.target.value === '1'; save(); });
   $('online-crossplay').addEventListener('change', event => { setup.crossplay = event.target.checked; setup.crossplayChosen = true; save(); });
   for (const [id, key] of TIMER_FIELDS) $(id).addEventListener('change', event => changeTimer(key, Number(event.target.value)));
   $('online-format').addEventListener('change', event => { setup.format = event.target.value; customOpen = false; save(); });

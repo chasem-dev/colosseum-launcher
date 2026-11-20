@@ -1,0 +1,12 @@
+{
+  "about": "How the game plays the Fairy type setting's new moves (fairy.json), which it doesn't have. Written by hand. A new move plays as a move the game has (`as`): its animation and battle messages, and its effect, unless `effectAs` names the move whose effect it plays instead, or `effect` is one of the port's (host/gen4.c's EFFECT_*). The move's own type, power, accuracy, PP, priority, targets, effect chance and flags are fairy.json's. `exact` says whether the effect is the move's own. `name` is the name the game shows, where the move's own is longer than its twelve letters (as the third generation's games ran a long name together).",
+  "moves": {
+    "Fairy Wind": { "as": "Gust", "effectAs": "Tackle", "exact": true },
+    "Disarming Voice": { "name": "DISARM VOICE", "as": "Hyper Voice", "effectAs": "Swift", "exact": true },
+    "Draining Kiss": { "name": "DRAININGKISS", "as": "Sweet Kiss", "effect": 261, "exact": true, "note": "Gives back three quarters of the damage (host/gen4.c)." },
+    "Play Rough": { "as": "Slam", "effectAs": "Aurora Beam", "exact": true },
+    "Moonblast": { "as": "Mist Ball", "exact": true },
+    "Dazzling Gleam": { "name": "DAZZLINGLEAM", "as": "Swift", "effectAs": "Tackle", "exact": true },
+    "Baby-Doll Eyes": { "name": "BABYDOLLEYES", "as": "Charm", "effectAs": "Growl", "exact": true }
+  }
+}
