@@ -162,6 +162,13 @@ const DISK_FULL = /\bENOSPC\b|No space left on device|There is not enough space 
 //   error: cannot fork() for remote-https: Resource temporarily unavailable
 const FORK_FAILED = /child_copy: .*copy failed|\bWin32 error 299\b|cannot fork\(\)|\bfork: (?:retry: )?Resource temporarily unavailable|died waiting for dll loading|address space needed by .+ is already occupied/i;
 
+// The computer couldn't turn a server's name into an address (DNS), as Node,
+// Chromium (the launcher's own update check) and Git or curl say it:
+//   getaddrinfo ENOTFOUND github.com
+//   net::ERR_NAME_NOT_RESOLVED
+//   fatal: unable to access 'https://github.com/…': Could not resolve host: github.com
+const NAME_LOOKUP_FAILED = /\bgetaddrinfo (?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|EAI_NONAME)\b|\bERR_NAME_NOT_RESOLVED\b|Could not resolve host|Temporary failure in name resolution|No such host is known/i;
+
 // The error's message and the output of the step that failed (launch()'s
 // error.output), or the output lines themselves.
 function errorLines(error) {
@@ -248,10 +255,37 @@ function outOfSpaceError(error, { dataFolder, gameFolder, platform = process.pla
     'Free up space removes old game versions the launcher no longer uses.'), { buildHint: 'disk-full' });
 }
 
+// The server a failed name lookup was for ("github.com"), or ''.
+function lookedUpHost(error) {
+  const line = saidLine(NAME_LOOKUP_FAILED, error) || '';
+  return (line.match(/\bgetaddrinfo \w+ ([\w.-]+)/) || line.match(/Could not resolve host:? '?([\w.-]+)/i) || [])[1] || '';
+}
+
+function nameLookupFailed(error) {
+  return Boolean(['ENOTFOUND', 'EAI_AGAIN'].includes(error?.code) || saidLine(NAME_LOOKUP_FAILED, error));
+}
+
+// The words for a name lookup that failed, for the update check's one line too.
+function nameLookupSummary(error) {
+  return `your computer could not find ${lookedUpHost(error) || 'the server'} on the internet`;
+}
+
+// The error to show for a download whose server's name couldn't be looked up, or null.
+function nameLookupError(error) {
+  if (error?.buildHint || !nameLookupFailed(error)) return null;
+  const why = saidLine(NAME_LOOKUP_FAILED, error) || error.code;
+  const summary = nameLookupSummary(error);
+  return Object.assign(new Error(`${summary[0].toUpperCase()}${summary.slice(1)} (${why}), so nothing could be ` +
+    'downloaded. Check that you are online, then try again. If websites open in your browser, something on this ' +
+    'computer is blocking the name: a VPN or proxy, a firewall or antivirus, an ad blocker, or an entry in the ' +
+    'hosts file. Turn those off, or set your DNS server to 1.1.1.1 or 8.8.8.8 in your network settings, and try again.'),
+  { buildHint: 'name-lookup' });
+}
+
 // A clearer error for a failed step whose cause the player can fix, or null.
 function hintedError(error, { dataFolder, gameFolder, platform = process.platform } = {}) {
   return outOfSpaceError(error, { dataFolder, gameFolder, platform }) || forkFailedError(error, platform) ||
-    dllInitFailedError(error, platform);
+    dllInitFailedError(error, platform) || nameLookupError(error);
 }
 
 function commandWorks(command, args = [], env = process.env) {
@@ -695,5 +729,5 @@ async function pruneToolsets(userData, keep = [], { platform = process.platform,
 }
 
 module.exports = { TOOLSET, toolsetFor, platformId, rootFor, legacyRootFor, privateReady, missingTools, deletedToolsError, blockedToolError,
-  outOfSpace, forkFailed, outOfSpaceError, forkFailedError, dllInitFailed, dllInitFailedError, hintedError, status, environment, environmentAtRoot, check,
+  outOfSpace, forkFailed, outOfSpaceError, forkFailedError, dllInitFailed, dllInitFailedError, nameLookupFailed, nameLookupSummary, nameLookupError, hintedError, status, environment, environmentAtRoot, check,
   fetchVerified, hashFile, assetFor, prepare, pruneToolsets, unpackNative, nativeUnpackArgs, renameRetrying, hardLinksWork, unpackScript };
