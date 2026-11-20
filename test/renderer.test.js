@@ -82,7 +82,7 @@ async function renderer(data = state(), copyError = null, notes = { releases: []
   };
   const context = vm.createContext({ console, setInterval() {}, clearInterval() {}, requestAnimationFrame: callback => setImmediate(callback),
     cancelAnimationFrame() {}, navigator: { getGamepads: () => [] }, ColoBindings: require('../src/bindings'), ColoPresets: require('../src/presets'),
-    window: { colo, ColoPlayStage: require('../src/play-stage'), coloActivityLog: require('../src/activity-log'), coloChangelogText: require('../src/changelog-text'), coloUpdateStatus: require('../src/update-status'), coloGamepadNav: { start: options => Object.assign(gamepad, options) },
+    window: { colo, ColoPlayStage: require('../src/play-stage'), coloActivityLog: require('../src/activity-log'), coloMechanics: require('../src/mechanics'), coloChangelogText: require('../src/changelog-text'), coloUpdateStatus: require('../src/update-status'), coloGamepadNav: { start: options => Object.assign(gamepad, options) },
       addEventListener(event, callback) { (listeners.window ||= {})[event] = [...(listeners.window[event] || []), callback]; }, removeEventListener() {}, ...extra }, document: {
     getElementById(id) { assert.ok(elements.has(id), `Missing HTML element ${id}`); return elements.get(id); },
     querySelectorAll(selector) {

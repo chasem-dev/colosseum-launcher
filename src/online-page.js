@@ -122,8 +122,14 @@
       const summary = partySummary(party);
       card.append(name, edit, team, Object.assign(document.createElement('small'), { className: summary.warn ? '' : 'party-summary', textContent: summary.text }));
       if (missing) return card;
-      // a Generation 4 party battles under Platinum's rules, so choosing one chooses them for the room too
-      const choose = () => { setup.selected = party.id; if (party.generation >= 4) setup.battleRules = 4; save(); };
+      // a Generation 4 party battles under Platinum's rules or X and Y's, a Generation 6 party X and Y's: choosing one
+      // chooses them for the room too
+      const choose = () => {
+        setup.selected = party.id;
+        const rules = party.generation >= 6 ? 6 : party.generation >= 4 && setup.battleRules < 4 ? 4 : setup.battleRules;
+        if (rules !== setup.battleRules) changeBattleRules(rules);
+        save();
+      };
       card.addEventListener('click', choose);
       card.addEventListener('keydown', event => { if (event.target === card && (event.key === ' ' || event.key === 'Enter')) { event.preventDefault(); choose(); } });
       return card;
@@ -142,7 +148,7 @@
 
   // A new party is of the generation whose rules the Online page has chosen (the Story party's copy is the third's).
   function openEditor(party, from = null, name = null) {
-    const generation = party?.generation || (from ? 3 : setup.battleRules >= 4 ? 4 : 3);
+    const generation = party?.generation || (from ? 3 : setup.battleRules >= 6 ? 6 : setup.battleRules >= 4 ? 4 : 3);
     builder().open(party, { name: name || `Party ${setup.parties.length + 1}`, level: setup.level, battleRules: setup.battleRules, generation, from, done: keepParty,
       remove: () => { setup.parties = setup.parties.filter(item => item.id !== party.id); save(); } });
   }
@@ -197,7 +203,8 @@
   // Why the chosen party can't play by these rules: [text]. A Generation 4 party battles only under Platinum's.
   function partyProblems(rules) {
     const own = setup.selected === STORY ? null : setup.parties.find(item => item.id === setup.selected);
-    if (own?.generation >= 4 && rules.battleRules !== 4) return [`${own.name} is a Generation 4 party, which battles only under Pokémon Platinum's battle rules.`];
+    if (own?.generation >= 6 && rules.battleRules < 6) return [`${own.name} is a Generation 6 party, which battles only under X and Y's battle rules.`];
+    if (own?.generation >= 4 && rules.battleRules < 4) return [`${own.name} is a Generation 4 party, which battles only under Pokémon Platinum's or X and Y's battle rules.`];
     const { party, members } = chosenParty();
     return F.problems(rules, party, members, names());
   }
@@ -205,9 +212,51 @@
   // --- Formats: a room's format, and a host's changes to it. A game from before timers plays without them, as the
   // main process makes its room.
   const chosenRules = () => setup.format === 'casual'
-    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size, turnTime: setup.turnTime, battleTime: setup.battleTime, battleRules: setup.battleRules, fairy: setup.fairy === true })
-    : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format, battleRules: setup.battleRules, fairy: setup.fairy === true });
+    ? F.normalize({ format: 'casual', level: setup.level, size: setup.size, turnTime: setup.turnTime, battleTime: setup.battleTime, battleRules: setup.battleRules, fairy: setup.fairy === true, mechanics: setup.mechanics })
+    : F.normalize({ ...(setup.custom[setup.format] || {}), format: setup.format, battleRules: setup.battleRules, fairy: setup.fairy === true, mechanics: setup.mechanics });
   const currentRules = () => state.timersSupported ? chosenRules() : F.withoutTimers(chosenRules());
+
+  // New battle rules: their own mechanics (none changed), and Gen 6 types as X and Y's have them (on with them, off
+  // leaving them)
+  function changeBattleRules(rules) {
+    const before = setup.battleRules || 3;
+    setup.battleRules = rules;
+    setup.mechanics = {};
+    if (rules >= 6 && before < 6) setup.fairy = Boolean(state.fairySupported);
+    else if (rules < 6 && before >= 6) setup.fairy = false;
+  }
+
+  // The room's mechanics (src/mechanics.js), but Gen 6 types (their own field): each on as its rules have it with the
+  // host's changes on top. A mechanic of the generation 4 engine needs Platinum's or X and Y's rules.
+  function renderMechanics(rules) {
+    const M = window.coloMechanics, chosen = new Set(F.chosenMechanics(rules));
+    const panel = $('online-mechanics');
+    panel.hidden = !state.mechanicsSupported;
+    const rows = M.MECHANICS.filter(each => each.id !== 'gen6Types').map(each => {
+      const label = document.createElement('label'), input = document.createElement('input'), text = document.createElement('span');
+      const note = document.createElement('small');
+      input.type = 'checkbox';
+      input.dataset.mechanic = each.id;
+      input.checked = chosen.has(each.id);
+      input.disabled = (each.engine && rules.battleRules < 4) || Boolean(state.ready) || Boolean(state.battle);
+      input.addEventListener('change', changeMechanics);
+      note.textContent = each.note;
+      text.append(document.createTextNode(`${each.name} (Gen ${each.generation})`), note);
+      label.append(input, text);
+      return label;
+    });
+    $('online-mechanics-list').replaceChildren(...rows);
+    const changed = Object.keys(rules.mechanics || {}).length;
+    $('online-mechanics-changed').textContent = changed ? `${changed} changed from the rules` : 'As the rules have them';
+  }
+  function changeMechanics() {
+    const M = window.coloMechanics, rules = setup.battleRules || 3;
+    const chosen = [...$('online-mechanics-list').querySelectorAll('input[data-mechanic]')].filter(input => input.checked).map(input => input.dataset.mechanic);
+    const changes = M.changesFrom(rules, chosen);
+    delete changes.gen6Types;
+    setup.mechanics = changes;
+    save();
+  }
 
   // A change to the chosen format: what differs from its own settings is kept.
   function changeRule(key, value) {
@@ -734,6 +783,11 @@
     $('online-rules').querySelector('option[value="3"]').textContent = `${state.game || 'Colosseum'}'s`;
     $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported
       || Boolean(setup.crossplay && state.crossBuild && !state.crossPlatinumSupported);
+    // X and Y's rules, once the game has generation 6's mechanics (host/mechanics.h), and in a room for both games
+    // once both games' sets have the fourth generation's
+    $('online-rules').querySelector('option[value="6"]').disabled = !state.mechanicsSupported
+      || Boolean(setup.crossplay && state.crossBuild && !state.crossPlatinumSupported);
+    renderMechanics(currentRules());
     renderParties();
     renderFormat();
     renderBanner();
@@ -758,8 +812,9 @@
   }
 
   $('party-new').addEventListener('click', () => openEditor(null));
-  for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number], ['online-rules', 'battleRules', Number]])
+  for (const [id, key, value] of [['online-level', 'level', Number], ['online-size', 'size', Number]])
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
+  $('online-rules').addEventListener('change', event => { changeBattleRules(Number(event.target.value)); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
   $('online-fairy').addEventListener('change', event => { setup.fairy = event.target.value === '1'; save(); });
   $('online-crossplay').addEventListener('change', event => { setup.crossplay = event.target.checked; setup.crossplayChosen = true; save(); });

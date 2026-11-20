@@ -60,7 +60,7 @@ test('the shared held items are the third generation\'s holdable ones (src/forma
   const rules = { format: 'hoenn' };
   for (let item = 1; item < 0x300; item++) {
     const formatsHolds = !formats.problems(rules, [143], [wire(143, { item })]).some(problem => /can't hold|isn't in|generation/.test(problem));
-    if (item === 175 || (item >= 0x224 && item <= 0x289)) continue;   // a later generation's, which formats.js refuses under Colosseum's rules otherwise
+    if (item === 175 || (item >= 0x224 && item <= 0x289) || formats.gen6Item(item)) continue;   // a later generation's, which formats.js refuses under Colosseum's rules otherwise
     assert.equal(crossplay.isItem(item), formatsHolds, `item ${item}`);
   }
   assert.equal(crossplay.isItem(175), false);

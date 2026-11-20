@@ -778,7 +778,7 @@ function renderGame(data) {
 
 // Later generations, as each game has them: Colosseum's own, with packs and Battle Revolution assets; another game's are
 // made from Colosseum's disc (main.js prepareGenerations), and its Pokémon look as the ones standing in for them.
-const GENERATION_RULES = 'Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types\' Sp. Def; and moves Diamond and Pearl changed play as they did there.';
+const GENERATION_RULES = 'Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types\' Sp. Def; and moves Diamond and Pearl changed play as they did there. Generation 6: X and Y\'s damage, critical hits, status and move, ability and item changes, its types, base stats, level-up moves and hidden abilities, each listed under Mechanics.';
 function renderGenerationsText(data, chosen) {
   // Colosseum's own (with the Pokédex and the randomizer), or another game's, made from Colosseum's disc
   const own = chosen.id === 'colosseum';
@@ -1100,6 +1100,7 @@ function refresh(data) {
   for (const key of SELECTS) $(key).value = String(config.settings[key]);
   renderRanges();
   for (const key of SWITCHES) $(key).checked = config.settings[key];
+  renderMechanics(config.settings);
   $('graphicsPreset').value = config.settings.graphicsPreset || 'custom';
   renderPreset();
   renderCrashReports(data.crashReports);
@@ -1436,6 +1437,43 @@ function renderDependents(busy = false) {
   }[$('textureLoading').value];
 }
 
+// Settings → Later generations → Mechanics (src/mechanics.js): a switch for each mechanic but Gen 6 types (their own
+// switch above), on as the chosen battle rules' preset has it with the player's changes on top. A mechanic the
+// generation 4 engine plays needs Platinum's or X and Y's rules. Changing the rules starts again from their preset.
+const MECHANICS = window.coloMechanics;
+const GENERATION_NAMES = { 4: 'Gen 4', 5: 'Gen 5', 6: 'Gen 6' };
+function renderMechanics(settings) {
+  const rules = Number(settings.battleRules) || 3, chosen = new Set(settings.mechanics || []);
+  const rows = MECHANICS.MECHANICS.filter(each => each.id !== 'gen6Types').map(each => {
+    const label = document.createElement('label'), span = document.createElement('span'), strong = document.createElement('strong');
+    const small = document.createElement('small'), input = document.createElement('input'), mark = document.createElement('i');
+    label.className = 'switch';
+    strong.textContent = each.name;
+    const needs = each.engine && rules < 4;
+    small.textContent = `${GENERATION_NAMES[each.generation] || `Gen ${each.generation}`}. ${each.note}${needs ? ' It needs Diamond and Pearl or X and Y battle rules.' : ''}`;
+    input.type = 'checkbox';
+    input.dataset.mechanic = each.id;
+    input.checked = chosen.has(each.id);
+    input.disabled = needs || Boolean(current?.active);
+    input.addEventListener('change', saveSettings);
+    span.append(strong, small);
+    label.append(span, input, mark);
+    return label;
+  });
+  $('mechanics-list').replaceChildren(...rows);
+  const changed = Object.keys(settings.mechanicChanges || {}).filter(id => id !== 'gen6Types').length;
+  $('mechanics-changed').textContent = changed ? `${changed} changed from the battle rules` : '';
+}
+// The mechanics as the page has them, for the settings: { mechanicChanges, fairyType }
+function mechanicsValue(rules) {
+  const before = Number(current?.config?.settings?.battleRules) || 3;
+  // new rules: their preset, with Gen 6 types as they come with them (or as they were, leaving rules of neither)
+  if (rules !== before) return { mechanicChanges: {}, fairyType: rules >= 6 || (before < 6 && $('fairyType').checked) };
+  const chosen = [...document.querySelectorAll('#mechanics-list input[data-mechanic]')].filter(input => input.checked).map(input => input.dataset.mechanic);
+  if ($('fairyType').checked) chosen.push('gen6Types');
+  return { mechanicChanges: MECHANICS.changesFrom(rules, chosen), fairyType: $('fairyType').checked };
+}
+
 function settingsValue() {
   const value = { keyBindings, padBindings, stickDeadzone: Number($('stickDeadzone').value),
     triggerClick: Number($('triggerClick').value), rumbleStrength: Number($('rumbleStrength').value), gbaVolume: Number($('gbaVolume').value),
@@ -1443,6 +1481,7 @@ function settingsValue() {
     graphicsPreset: $('graphicsPreset').value };
   for (const key of SELECTS) value[key] = $(key).value;
   for (const key of SWITCHES) value[key] = $(key).checked;
+  Object.assign(value, mechanicsValue(Number(value.battleRules) || 3));
   return value;
 }
 

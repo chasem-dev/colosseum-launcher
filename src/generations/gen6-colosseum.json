@@ -1,0 +1,45 @@
+{
+  "about": "How the game plays generation 6's moves: as generation 4's file says (inherits), with the Fairy type's moves as fairy-colosseum.json has them. Generation 6's changes to what moves, abilities and items do are mechanics the port plays (src/mechanics.js), not stand-ins.",
+  "inherits": 4,
+  "moves": {
+    "Fairy Wind": {
+      "as": "Gust",
+      "effectAs": "Tackle",
+      "exact": true
+    },
+    "Disarming Voice": {
+      "name": "DISARM VOICE",
+      "as": "Hyper Voice",
+      "effectAs": "Swift",
+      "exact": true
+    },
+    "Draining Kiss": {
+      "name": "DRAININGKISS",
+      "as": "Sweet Kiss",
+      "effect": 261,
+      "exact": true,
+      "note": "Gives back three quarters of the damage (host/gen4.c)."
+    },
+    "Play Rough": {
+      "as": "Slam",
+      "effectAs": "Aurora Beam",
+      "exact": true
+    },
+    "Moonblast": {
+      "as": "Mist Ball",
+      "exact": true
+    },
+    "Dazzling Gleam": {
+      "name": "DAZZLINGLEAM",
+      "as": "Swift",
+      "effectAs": "Tackle",
+      "exact": true
+    },
+    "Baby-Doll Eyes": {
+      "name": "BABYDOLLEYES",
+      "as": "Charm",
+      "effectAs": "Growl",
+      "exact": true
+    }
+  }
+}

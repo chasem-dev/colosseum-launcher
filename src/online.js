@@ -49,7 +49,10 @@ const formats = require('./formats');
 //    launcher before 9 names the very same game by its commits, and the two wouldn't find each other's rooms.
 // 10: a room may have the Fairy type (fairy, src/formats.js), whose games then have it: a launcher before 10 would
 //    start its game without it.
-const PROTOCOL = 10;
+// 11: a room may play by X and Y's battle rules (battleRules 6) and turn mechanics on or off (mechanics, src/formats.js
+//    and src/mechanics.js), a party may be of generation 6 (hidden abilities, its held items): a launcher before 11
+//    would start its game by other rules.
+const PROTOCOL = 11;
 const STAGES = 6;              // the game's stadiums a room can use
 const PING_EVERY = 30000;      // ms between WebSocket keepalives
 const STATUS_EVERY = 30000;    // ms between a host's refreshes of its row on the room list

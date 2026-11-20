@@ -1,7 +1,7 @@
 'use strict';
 
-// Makes src/gen3-learnsets.js and src/gen4-learnsets.js: the moves each Pokémon could know in the third generation, and
-// in the fourth, which the competitive online formats check a party against (src/formats.js, "Only legal Pokémon"). It
+// Makes src/gen3-learnsets.js, src/gen4-learnsets.js and src/gen6-learnsets.js: the moves each Pokémon could know in the
+// third generation, in the fourth, and in the sixth (X and Y's rules: its own, and the fourth's brought over), which the competitive online formats check a party against (src/formats.js, "Only legal Pokémon"). It
 // is what the team builder offers (src/battle-data.js):
 //   - the third: the disc's own moves, then generations/gen3-learnsets.json (Pokémon Showdown's, made by learnsets.js
 //     here: level-up, TM and HM, move tutor, egg and event moves of Ruby, Sapphire, Emerald, FireRed, LeafGreen,
@@ -25,7 +25,9 @@ const { readBattleData } = require('../../src/battle-data');
 // Each generation's last move by the game's number: Psycho Boost (the game's Shadow moves come after), and Shadow Force.
 const FILES = {
   3: { lastMove: 354, least: 386, global: 'coloGen3Learnsets', words: 'third' },
-  4: { lastMove: 470, least: 493, global: 'coloGen4Learnsets', words: 'fourth' }
+  4: { lastMove: 470, least: 493, global: 'coloGen4Learnsets', words: 'fourth' },
+  // generation 6's (X and Y's rules): the fourth's moves and the Fairy type's (Baby-Doll Eyes, the last, is 611)
+  6: { lastMove: 611, least: 493, global: 'coloGen6Learnsets', words: 'sixth' }
 };
 
 function file(generation, species) {
@@ -36,8 +38,11 @@ function file(generation, species) {
     const learned = [...new Set(entry.learnset.map(([move]) => move).filter(move => move >= 1 && move <= lastMove))].sort((a, b) => a - b);
     lines.push(`    ${id}: '${learned.map(move => move.toString(36).padStart(2, '0')).join('')}',`);
   }
+  // the Pokémon with a hidden ability the game plays (generation 6's; an online member's ability 2)
+  const hidden = Object.entries(species).filter(([, entry]) => entry.hidden).map(([id]) => Number(id)).sort((a, b) => a - b);
   if (lines.length < least) throw new Error(`The disc gave ${lines.length} Pokémon with moves in generation ${generation}: it should be at least ${least}.`);
-  const from = generation === 3 ? 'the disc\'s\n// moves and generations/gen3-learnsets.json' : 'generations/gen4.json,\n// gen4-learnsets.json and gen3-learnsets.json';
+  const from = generation === 3 ? 'the disc\'s\n// moves and generations/gen3-learnsets.json' : generation === 6 ? 'generations/gen6.json,\n// gen6-learnsets.json, gen4-learnsets.json and gen3-learnsets.json'
+    : 'generations/gen4.json,\n// gen4-learnsets.json and gen3-learnsets.json';
   return `'use strict';
 
 // Made by scripts/generation-data/learnset-files.js from what the team builder offers (src/battle-data.js: ${from}, Pokémon Showdown's data, @pkmn/dex, MIT): change those, and make this
@@ -47,7 +52,9 @@ function file(generation, species) {
   const LEARNSETS = {
 ${lines.join('\n')}
   };
-  const LAST_MOVE = ${lastMove};
+  const LAST_MOVE = ${lastMove};${hidden.length ? `
+  // The Pokémon with a hidden ability the game has, which a member's ability 2 is
+  const HIDDEN = new Set([${hidden.join(', ')}]);` : ''}
   const sets = new Map();
   function movesOf(species) {
     if (!sets.has(species)) {
@@ -61,7 +68,7 @@ ${lines.join('\n')}
   function learns(species, move) {
     return Number.isInteger(move) && move >= 1 && move <= LAST_MOVE && movesOf(species).has(move);
   }
-  const api = { learns, has: species => Object.prototype.hasOwnProperty.call(LEARNSETS, species) };
+  const api = { learns, has: species => Object.prototype.hasOwnProperty.call(LEARNSETS, species)${hidden.length ? ', hasHidden: species => HIDDEN.has(species)' : ''} };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.${global} = api;
 })(typeof self !== 'undefined' ? self : this);
@@ -72,7 +79,7 @@ function main() {
   const [rom] = process.argv.slice(2);
   if (!rom) throw new Error('usage: node learnset-files.js PATH-TO-DISC.iso');
   const data = readBattleData(rom);
-  for (const [generation, species] of [[3, data.species], [4, data.generations[4].species]]) {
+  for (const [generation, species] of [[3, data.species], [4, data.generations[4].species], [6, data.generations[6].species]]) {
     const out = path.join(__dirname, '..', '..', 'src', `gen${generation}-learnsets.js`);
     fs.writeFileSync(out, file(generation, species));
     console.log(`${out}: ${(fs.statSync(out).size / 1024).toFixed(0)} KB`);

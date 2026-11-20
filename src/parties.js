@@ -23,7 +23,9 @@ const STORY = 'story';
 // The game numbers its species up to 411, with a gap between the second generation and the third.
 const { validSpecies } = teamSets;
 // The battle rules a party of each generation plays under: either for the third's, Platinum's for the fourth's.
-const rulesFor = generation => generation >= 4 ? [4] : formats.BATTLE_RULES;
+// The battle rules a party of each generation battles by: the third's any; the fourth's Platinum's or X and Y's (which
+// have its Pokémon and moves); the sixth's X and Y's only
+const rulesFor = generation => generation >= 6 ? [6] : generation >= 4 ? [4, 6] : formats.BATTLE_RULES;
 
 const cleanName = (value, length) => (typeof value === 'string' ? value : '').replace(/\s+/g, ' ').trim().slice(0, length);
 
@@ -65,10 +67,12 @@ function normalize(input) {
     // only a choice made on the Online page (crossplayChosen) keeps it off.
     crossplay: input?.crossplayChosen === true ? input.crossplay !== false : true,
     crossplayChosen: input?.crossplayChosen === true,
-    // whose battle rules the room plays by: Colosseum's (3) or Pokémon Platinum's (4), with any format
+    // whose battle rules the room plays by: Colosseum's (3), Pokémon Platinum's (4) or X and Y's (6), with any format
     battleRules: formats.BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : formats.BATTLE_RULES[0],
-    // whether the room has the Fairy type (src/generations.js), under either battle rules
+    // whether the room has the Fairy type (src/generations.js), under any battle rules
     fairy: input?.fairy === true,
+    // the mechanics the room turns on or off on top of its battle rules' (src/mechanics.js), as formats.js keeps them
+    mechanics: formats.normalize({ battleRules: formats.BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : 3, mechanics: input?.mechanics }).mechanics || {},
     // the room's format (src/formats.js), its changes for each format the player has changed, and how many games
     format: formats.FORMAT_IDS.includes(input?.format) ? input.format : 'casual',
     custom: cleanCustom(input?.custom),
@@ -94,11 +98,11 @@ function cleanCustom(input) {
 // The rules of a room the player makes: Casual's level, size and timers, or a format with their changes to it.
 // Either plays by the battle rules the player chose.
 function roomRules(online) {
-  const battleRules = online.battleRules, fairy = online.fairy === true;
+  const battleRules = online.battleRules, fairy = online.fairy === true, mechanics = online.mechanics || {};
   if (online.format === 'casual') {
-    return formats.normalize({ format: 'casual', level: online.level, size: online.size, turnTime: online.turnTime, battleTime: online.battleTime, battleRules, fairy });
+    return formats.normalize({ format: 'casual', level: online.level, size: online.size, turnTime: online.turnTime, battleTime: online.battleTime, battleRules, fairy, mechanics });
   }
-  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format, battleRules, fairy });
+  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format, battleRules, fairy, mechanics });
 }
 
 // The chosen party of the player's own, when it is ready to battle with (not the Story party).
@@ -107,10 +111,12 @@ function selectedParty(online) {
   return party?.members.length === PARTY_SIZE ? party : null;
 }
 
-// Why a party can't battle under a room's battle rules, or null when it can: a Generation 4 party needs Platinum's.
+// Why a party can't battle under a room's battle rules, or null when it can: a Generation 4 party needs Platinum's or
+// X and Y's, a Generation 6 party X and Y's.
 function rulesProblem(party, battleRules) {
   if (!party || rulesFor(party.generation).includes(battleRules)) return null;
-  return `${party.name} is a Generation 4 party, which battles only under Pokémon Platinum's battle rules.`;
+  return party.generation >= 6 ? `${party.name} is a Generation 6 party, which battles only under X and Y's battle rules.`
+    : `${party.name} is a Generation 4 party, which battles only under Pokémon Platinum's or X and Y's battle rules.`;
 }
 
 module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty, roomRules,

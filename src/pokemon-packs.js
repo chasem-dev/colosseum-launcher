@@ -697,7 +697,7 @@ function loadPacks(dir, tables, registry) {
 // ownRows its ownSpecies, ownModels the looks), or just the Pokémon. `relearner` has the Move Deleter offer to make a
 // Pokémon remember a move too.
 function compile(contents) {
-  const { pokemon = [], moves = [], rules = null, ownRows: own = [], relearner = false, looks = [], types = null } = Array.isArray(contents) ? { pokemon: contents } : contents;
+  const { pokemon = [], moves = [], rules = null, ownRows: own = [], relearner = false, looks = [], types = null, speciesChanges = [] } = Array.isArray(contents) ? { pokemon: contents } : contents;
   const padded = buffer => Buffer.concat([buffer, Buffer.alloc((4 - buffer.length % 4) % 4)]);
   const utf16 = text => { const out = Buffer.alloc(text.length * 2); [...text].forEach((c, i) => out.writeUInt16BE(c.charCodeAt(0), i * 2)); return out; };
   const u32 = value => { const out = Buffer.alloc(4); out.writeUInt32BE(value >>> 0, 0); return out; };
@@ -760,6 +760,19 @@ function compile(contents) {
     const at = types.species.length * 4;
     types.moves.forEach((each, i) => { list.writeUInt16BE(each.id, at + i * 4); list[at + i * 4 + 2] = each.type; });
     chunk('TYPE', [head, list]);
+  }
+  if (speciesChanges.length) {
+    // the game's own Pokémon's base stats and hidden abilities as the mechanics have them (host/species.c): u32 count,
+    // then each: u16 species, u8 flags (1: its stats), u8 its hidden ability (0: none), u16 x 6 its base stats (a row's
+    // order). A game from before skips the chunk.
+    const parts = [u32(speciesChanges.length)];
+    for (const each of speciesChanges) {
+      const entry = Buffer.alloc(16);
+      entry.writeUInt16BE(each.id, 0); entry[2] = each.stats ? 1 : 0; entry[3] = each.hidden || 0;
+      (each.stats || []).forEach((value, i) => entry.writeUInt16BE(value, 4 + i * 2));
+      parts.push(entry);
+    }
+    chunk('SPCH', parts);
   }
   const crying = pokemon.filter(each => each.cry);
   if (crying.length) {
