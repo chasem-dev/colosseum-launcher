@@ -35,7 +35,12 @@
   // the Pokémon to pick from, with their abilities as the generation has them (Magnemite's Sturdy)
   const pickable = () => !later() ? species || []
     : [...(species || []).map(entry => later().species[entry.id] ? { ...entry, abilities: later().species[entry.id].abilities.map(each => each.name) } : entry), ...(later().dex || [])];
-  const movesOf = () => later()?.moves || data?.moves || [];
+  // and with the Fairy type setting on (data.fairy, main.js fairyBattleData), its moves, and the moves it made Fairy types
+  const movesOf = () => {
+    const base = later()?.moves || data?.moves || [], fairy = data?.fairy;
+    if (!fairy) return base;
+    return [...base.map(move => fairy.retyped.includes(move.id) ? { ...move, type: 'Fairy' } : move), ...fairy.moves];
+  };
   // the items to hold: the disc's, and a later generation's own too (Life Orb), which play only under its rules
   const itemsOf = () => later()?.items || data?.items || [];
   const speciesInfo = id => (later() ? later().species[id] : data?.species[id]);
@@ -93,7 +98,7 @@
 
   const speciesName = id => byId.get(id)?.name || `#${id}`;
   const displayName = set => set.nickname || speciesName(set.species);
-  const learnset = id => new Map(speciesInfo(id)?.learnset || []);
+  const learnset = id => new Map([...(speciesInfo(id)?.learnset || []), ...(data?.fairy?.learnsets[id] || [])]);
   // Moves its species can't learn in any game of the party's generation: allowed, as Showdown's custom games allow them, and shown.
   const unlearnable = set => set.moves.filter(move => !learnset(set.species).has(move));
   // Whether the party has a Pokémon, move or held item only a Generation 4 party can have.

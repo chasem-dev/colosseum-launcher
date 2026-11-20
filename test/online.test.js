@@ -34,7 +34,7 @@ test('a game with a battle version is named by it, so games of other commits bat
   // a game from before them keeps its commits
   assert.equal(online.buildId({ commit, decomp }, { battle: null }), online.buildId({ commit, decomp }));
   assert.equal(online.battleOf(online.buildId({ commit, decomp })), null);
-  assert.equal(online.PROTOCOL, 9);
+  assert.equal(online.PROTOCOL, 10);
 });
 
 test('a room for both games is one commit of the port, whichever game and decomp', () => {

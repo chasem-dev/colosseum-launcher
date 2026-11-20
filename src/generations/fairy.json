@@ -1,0 +1,949 @@
+{
+ "about": "What the Fairy type setting brings: the Pokémon and moves of the first four generations whose types generation 6 changed, its Fairy-type attacks (newMoves, as gen4.json has moves: Pokémon Platinum's range and effect names, for the effect each plays) and the levels each Pokémon learns them at (levelUp), and what else teaches them in generation 6 (learnsets). Made by scripts/generation-data/fairy.js; fairy-colosseum.json says how the game plays each new move.",
+ "source": "Pokémon Showdown's data, generation 6 (@pkmn/dex 0.10.15, MIT)",
+ "type": "Fairy",
+ "species": {
+  "35": [
+   "Fairy"
+  ],
+  "36": [
+   "Fairy"
+  ],
+  "39": [
+   "Normal",
+   "Fairy"
+  ],
+  "40": [
+   "Normal",
+   "Fairy"
+  ],
+  "122": [
+   "Psychic",
+   "Fairy"
+  ],
+  "173": [
+   "Fairy"
+  ],
+  "174": [
+   "Normal",
+   "Fairy"
+  ],
+  "175": [
+   "Fairy"
+  ],
+  "176": [
+   "Fairy",
+   "Flying"
+  ],
+  "183": [
+   "Water",
+   "Fairy"
+  ],
+  "184": [
+   "Water",
+   "Fairy"
+  ],
+  "209": [
+   "Fairy"
+  ],
+  "210": [
+   "Fairy"
+  ],
+  "280": [
+   "Psychic",
+   "Fairy"
+  ],
+  "281": [
+   "Psychic",
+   "Fairy"
+  ],
+  "282": [
+   "Psychic",
+   "Fairy"
+  ],
+  "298": [
+   "Normal",
+   "Fairy"
+  ],
+  "303": [
+   "Steel",
+   "Fairy"
+  ],
+  "439": [
+   "Psychic",
+   "Fairy"
+  ],
+  "468": [
+   "Fairy",
+   "Flying"
+  ]
+ },
+ "moves": {
+  "186": "Fairy",
+  "204": "Fairy",
+  "236": "Fairy"
+ },
+ "newMoves": {
+  "574": {
+   "name": "Disarming Voice",
+   "type": "Fairy",
+   "category": "Special",
+   "power": 40,
+   "accuracy": 0,
+   "pp": 15,
+   "priority": 0,
+   "range": "RANGE_ADJACENT_OPPONENTS",
+   "effect": "BATTLE_EFFECT_BYPASS_ACCURACY",
+   "effectChance": 0,
+   "contact": false,
+   "protect": true,
+   "reflectable": false,
+   "snatch": false,
+   "mirror": true,
+   "kingsRock": true,
+   "metronome": true,
+   "mimic": true,
+   "assist": true,
+   "sleepTalk": true,
+   "sound": true,
+   "hm": false,
+   "description": "This move does not check accuracy. Hits foes."
+  },
+  "577": {
+   "name": "Draining Kiss",
+   "type": "Fairy",
+   "category": "Special",
+   "power": 50,
+   "accuracy": 100,
+   "pp": 10,
+   "priority": 0,
+   "range": "RANGE_SINGLE_TARGET",
+   "effect": "RECOVER_THREE_QUARTERS_DAMAGE_DEALT",
+   "effectChance": 0,
+   "drain": [
+    3,
+    4
+   ],
+   "contact": true,
+   "protect": true,
+   "reflectable": false,
+   "snatch": false,
+   "mirror": true,
+   "kingsRock": true,
+   "metronome": true,
+   "mimic": true,
+   "assist": true,
+   "sleepTalk": true,
+   "sound": false,
+   "hm": false,
+   "description": "User recovers 75% of the damage dealt."
+  },
+  "583": {
+   "name": "Play Rough",
+   "type": "Fairy",
+   "category": "Physical",
+   "power": 90,
+   "accuracy": 90,
+   "pp": 10,
+   "priority": 0,
+   "range": "RANGE_SINGLE_TARGET",
+   "effect": "BATTLE_EFFECT_LOWER_ATTACK_HIT",
+   "effectChance": 10,
+   "contact": true,
+   "protect": true,
+   "reflectable": false,
+   "snatch": false,
+   "mirror": true,
+   "kingsRock": true,
+   "metronome": true,
+   "mimic": true,
+   "assist": true,
+   "sleepTalk": true,
+   "sound": false,
+   "hm": false,
+   "description": "10% chance to lower the target's Attack by 1."
+  },
+  "584": {
+   "name": "Fairy Wind",
+   "type": "Fairy",
+   "category": "Special",
+   "power": 40,
+   "accuracy": 100,
+   "pp": 30,
+   "priority": 0,
+   "range": "RANGE_SINGLE_TARGET",
+   "effect": "BATTLE_EFFECT_HIT",
+   "effectChance": 0,
+   "contact": false,
+   "protect": true,
+   "reflectable": false,
+   "snatch": false,
+   "mirror": true,
+   "kingsRock": true,
+   "metronome": true,
+   "mimic": true,
+   "assist": true,
+   "sleepTalk": true,
+   "sound": false,
+   "hm": false,
+   "description": "No additional effect."
+  },
+  "585": {
+   "name": "Moonblast",
+   "type": "Fairy",
+   "category": "Special",
+   "power": 95,
+   "accuracy": 100,
+   "pp": 15,
+   "priority": 0,
+   "range": "RANGE_SINGLE_TARGET",
+   "effect": "BATTLE_EFFECT_LOWER_SP_ATK_HIT",
+   "effectChance": 30,
+   "contact": false,
+   "protect": true,
+   "reflectable": false,
+   "snatch": false,
+   "mirror": true,
+   "kingsRock": true,
+   "metronome": true,
+   "mimic": true,
+   "assist": true,
+   "sleepTalk": true,
+   "sound": false,
+   "hm": false,
+   "description": "30% chance to lower the target's Sp. Atk by 1."
+  },
+  "605": {
+   "name": "Dazzling Gleam",
+   "type": "Fairy",
+   "category": "Special",
+   "power": 80,
+   "accuracy": 100,
+   "pp": 10,
+   "priority": 0,
+   "range": "RANGE_ADJACENT_OPPONENTS",
+   "effect": "BATTLE_EFFECT_HIT",
+   "effectChance": 0,
+   "contact": false,
+   "protect": true,
+   "reflectable": false,
+   "snatch": false,
+   "mirror": true,
+   "kingsRock": true,
+   "metronome": true,
+   "mimic": true,
+   "assist": true,
+   "sleepTalk": true,
+   "sound": false,
+   "hm": false,
+   "description": "No additional effect. Hits adjacent foes."
+  },
+  "608": {
+   "name": "Baby-Doll Eyes",
+   "type": "Fairy",
+   "category": "Status",
+   "power": 0,
+   "accuracy": 100,
+   "pp": 30,
+   "priority": 1,
+   "range": "RANGE_SINGLE_TARGET",
+   "effect": "BATTLE_EFFECT_ATK_DOWN",
+   "effectChance": 0,
+   "contact": false,
+   "protect": true,
+   "reflectable": true,
+   "snatch": false,
+   "mirror": true,
+   "kingsRock": false,
+   "metronome": true,
+   "mimic": true,
+   "assist": true,
+   "sleepTalk": true,
+   "sound": false,
+   "hm": false,
+   "description": "Lowers the target's Attack by 1."
+  }
+ },
+ "levelUp": {
+  "35": [
+   [
+    1,
+    574
+   ],
+   [
+    46,
+    585
+   ]
+  ],
+  "36": [
+   [
+    1,
+    574
+   ]
+  ],
+  "37": [
+   [
+    9,
+    608
+   ]
+  ],
+  "39": [
+   [
+    11,
+    574
+   ]
+  ],
+  "40": [
+   [
+    1,
+    583
+   ]
+  ],
+  "43": [
+   [
+    43,
+    585
+   ]
+  ],
+  "53": [
+   [
+    1,
+    583
+   ]
+  ],
+  "124": [
+   [
+    1,
+    577
+   ]
+  ],
+  "133": [
+   [
+    9,
+    608
+   ]
+  ],
+  "176": [
+   [
+    14,
+    584
+   ]
+  ],
+  "183": [
+   [
+    23,
+    583
+   ]
+  ],
+  "184": [
+   [
+    25,
+    583
+   ]
+  ],
+  "187": [
+   [
+    10,
+    584
+   ]
+  ],
+  "188": [
+   [
+    10,
+    584
+   ]
+  ],
+  "189": [
+   [
+    10,
+    584
+   ]
+  ],
+  "209": [
+   [
+    37,
+    583
+   ]
+  ],
+  "210": [
+   [
+    43,
+    583
+   ]
+  ],
+  "216": [
+   [
+    1,
+    608
+   ]
+  ],
+  "263": [
+   [
+    11,
+    608
+   ]
+  ],
+  "264": [
+   [
+    1,
+    583
+   ]
+  ],
+  "280": [
+   [
+    11,
+    574
+   ],
+   [
+    22,
+    577
+   ]
+  ],
+  "281": [
+   [
+    11,
+    574
+   ],
+   [
+    23,
+    577
+   ]
+  ],
+  "282": [
+   [
+    1,
+    585
+   ],
+   [
+    11,
+    574
+   ],
+   [
+    23,
+    577
+   ]
+  ],
+  "287": [
+   [
+    38,
+    583
+   ]
+  ],
+  "300": [
+   [
+    13,
+    574
+   ],
+   [
+    46,
+    583
+   ]
+  ],
+  "303": [
+   [
+    1,
+    583
+   ],
+   [
+    1,
+    584
+   ]
+  ],
+  "313": [
+   [
+    43,
+    583
+   ]
+  ],
+  "314": [
+   [
+    43,
+    583
+   ]
+  ],
+  "333": [
+   [
+    11,
+    574
+   ],
+   [
+    46,
+    585
+   ]
+  ],
+  "334": [
+   [
+    11,
+    574
+   ],
+   [
+    52,
+    585
+   ]
+  ],
+  "337": [
+   [
+    1,
+    585
+   ]
+  ],
+  "350": [
+   [
+    11,
+    574
+   ]
+  ],
+  "368": [
+   [
+    11,
+    577
+   ]
+  ],
+  "370": [
+   [
+    9,
+    577
+   ]
+  ],
+  "403": [
+   [
+    11,
+    608
+   ]
+  ],
+  "427": [
+   [
+    10,
+    608
+   ]
+  ],
+  "431": [
+   [
+    50,
+    583
+   ]
+  ],
+  "478": [
+   [
+    23,
+    577
+   ]
+  ],
+  "488": [
+   [
+    99,
+    585
+   ]
+  ]
+ },
+ "learnsets": {
+  "35": {
+   "tm": [
+    605
+   ]
+  },
+  "36": {
+   "tm": [
+    605
+   ]
+  },
+  "39": {
+   "tm": [
+    605
+   ]
+  },
+  "40": {
+   "tm": [
+    605
+   ]
+  },
+  "43": {
+   "tm": [
+    605
+   ]
+  },
+  "44": {
+   "tm": [
+    605
+   ]
+  },
+  "45": {
+   "tm": [
+    605
+   ]
+  },
+  "63": {
+   "tm": [
+    605
+   ]
+  },
+  "64": {
+   "tm": [
+    605
+   ]
+  },
+  "65": {
+   "tm": [
+    605
+   ]
+  },
+  "72": {
+   "tm": [
+    605
+   ]
+  },
+  "73": {
+   "tm": [
+    605
+   ]
+  },
+  "92": {
+   "tm": [
+    605
+   ]
+  },
+  "93": {
+   "tm": [
+    605
+   ]
+  },
+  "94": {
+   "tm": [
+    605
+   ]
+  },
+  "96": {
+   "tm": [
+    605
+   ]
+  },
+  "97": {
+   "tm": [
+    605
+   ]
+  },
+  "113": {
+   "tm": [
+    605
+   ]
+  },
+  "120": {
+   "tm": [
+    605
+   ]
+  },
+  "121": {
+   "tm": [
+    605
+   ]
+  },
+  "122": {
+   "tm": [
+    605
+   ]
+  },
+  "133": {
+   "event": [
+    608
+   ]
+  },
+  "151": {
+   "tm": [
+    605
+   ]
+  },
+  "170": {
+   "tm": [
+    605
+   ]
+  },
+  "171": {
+   "tm": [
+    605
+   ]
+  },
+  "172": {
+   "egg": [
+    574
+   ]
+  },
+  "175": {
+   "tm": [
+    605
+   ]
+  },
+  "176": {
+   "tm": [
+    605
+   ]
+  },
+  "177": {
+   "tm": [
+    605
+   ]
+  },
+  "178": {
+   "tm": [
+    605
+   ]
+  },
+  "182": {
+   "tm": [
+    605
+   ]
+  },
+  "187": {
+   "tm": [
+    605
+   ]
+  },
+  "188": {
+   "tm": [
+    605
+   ]
+  },
+  "189": {
+   "tm": [
+    605
+   ]
+  },
+  "196": {
+   "tm": [
+    605
+   ]
+  },
+  "200": {
+   "tm": [
+    605
+   ]
+  },
+  "203": {
+   "tm": [
+    605
+   ]
+  },
+  "209": {
+   "tm": [
+    605
+   ]
+  },
+  "210": {
+   "tm": [
+    605
+   ]
+  },
+  "216": {
+   "egg": [
+    583
+   ]
+  },
+  "231": {
+   "egg": [
+    583
+   ]
+  },
+  "242": {
+   "tm": [
+    605
+   ]
+  },
+  "251": {
+   "tm": [
+    605
+   ]
+  },
+  "261": {
+   "egg": [
+    583
+   ]
+  },
+  "264": {
+   "event": [
+    608
+   ]
+  },
+  "280": {
+   "tm": [
+    605
+   ]
+  },
+  "281": {
+   "tm": [
+    605
+   ]
+  },
+  "282": {
+   "tm": [
+    605
+   ],
+   "event": [
+    585,
+    605
+   ]
+  },
+  "293": {
+   "egg": [
+    574
+   ]
+  },
+  "299": {
+   "tm": [
+    605
+   ]
+  },
+  "302": {
+   "tm": [
+    605
+   ]
+  },
+  "303": {
+   "event": [
+    583
+   ]
+  },
+  "313": {
+   "tm": [
+    605
+   ]
+  },
+  "314": {
+   "tm": [
+    605
+   ]
+  },
+  "315": {
+   "tm": [
+    605
+   ]
+  },
+  "333": {
+   "tm": [
+    605
+   ]
+  },
+  "334": {
+   "tm": [
+    605
+   ]
+  },
+  "343": {
+   "tm": [
+    605
+   ]
+  },
+  "344": {
+   "tm": [
+    605
+   ]
+  },
+  "353": {
+   "tm": [
+    605
+   ]
+  },
+  "354": {
+   "tm": [
+    605
+   ]
+  },
+  "358": {
+   "tm": [
+    605
+   ]
+  },
+  "359": {
+   "egg": [
+    583
+   ]
+  },
+  "385": {
+   "tm": [
+    605
+   ],
+   "event": [
+    583,
+    585
+   ]
+  },
+  "406": {
+   "tm": [
+    605
+   ]
+  },
+  "407": {
+   "tm": [
+    605
+   ]
+  },
+  "420": {
+   "tm": [
+    605
+   ]
+  },
+  "421": {
+   "tm": [
+    605
+   ]
+  },
+  "429": {
+   "tm": [
+    605
+   ]
+  },
+  "433": {
+   "tm": [
+    605
+   ]
+  },
+  "434": {
+   "egg": [
+    583
+   ]
+  },
+  "468": {
+   "tm": [
+    605
+   ]
+  },
+  "475": {
+   "tm": [
+    605
+   ]
+  },
+  "476": {
+   "tm": [
+    605
+   ]
+  },
+  "480": {
+   "tm": [
+    605
+   ]
+  },
+  "481": {
+   "tm": [
+    605
+   ]
+  },
+  "482": {
+   "tm": [
+    605
+   ]
+  },
+  "489": {
+   "tm": [
+    605
+   ]
+  },
+  "490": {
+   "tm": [
+    605
+   ]
+  },
+  "492": {
+   "tm": [
+    605
+   ]
+  }
+ }
+}

@@ -17,6 +17,11 @@
 //   - Pokémon: each new species as a pack Pokémon's row, numbered 26 past its National Pokédex number (387 is 413,
 //     right after Colosseum's 413), with a Pokémon Colosseum has of the same type and stage standing in for its looks
 //     and cry until one of its own is converted (src/pbr-models.js).
+//
+// The Fairy type is a choice of its own, under either rules (fairy.json, made from generation 6's data by
+// scripts/generation-data/fairy.js, and fairy-colosseum.json, by hand): the type (the game's 19th, after Dark: FAIRY_TYPE),
+// generation 6's types for the Pokémon and moves it changed, and its Fairy-type moves, which the Pokémon that learn them
+// by level in generation 6 learn at those levels. host/types.c plays the type, with generation 6's type chart.
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -26,6 +31,8 @@ const MOVE_OFFSET = 3, FIRST_NEW_MOVE = 355, SPECIES_OFFSET = 26;
 const SAME_ABILITIES = 75;   // Stench to Shell Armor: the same numbers in Ruby and later (Ruby's 76 is Cacophony)
 const FEATURES = { physicalSpecialSplit: 1, sandstormRockSpecialDefense: 2 };
 const CATEGORY = { Physical: 1, Special: 2, Status: 0 };
+const FAIRY_TYPE = 18;   // the type the Fairy type setting adds, after the game's 18 (host/types.c)
+const LEVEL_MOVES = 20;  // the level-up moves a species row holds
 const MOVE_ROW = 0x38;
 // A move's row (decomp include/game/bios_records.h WazaDataBiosFields). 0x06-0x12 are flags, 1 or 0: contact, Protect,
 // Magic Coat, Snatch, Mirror Move and King's Rock act on it; Metronome, Mimic, Assist and Sleep Talk can call it; it's
@@ -65,13 +72,22 @@ function load(generation) {
   return cache.get(generation);
 }
 
-// The settings as kept: rules of a generation there is data for (else Colosseum's), and the generations whose Pokémon
-// are imported.
+let fairyData = null;
+function loadFairy() {
+  if (!fairyData) {
+    fairyData = JSON.parse(fs.readFileSync(path.join(DIRECTORY, 'fairy.json'), 'utf8'));
+    fairyData.colosseum = JSON.parse(fs.readFileSync(path.join(DIRECTORY, 'fairy-colosseum.json'), 'utf8'));
+  }
+  return fairyData;
+}
+
+// The settings as kept: rules of a generation there is data for (else Colosseum's), the generations whose Pokémon are
+// imported, and the Fairy type.
 function normalize(input = {}) {
   const known = new Set(available().map(each => each.generation));
   const rules = known.has(Number(input.battleRules)) ? Number(input.battleRules) : COLOSSEUM_RULES;
   const pokemon = [...new Set((Array.isArray(input.generationPokemon) ? input.generationPokemon : []).map(Number).filter(n => known.has(n)))].sort();
-  return { battleRules: rules, generationPokemon: pokemon };
+  return { battleRules: rules, generationPokemon: pokemon, fairyType: input.fairyType === true };
 }
 
 // Physical, Special or Status for each of Colosseum's own moves by its id, as a generation's rules make it (the split
@@ -146,9 +162,75 @@ function newMoves(tables, data) {
     // Who it's aimed at, where no move of Colosseum's has its range (Acupressure: the user or its partner).
     if (how.target !== undefined) row[MV.target] = how.target;
     out.push({ id: colosseumMove(number), number, name: move.name.toUpperCase().slice(0, 12), description: move.description,
-      row, exact: Boolean(how.exact), note: how.note || '', as: how.as });
+      row, exact: Boolean(how.exact), note: how.note || '', as: how.as, category: move.category });
   }
   return out;
+}
+
+// The Fairy type setting's new moves (fairy.json's), by Colosseum's number, as newMoves gives a generation's: each a row
+// copied from the move it plays as, with the effect of another where fairy-colosseum.json says so (effectAs), and its
+// name as the game's twelve letters fit it (fairy-colosseum.json's `name`, else its own). `tables` has the Fairy type.
+function fairyMoves(tables) {
+  const fairy = loadFairy(), learned = learnMoveTable(tables, load(4)), out = [];
+  const gameMove = name => {
+    const id = tables.moves.get(key(name));
+    if (!id || id >= FIRST_NEW_MOVE) throw new Error(`fairy-colosseum.json: the game has no move "${name}"`);
+    return id;
+  };
+  for (const [number, move] of Object.entries(fairy.newMoves)) {
+    const how = fairy.colosseum.moves[move.name];
+    if (!how) throw new Error(`${move.name} isn't in fairy-colosseum.json`);
+    const from = tables.moveRows[gameMove(how.as)], effectRow = how.effectAs ? tables.moveRows[gameMove(how.effectAs)] : from;
+    // A move with no added effect of its own keeps the chance of the row whose effect it plays (Growl's for Baby-Doll Eyes)
+    const row = writeMove(Buffer.from(from), move, learned, tables, { power: move.power, chance: move.effectChance || effectRow[MV.chance] });
+    row.writeUInt16BE(effectRow.readUInt16BE(MV.effect), MV.effect);
+    if (how.effect !== undefined) row.writeUInt16BE(how.effect, MV.effect);
+    out.push({ id: colosseumMove(Number(number)), number: Number(number), name: (how.name || move.name.toUpperCase()).slice(0, 12),
+      description: move.description, row, exact: Boolean(how.exact), note: how.note || '', as: how.as, category: move.category });
+  }
+  return out;
+}
+
+// The game's own Pokémon and moves whose types generation 6 changed, for the expansion file's TYPE chunk:
+// { species: [{ id, types: [first, second] }], moves: [{ id, type }] }, by the game's numbers. `tables` has the Fairy type.
+function fairyTypes(tables) {
+  const fairy = loadFairy(), typeOf = name => tables.types.indexOf(key(name));
+  const species = [];
+  for (const each of tables.species || []) {
+    const types = each.national >= 1 && each.national <= 386 ? fairy.species[each.national] : null;
+    if (!types || !each.row) continue;
+    const ids = types.map(typeOf);
+    if (ids.some(id => id < 0)) throw new Error(`fairy.json: a type of #${each.national} the game hasn't`);
+    species.push({ id: each.id, types: [ids[0], ids[1] ?? ids[0]] });
+  }
+  const moves = Object.entries(fairy.moves).map(([number, type]) => ({ id: colosseumMove(Number(number)), type: typeOf(type) }));
+  return { count: FAIRY_TYPE + 1, species, moves };
+}
+
+// A species row's level-up moves, [[level, move]] (up to 20 of 4 bytes at 0xBA: the level, 0, the move)
+function rowLevelUp(row) {
+  const out = [];
+  for (let i = 0; i < LEVEL_MOVES; i++) {
+    const level = row[0xba + i * 4], move = row.readUInt16BE(0xba + i * 4 + 2);
+    if (level && move) out.push([level, move]);
+  }
+  return out;
+}
+
+// A Pokémon's level-up moves with the Fairy moves it learns by level in generation 6 (fairy.json levelUp, by its
+// National Pokédex number) put in at their levels, after the moves it already learns at the same level. At most twenty,
+// as a row holds: where that's too many, its other moves go from the last, so it keeps its Fairy moves.
+function withFairyMoves(levelUp, national) {
+  const added = (loadFairy().levelUp[national] || []).map(([level, number]) => [level, colosseumMove(number), true]);
+  if (!added.length) return levelUp;
+  const have = new Set(levelUp.map(([, move]) => move));
+  const merged = [...levelUp.map(([level, move]) => [level, move, false]), ...added.filter(([, move]) => !have.has(move))]
+    .map((entry, order) => ({ entry, order })).sort((a, b) => a.entry[0] - b.entry[0] || a.order - b.order).map(each => each.entry);
+  while (merged.length > LEVEL_MOVES) {
+    const last = merged.map(each => each[2]).lastIndexOf(false);
+    merged.splice(last < 0 ? merged.length - 1 : last, 1);
+  }
+  return merged.map(([level, move]) => [level, move]);
 }
 
 // A generation's rules: its feature bits, each move's category, and Colosseum's own moves as that generation has them
@@ -160,7 +242,7 @@ function rules(tables, data, moves) {
   const highest = Math.max(FIRST_NEW_MOVE, ...moves.map(move => move.id + 1));
   const categories = Buffer.alloc(highest);
   for (let id = 1; id < FIRST_NEW_MOVE; id++) if (data.moves[id]) categories[id] = CATEGORY[data.moves[id].category];
-  for (const move of moves) categories[move.id] = CATEGORY[data.moves[move.number].category];
+  for (const move of moves) categories[move.id] = CATEGORY[move.category ?? data.moves[move.number].category];
   const learned = learnMoveTable(tables, data), changed = [];
   for (let id = 1; id < FIRST_NEW_MOVE; id++) {
     const move = data.moves[id], row = tables.moveRows[id];
@@ -289,7 +371,9 @@ function speciesSpec(tables, data, number, moves, ownAbilities) {
 const colosseumAbility = number => number === 77 ? 124 : number;
 
 function build(tables, settings) {
-  const chosen = normalize(settings), out = { rules: null, moves: [], abilities: [], species: [], ownSpecies: [], notes: [] };
+  const chosen = normalize(settings), out = { rules: null, moves: [], abilities: [], species: [], ownSpecies: [], types: null, notes: [] };
+  // With the Fairy type, the game has a 19th type, after Dark
+  if (chosen.fairyType) tables = { ...tables, types: [...tables.types.slice(0, FAIRY_TYPE), key(loadFairy().type)] };
   const generations = new Set([...chosen.generationPokemon, ...(chosen.battleRules > COLOSSEUM_RULES ? [chosen.battleRules] : [])]);
   const movesOf = new Map();
   for (const generation of [...generations].sort()) {
@@ -307,9 +391,28 @@ function build(tables, settings) {
       out.ownSpecies = ownSpecies(tables, data, moves);
     }
   }
+  if (chosen.fairyType) {
+    const fairy = loadFairy();
+    out.moves.push(...fairyMoves(tables));
+    out.types = fairyTypes(tables);
+    // a later generation's Pokémon with generation 6's types (Togekiss, Mime Jr.) and its Fairy moves
+    for (const each of out.species) {
+      if (fairy.species[each.number]) each.spec.types = [...fairy.species[each.number]];
+      each.spec.moves = withFairyMoves(each.spec.moves, each.number);
+    }
+    // the game's own Pokémon that learn a Fairy move by level: their level-up moves (the generation's, or the disc's)
+    // with it
+    for (const each of tables.species || []) {
+      if (!each.row || !(each.national >= 1 && each.national <= 386) || !fairy.levelUp[each.national]) continue;
+      let own = out.ownSpecies.find(entry => entry.id === each.id);
+      if (!own) out.ownSpecies.push(own = { id: each.id, national: each.national, levelUp: rowLevelUp(each.row), evolutions: [] });
+      own.levelUp = withFairyMoves(own.levelUp, each.national);
+    }
+    out.typeNames = tables.types;
+  }
   if (chosen.battleRules > COLOSSEUM_RULES) out.rules = rules(tables, load(chosen.battleRules), out.moves);
   return out;
 }
 
-module.exports = { SAME_ABILITIES, colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, available, load, normalize, build, moveCategories,
-  newMoves, rules, speciesSpec, ownSpecies, evolutionOf, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };
+module.exports = { SAME_ABILITIES, colosseumAbility, COLOSSEUM_RULES, FIRST_NEW_MOVE, MOVE_OFFSET, SPECIES_OFFSET, FEATURES, MV, FLAGS, FAIRY_TYPE, available, load, loadFairy, normalize, build, moveCategories,
+  newMoves, fairyMoves, fairyTypes, withFairyMoves, rowLevelUp, rules, speciesSpec, ownSpecies, evolutionOf, learnMoveTable, colosseumMove, speciesId, isGenerationSpecies, stageOf };

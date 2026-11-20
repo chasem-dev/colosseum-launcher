@@ -921,6 +921,7 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .pokedex-type[data-type="dragon"] { background: #5a35d6; } .pokedex-type[data-type="dark"] { background: #54433a; } .pokedex-type[data-type="fighting"] { background: #a82c24; }
 .pokedex-type[data-type="poison"] { background: #8c3a8c; } .pokedex-type[data-type="ground"] { background: #a8843a; } .pokedex-type[data-type="flying"] { background: #7a68c8; }
 .pokedex-type[data-type="bug"] { background: #84921c; } .pokedex-type[data-type="rock"] { background: #927c30; } .pokedex-type[data-type="ghost"] { background: #5c4a84; } .pokedex-type[data-type="steel"] { background: #7f7f96; }
+.pokedex-type[data-type="fairy"] { background: #c45c8a; }
 .pokedex-availability { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 9px; background: var(--dex-open); color: var(--dex-open-text); }
 .pokedex-availability .pokedex-lock { display: none; }
 .pokedex-availability.locked { background: var(--dex-locked); color: var(--dex-locked-text); }
@@ -1672,7 +1673,7 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .tw-move[data-type="ice"] { background: #3f9fa8; } .tw-move[data-type="dragon"] { background: #5a35d6; } .tw-move[data-type="dark"] { background: #54433a; }
 .tw-move[data-type="fighting"] { background: #a82c24; } .tw-move[data-type="poison"] { background: #8c3a8c; } .tw-move[data-type="ground"] { background: #a8843a; }
 .tw-move[data-type="flying"] { background: #7a68c8; } .tw-move[data-type="bug"] { background: #84921c; } .tw-move[data-type="rock"] { background: #927c30; }
-.tw-move[data-type="ghost"] { background: #5c4a84; } .tw-move[data-type="steel"] { background: #7f7f96; }
+.tw-move[data-type="ghost"] { background: #5c4a84; } .tw-move[data-type="steel"] { background: #7f7f96; } .tw-move[data-type="fairy"] { background: #c45c8a; }
 .tw-banner { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 11px; font-size: 12.5px; font-weight: 700; line-height: 1.35; }
 .tw-banner img { flex: none; width: 40px; height: 40px; }
 .tw-banner.evolve { background: #e3f4ec; color: #187657; }

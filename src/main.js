@@ -1105,9 +1105,20 @@ function customTextureDirectory() { return port.customTextureDirectory(app.getPa
 function pokemonPacksDirectory() { return pokemonPacks.packsDirectory(app.getPath('userData')); }
 
 let packTables = null;   // { rom, tables }: what the disc has, read once for each disc
+
+// The Fairy type, where the setting asks for it and the game has it (onlineFeatures: a game from before it would be given
+// moves of a type it hasn't). An online room's rules are its own.
+function fairyTypeReady() {
+  try { return Boolean(config.repo && onlineFeatures(config.repo).fairy); } catch { return false; }
+}
+function withFairyType(settings) {
+  if (!settings?.fairyType || fairyTypeReady()) return settings;
+  return { ...settings, fairyType: false };
+}
 // The packs in their folder, and the later generations' Pokémon, moves and rules the settings ask for.
 function readPokemonPacks(rom, settings = config.settings) {
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  settings = withFairyType(settings);
   const { tables } = packTables;
   const packs = fs.existsSync(pokemonPacksDirectory())
     ? pokemonPacks.loadPacks(pokemonPacksDirectory(), tables, pokemonPacks.readRegistry(currentSaveDirectory()))
@@ -1269,33 +1280,37 @@ function preparePokemonPacks(rom, folder) {
   const loaded = readPokemonPacks(rom);
   for (const problem of loaded.problems) log(`Pokémon pack ${packLabel(problem)}: ${problem.message}`);
   for (const name of loaded.missing) log(`Pokémon pack ${name} isn't in the packs folder: Pokémon of it in your saves stay hidden until it's back.`);
-  const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules } = loaded.built, { ownRows } = loaded;
-  // With a later generation's Pokémon, the Move Deleter also makes a Pokémon remember a move, as that generation's games do
-  const relearner = loaded.generationPokemon.length > 0;
+  const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules, types } = loaded.built, { ownRows } = loaded;
+  // With a later generation's Pokémon, the Move Deleter also makes a Pokémon remember a move, as that generation's games do;
+  // and with the Fairy type, so a Pokémon from before it can learn the Fairy moves it's past the level for (Gardevoir's
+  // Moonblast). XD's Move Teacher reminds a Pokémon of its level-up moves without being asked.
+  const relearner = loaded.generationPokemon.length > 0 || Boolean(types);
   const looks = pbrOwnModels(loaded.tables);
-  if (!pokemon.length && !moves.length && !rules && !ownRows.length && !looks.length) return { file: null, own: 0 };
+  if (!pokemon.length && !moves.length && !rules && !ownRows.length && !looks.length && !types) return { file: null, own: 0 };
   if (loaded.registryChanged) pokemonPacks.writeRegistry(currentSaveDirectory(), loaded.registry);
   const file = path.join(folder, 'pokemon-packs.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules, ownRows, relearner, looks }));
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules, ownRows, relearner, looks, types }));
   logOwnModels(looks);
   if (loaded.pokemon.length) log(`Pokémon packs: ${loaded.pokemon.map(each => `${pokedexNames.displayName(each.name)}${each.form ? ` (${each.form})` : ''} from ${each.key}`).join(', ')}.`);
   for (const generation of config.settings.generationPokemon) log(`Generation ${generation} Pokémon: ${loaded.generationPokemon.filter(each => each.generation === generation).length} Pokémon and ${moves.length} new moves.`);
   if (rules) log(`Battle rules: generation ${rules.generation}.`);
+  if (types) log(`Gen 6 types: ${types.species.length} of the game's Pokémon and ${types.moves.length} of its moves are Fairy types, with ${moves.filter(move => move.row[generations.MV.type] === generations.FAIRY_TYPE).length} Fairy-type moves.`);
+  else if (config.settings.fairyType) log('Gen 6 types: this version of the game doesn\'t have them yet. Update the game to play with them.');
   return { file, own: loaded.pokemon.length };
 }
 
 // An online room's battle rules for its game: the generation's rules, moves and Pokémon (which a party of that generation
 // can have: src/team-sets.js), and no packs' Pokémon. Both games have the same rows; each looks as the player's own
 // Battle Revolution models make it, or as its stand-in does, which changes nothing in the battle.
-function prepareBattleRules(rom, folder, battleRules) {
+function prepareBattleRules(rom, folder, battleRules, fairyType = false) {
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
-  const built = generations.build(packTables.tables, { battleRules, generationPokemon: [battleRules] });
+  const built = generations.build(packTables.tables, { battleRules, generationPokemon: battleRules > generations.COLOSSEUM_RULES ? [battleRules] : [], fairyType });
   const { pokemon, problems } = pokemonPacks.generationPokemon(packTables.tables, built, { modelsDirectory: pbrModels() });
   for (const problem of problems) log(`Generation ${battleRules} Pokémon ${packLabel(problem)}: ${problem.message}`);
   const looks = pbrOwnModels(packTables.tables);
   const file = path.join(folder, 'online-rules.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, looks }));
-  log(`Battle rules: generation ${battleRules}, the room's, with its ${pokemon.length} Pokémon.`);
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, looks, types: built.types }));
+  log(`Battle rules: generation ${battleRules}, the room's, with its ${pokemon.length} Pokémon${built.types ? ', with Gen 6 types' : ''}.`);
   logOwnModels(looks);
   return file;
 }
@@ -1323,14 +1338,14 @@ function logOwnModels(looks) {
 // settings ask for none. The game turns its rows into its own (host/xd/packs.c), its Pokémon looking and sounding as
 // the ones standing in for them, so no models or cries go in.
 function prepareGenerations(rom, folder, settings = config.settings) {
-  const chosen = generations.normalize(settings);
-  if (chosen.battleRules <= generations.COLOSSEUM_RULES && !chosen.generationPokemon.length) return null;
+  const chosen = generations.normalize(withFairyType(settings));
+  if (chosen.battleRules <= generations.COLOSSEUM_RULES && !chosen.generationPokemon.length && !chosen.fairyType) return null;
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
   const built = generations.build(packTables.tables, chosen);
   const { pokemon, problems } = pokemonPacks.generationPokemon(packTables.tables, built);
   for (const problem of problems) log(`Later generation's Pokémon ${packLabel(problem)}: ${problem.message}`);
   const file = path.join(folder, 'generations.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules }));
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, types: built.types }));
   for (const generation of chosen.generationPokemon) log(`Generation ${generation} Pokémon, from Pokémon Colosseum's disc: ${pokemon.filter(each => each.generation === generation).length} Pokémon and ${built.moves.length} new moves.`);
   if (built.rules) log(`Battle rules: generation ${built.rules.generation}.`);
   return file;
@@ -1345,8 +1360,8 @@ function prepareGenerations(rom, folder, settings = config.settings) {
 function packsDisc(rom, what) { return config.game === games.DEFAULT ? rom : teamDisc(what); }
 function preparePlayPacks(rom, folder, battle = null) {
   if (battle) {
-    if (battle.rules?.battleRules > generations.COLOSSEUM_RULES && supports('generations'))
-      return { file: prepareBattleRules(packsDisc(rom, 'The room\'s battle rules are made'), folder, battle.rules.battleRules), own: 0 };
+    if ((battle.rules?.battleRules > generations.COLOSSEUM_RULES || battle.rules?.fairy) && supports('generations'))
+      return { file: prepareBattleRules(packsDisc(rom, 'The room\'s battle rules are made'), folder, battle.rules.battleRules, Boolean(battle.rules.fairy)), own: 0 };
     if (!pbrReplacing() || !supports('pbrAssets')) return { file: null, own: 0 };
     try { return { file: prepareOwnModels(packsDisc(rom, 'Your Battle Revolution models are given to the game'), folder), own: 0 }; }
     catch (error) { log(`Your Battle Revolution models of the game's own Pokémon weren't loaded: ${error.message}`); return { file: null, own: 0 }; }
@@ -1451,9 +1466,10 @@ let generationDexCache = null;
 function generationDex(rom, generation = 4) {
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
   const made = n => fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.model)) && fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.body));
-  const built = generations.build(packTables.tables, { battleRules: generation, generationPokemon: [generation] });
+  const fairyType = Boolean(withFairyType(config.settings).fairyType);
+  const built = generations.build(packTables.tables, { battleRules: generation, generationPokemon: [generation], fairyType });
   const { pokemon } = pokemonPacks.generationPokemon(packTables.tables, built);
-  const stamp = `${rom}:${generation}:${pokemon.filter(each => made(each.national)).map(each => each.national).join(',')}`;
+  const stamp = `${rom}:${generation}:${fairyType}:${pokemon.filter(each => made(each.national)).map(each => each.national).join(',')}`;
   if (generationDexCache?.stamp === stamp) return generationDexCache.list;
   const disc = withHdSprites(rom, pokedexData.list(rom));
   const list = pokemonPacks.pokedexEntries(pokemon, packTables.tables).map((entry, i) => {
@@ -1464,6 +1480,37 @@ function generationDex(rom, generation = 4) {
   });
   generationDexCache = { stamp, list };
   return list;
+}
+
+// What the team builder offers with the Fairy type setting on: its moves (the team builder's shape), the moves it
+// made Fairy types, and what each Pokémon can learn of its moves in generation 6 by the game's numbers, with each
+// earlier form's ([move, how]). null with the setting off.
+function fairyBattleData(rom) {
+  if (!withFairyType(config.settings).fairyType) return null;
+  if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
+  const tables = packTables.tables, fairy = generations.loadFairy(), gen4 = generations.load(4);
+  const moves = generations.fairyMoves({ ...tables, types: [...tables.types, 'fairy'] }).map(move => {
+    const data = fairy.newMoves[move.number];
+    return { id: move.id, name: data.name, type: 'Fairy', power: data.power, accuracy: data.accuracy, pp: data.pp, priority: data.priority,
+      category: data.category, contact: Boolean(data.contact), doc: data.description };
+  });
+  const idOf = new Map();
+  for (const each of tables.species) if (each.national >= 1 && each.national <= 386 && !idOf.has(each.national)) idOf.set(each.national, each.id);
+  for (let n = 387; n <= 493; n++) idOf.set(n, generations.speciesId(n));
+  const parent = new Map();
+  for (const [national, entry] of Object.entries(gen4.species))
+    for (const evolution of entry.evolutions || []) if (!parent.has(evolution.into)) parent.set(evolution.into, Number(national));
+  const HOW = { tm: 'TM', tutor: 'Tutor', egg: 'Egg', event: 'Event' };
+  const own = national => [...(fairy.levelUp[national] || []).map(([level, move]) => [move, `Lv ${level} (Gen 6)`]),
+    ...Object.entries(fairy.learnsets[national] || {}).flatMap(([kind, list]) => list.map(move => [move, `${HOW[kind]} (Gen 6)`]))];
+  const learnsets = {};
+  for (let national = 1; national <= 493; national++) {
+    const learned = new Map();
+    for (let form = national, depth = 0; form && depth < 3; form = parent.get(form), depth++)
+      for (const [move, how] of own(form)) if (!learned.has(generations.colosseumMove(move))) learned.set(generations.colosseumMove(move), depth ? 'Earlier form' : how);
+    if (learned.size && idOf.has(national)) learnsets[idOf.get(national)] = [...learned];
+  }
+  return { moves, retyped: Object.keys(fairy.moves).map(Number), learnsets };
 }
 
 function pokedexList(rom) {
@@ -1490,6 +1537,11 @@ function pokedexList(rom) {
       // The game's own Pokémon's evolutions into a later generation's (Yanma into Yanmega) or a pack's ("evolvesFrom"), and
       // how those can be had
       species = species.map(entry => ({ ...entry }));
+      // with the Fairy type, the game's own Pokémon generation 6 made Fairy types are shown as they are in the game
+      if (loaded.built.types) {
+        const fairy = generations.loadFairy();
+        for (const entry of species) if (fairy.species[entry.national]) entry.types = [...new Set(fairy.species[entry.national])];
+      }
       for (const row of loaded.ownRows) {
         const from = species.find(entry => entry.national === loaded.tables.species.find(each => each.id === row.id)?.national);
         if (!from) continue;
@@ -2381,6 +2433,8 @@ function onlineState() {
     // rooms for both games, with this game's build for them; Platinum's rules; the game's short name
     crossBuild: binaryReady() && onlineFeatures(config.repo).crossplay ? gameBuild(true).build : null,
     platinumSupported: !binaryReady() || onlineFeatures(config.repo).platinum, game: games.get(config.game).shortName,
+    // the Fairy type (host/types.c): in a room for both games too, as both games of one battle version have it
+    fairySupported: binaryReady() && onlineFeatures(config.repo).fairy,
     // and in a room for both games, where both games' Pokémon sets take the fourth generation's under them
     crossPlatinumSupported: binaryReady() && onlineFeatures(config.repo).crossPlatinum,
     // watching others' battles: this game plays a battle as a spectator's
@@ -2446,6 +2500,8 @@ function onlineFeatures(root, id = config.game) {
         randomizerBaseForms: bytes.includes('randomizer: base forms only'),
         // similar strength's choices spread evenly over the Pokémon close in strength
         randomizerSpread: bytes.includes('randomizer: similar strength spread evenly'),
+        // the Fairy type (host/types.c, both games): the game reads the expansion file's TYPE chunk
+        fairy: bytes.includes('online: Fairy type'),
         // which games this one battles alike (host/battleversion.h, both games): rooms pair games by it (online.buildId)
         battle: battleVersion(bytes) };
     }
@@ -2453,7 +2509,7 @@ function onlineFeatures(root, id = config.game) {
   } catch (_) {
     return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossPlatinum: false, crossplay: false, spectate: false, replays: false,
       looks: false, randomizer: false, randomizerGenerations: false, randomizerPacks: false, randomizerNoRepeats: false, randomizerBaseForms: false,
-      randomizerSpread: false, battle: null };
+      randomizerSpread: false, fairy: false, battle: null };
   }
 }
 
@@ -2875,7 +2931,9 @@ async function createRoom() {
   const setup = config.online;
   const cross = Boolean(setup.crossplay) && onlineFeatures(config.repo).crossplay;
   // a game from before timers would play without them: the room says so
-  const rules = onlineFeatures(config.repo).timers ? parties.roomRules(setup) : formats.withoutTimers(parties.roomRules(setup));
+  // (and without the Fairy type, unless the game has it)
+  const asked = onlineFeatures(config.repo).fairy ? setup : { ...setup, fairy: false };
+  const rules = onlineFeatures(config.repo).timers ? parties.roomRules(asked) : formats.withoutTimers(parties.roomRules(asked));
   const chosen = partyFor(rules, { cross });
   const session = new online.Session({ features: sessionFeatures(cross), dress: dressPlayers });
   battleResult = null;
@@ -3438,7 +3496,7 @@ function registerHandlers() {
       try { dex = generationDex(rom, Number(generation)); } catch (error) { log(`Team builder: couldn't list the Generation ${generation} Pokémon (${error.message}).`); }
       return [generation, { ...each, dex }];
     }));
-    return { ...data, generations: later, gameTakesSets: !binaryReady() || onlineFeatures(config.repo).members,
+    return { ...data, generations: later, fairy: fairyBattleData(rom), gameTakesSets: !binaryReady() || onlineFeatures(config.repo).members,
       categories: Object.fromEntries(generations.available().filter(each => each.generation > generations.COLOSSEUM_RULES)
         .map(each => [each.generation, generations.moveCategories(each.generation)])) };
   });

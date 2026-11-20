@@ -67,6 +67,8 @@ function normalize(input) {
     crossplayChosen: input?.crossplayChosen === true,
     // whose battle rules the room plays by: Colosseum's (3) or Pokémon Platinum's (4), with any format
     battleRules: formats.BATTLE_RULES.includes(input?.battleRules) ? input.battleRules : formats.BATTLE_RULES[0],
+    // whether the room has the Fairy type (src/generations.js), under either battle rules
+    fairy: input?.fairy === true,
     // the room's format (src/formats.js), its changes for each format the player has changed, and how many games
     format: formats.FORMAT_IDS.includes(input?.format) ? input.format : 'casual',
     custom: cleanCustom(input?.custom),
@@ -92,11 +94,11 @@ function cleanCustom(input) {
 // The rules of a room the player makes: Casual's level, size and timers, or a format with their changes to it.
 // Either plays by the battle rules the player chose.
 function roomRules(online) {
-  const battleRules = online.battleRules;
+  const battleRules = online.battleRules, fairy = online.fairy === true;
   if (online.format === 'casual') {
-    return formats.normalize({ format: 'casual', level: online.level, size: online.size, turnTime: online.turnTime, battleTime: online.battleTime, battleRules });
+    return formats.normalize({ format: 'casual', level: online.level, size: online.size, turnTime: online.turnTime, battleTime: online.battleTime, battleRules, fairy });
   }
-  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format, battleRules });
+  return formats.normalize({ ...(online.custom[online.format] || {}), format: online.format, battleRules, fairy });
 }
 
 // The chosen party of the player's own, when it is ready to battle with (not the Story party).

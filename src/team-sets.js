@@ -50,6 +50,9 @@
     || (generation >= 4 && id >= LATER[4].species[0] && id <= LATER[4].species[1]));
   // The last move a party of the generation can have: the third's, or the fourth's new ones after the game's own.
   const lastMove = generation => generation >= 4 ? LATER[4].lastMove : MOVE_LAST;
+  // The Fairy type's moves (src/generations.js: 3 past their own numbers), which a party in a room with the type can
+  // know under either battle rules (src/formats.js)
+  const FAIRY_MOVES = [577, 580, 586, 587, 588, 608, 611];
   // Whether the species or move is one only a later generation's party can have: the generation, or 3.
   const speciesGeneration = id => id >= LATER[4].species[0] && id <= LATER[4].species[1] ? 4 : 3;
   const moveGeneration = id => id > MOVE_LAST && id <= LATER[4].lastMove ? 4 : 3;
@@ -91,7 +94,8 @@
     const out = [];
     for (const move of Array.isArray(moves) ? moves : []) {
       // Colosseum's own moves 355 to 357 (its Shadow Rush and two unnamed) are no party's
-      if (out.length < 4 && int(move, 1, lastMove(generation), 0) && (move <= MOVE_LAST || move > 357) && !out.includes(move)) out.push(move);
+      const known = int(move, 1, lastMove(generation), 0) || FAIRY_MOVES.includes(move);
+      if (out.length < 4 && known && (move <= MOVE_LAST || move > 357) && !out.includes(move)) out.push(move);
     }
     return out;
   }
@@ -299,7 +303,7 @@
     }).join('\n\n');
   }
 
-  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, GENERATIONS, LATER, generationOf, lastMove, speciesGeneration, moveGeneration, itemGeneration, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
+  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, GENERATIONS, LATER, FAIRY_MOVES, generationOf, lastMove, speciesGeneration, moveGeneration, itemGeneration, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
     PHYSICAL_TYPES, category, validSpecies, natureEffect, natureLabel, cleanNickname, cleanEvs, defaultSet, normalizeSet, genders, genderOf, stats, hiddenPower,
     hiddenPowerIvs, personality, toWire, parseShowdown, formatShowdown };
   if (typeof module === 'object' && module.exports) module.exports = api;
