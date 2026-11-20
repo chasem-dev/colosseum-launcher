@@ -47,7 +47,7 @@
   // launcher's src/generations.js). Not a change to a format: any format plays by either.
   const BATTLE_RULES = [3, 4];
   const PLATINUM_RULES = 'Pokémon Platinum\'s battle rules';
-  const FAIRY_RULES = 'the Fairy type';
+  const FAIRY_RULES = 'Gen 6 types';
   // The Fairy type's moves, by the game's numbers (3 past theirs: src/generations.js): Disarming Voice, Draining Kiss,
   // Play Rough, Fairy Wind, Moonblast, Dazzling Gleam, Baby-Doll Eyes
   const FAIRY_MOVES = [577, 580, 586, 587, 588, 608, 611];
@@ -343,7 +343,7 @@
   function generationProblems(rules, team, species, moveName, itemName = id => `item #${id}`) {
     const out = [], why = rules.battleRules < 4 ? 'which play only under Pokémon Platinum\'s battle rules' : rules.format === 'gen3ou' ? 'which Gen 3 OU doesn\'t have' : null;
     if (!rules.fairy) for (const each of team) for (const move of each.moves.filter(fairyMove))
-      out.push(`${species(each.species)} knows ${moveName(move)}, a Fairy-type move, which plays only in a room with the Fairy type.`);
+      out.push(`${species(each.species)} knows ${moveName(move)}, a Fairy-type move, which plays only in a room with Gen 6 types.`);
     if (!why) return out;
     for (const each of team) {
       if (laterSpecies(each.species)) out.push(`${species(each.species)} is a Generation 4 Pokémon, ${why}.`);

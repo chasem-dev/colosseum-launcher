@@ -126,7 +126,7 @@ test('a room with the Fairy type takes Fairy moves its Pokémon could know in ge
   assert.deepEqual(formats.problems({ format: 'orre', fairy: true }, party, members), []);
   const without = formats.problems({ format: 'orre' }, party, members);
   assert.equal(without.length, 3);
-  assert.match(without[0], /a Fairy-type move, which plays only in a room with the Fairy type/);
+  assert.match(without[0], /a Fairy-type move, which plays only in a room with Gen 6 types/);
   // Bulbasaur can't learn Moonblast
   assert.deepEqual(formats.problems({ format: 'orre', fairy: true }, party, [...members.slice(0, 3), member(1, [FAIRY_MOVE.moonblast])]),
     ['Pokémon #1 can\'t learn move #588 in generation 6.']);
@@ -135,6 +135,6 @@ test('a room with the Fairy type takes Fairy moves its Pokémon could know in ge
   // the room's rules say so
   assert.equal(formats.normalize({ fairy: true }).fairy, true);
   assert.equal(formats.normalize({ fairy: 1 }).fairy, false);
-  assert.match(formats.describe({ format: 'casual', fairy: true }).summary, /the Fairy type$/);
-  assert.ok(formats.rulesText({ format: 'hoenn', fairy: true }).includes('the Fairy type'));
+  assert.match(formats.describe({ format: 'casual', fairy: true }).summary, /Gen 6 types$/);
+  assert.ok(formats.rulesText({ format: 'hoenn', fairy: true }).includes('Gen 6 types'));
 });

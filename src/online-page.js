@@ -725,7 +725,7 @@
     // the Fairy type, once the game has it (host/types.c)
     $('online-fairy').value = setup.fairy && state.fairySupported ? '1' : '0';
     $('online-fairy').disabled = !state.fairySupported;
-    $('online-fairy').title = state.fairySupported ? '' : 'Update the game from the Play page to battle with the Fairy type.';
+    $('online-fairy').title = state.fairySupported ? '' : 'Update the game from the Play page to battle with Gen 6 types.';
     $('online-listed').checked = setup.listed;
     // rooms for both games, when this game can play them, and Platinum's rules there once both games' sets have them
     $('online-crossplay-row').hidden = !state.crossBuild;

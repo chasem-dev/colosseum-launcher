@@ -1294,8 +1294,8 @@ function preparePokemonPacks(rom, folder) {
   if (loaded.pokemon.length) log(`Pokémon packs: ${loaded.pokemon.map(each => `${pokedexNames.displayName(each.name)}${each.form ? ` (${each.form})` : ''} from ${each.key}`).join(', ')}.`);
   for (const generation of config.settings.generationPokemon) log(`Generation ${generation} Pokémon: ${loaded.generationPokemon.filter(each => each.generation === generation).length} Pokémon and ${moves.length} new moves.`);
   if (rules) log(`Battle rules: generation ${rules.generation}.`);
-  if (types) log(`Fairy type: ${types.species.length} of the game's Pokémon and ${types.moves.length} of its moves are Fairy types, with ${moves.filter(move => move.row[generations.MV.type] === generations.FAIRY_TYPE).length} Fairy-type moves.`);
-  else if (config.settings.fairyType) log('Fairy type: this version of the game doesn\'t have it yet. Update the game to play with it.');
+  if (types) log(`Gen 6 types: ${types.species.length} of the game's Pokémon and ${types.moves.length} of its moves are Fairy types, with ${moves.filter(move => move.row[generations.MV.type] === generations.FAIRY_TYPE).length} Fairy-type moves.`);
+  else if (config.settings.fairyType) log('Gen 6 types: this version of the game doesn\'t have them yet. Update the game to play with them.');
   return { file, own: loaded.pokemon.length };
 }
 
@@ -1310,7 +1310,7 @@ function prepareBattleRules(rom, folder, battleRules, fairyType = false) {
   const looks = pbrOwnModels(packTables.tables);
   const file = path.join(folder, 'online-rules.bin');
   fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, looks, types: built.types }));
-  log(`Battle rules: generation ${battleRules}, the room's, with its ${pokemon.length} Pokémon${built.types ? ', and the Fairy type' : ''}.`);
+  log(`Battle rules: generation ${battleRules}, the room's, with its ${pokemon.length} Pokémon${built.types ? ', with Gen 6 types' : ''}.`);
   logOwnModels(looks);
   return file;
 }
