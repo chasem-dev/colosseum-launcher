@@ -873,7 +873,7 @@ test('XD\'s later generations explain where they come from, and need Colosseum\'
   const ui = await renderer(data);
   const text = id => ui.elements.get(id).textContent, off = id => ui.elements.get(id).classList.contains('feature-off');
   assert.equal(text('battle-rules-gen3'), 'Colosseum (Gen 3)');
-  assert.match(text('battle-rules-note'), /chosen under Rules on the Online page/);
+  assert.equal(text('battle-rules-note'), 'Colosseum\'s own battle rules. Online battles use the room\'s rules.');
   assert.match(text('generation4-note'), /Battle Revolution disc/);
   assert.equal(ui.elements.get('generations-disc-note').hidden, true);
   assert.equal(off('pbr-row'), false);
@@ -881,8 +881,8 @@ test('XD\'s later generations explain where they come from, and need Colosseum\'
   await ui.click('game-xd');
   assert.equal(off('pbr-row'), false, 'Battle Revolution assets for XD\'s Gen 4 Pokémon too');
   assert.equal(text('battle-rules-gen3'), 'XD (Gen 3)');
-  assert.match(text('battle-rules-note'), /XD's online battles play by Gen 3 rules for now/);
-  assert.match(text('generation4-note'), /Battle Revolution disc; without it, a Pokémon of the game stands in/);
+  assert.equal(text('battle-rules-note'), 'XD\'s own battle rules. XD\'s online battles use Gen 3 rules for now.');
+  assert.match(text('generation4-note'), /The randomizer can choose them\. Their models and cries come from your Pokémon Battle Revolution disc, if you have one\./);
   assert.equal(ui.elements.get('generations-disc-note').hidden, false);
   assert.match(text('generations-disc-note'), /made from your Pokémon Colosseum disc/);
   data.teamDiscReady = true;
@@ -1191,4 +1191,20 @@ test('nothing to get leaves Update ready hidden', async () => {
   const ui = await renderer(data);
   assert.equal(ui.elements.get('update-chip').hidden, true);
   assert.equal(ui.elements.get('update-card').open, false);
+});
+
+test('Customize rules lists only the mechanics the battle rules can play, and says how many are changed', async () => {
+  const data = state();
+  data.config.settings = { ...data.config.settings, battleRules: 3, mechanicChanges: {}, mechanics: [] };
+  const ui = await renderer(data);
+  const listed = () => ui.elements.get('mechanics-list').replaced.map(row => row.children[1].dataset.mechanic);
+  const M = require('../src/mechanics');
+  assert.deepEqual(listed(), M.MECHANICS.filter(each => !each.engine && each.id !== 'gen6Types').map(each => each.id));
+  assert.equal(ui.elements.get('mechanics-changed').textContent, '');
+  assert.equal(ui.elements.get('battle-rules-note').textContent, 'Colosseum\'s own battle rules. Online battles use the room\'s rules.');
+  data.config.settings = { ...data.config.settings, battleRules: 6, mechanicChanges: { gen6Types: false, criticalHits: false }, mechanics: M.choose(6, { gen6Types: false, criticalHits: false }) };
+  await ui.refresh();
+  assert.deepEqual(listed(), M.MECHANICS.filter(each => each.id !== 'gen6Types').map(each => each.id));
+  assert.equal(ui.elements.get('mechanics-changed').textContent, '· 2 changed');
+  assert.match(ui.elements.get('battle-rules-note').textContent, /^X and Y's damage, critical hits and status, hidden abilities and the Fairy type\./);
 });

@@ -109,7 +109,7 @@
       const name = Object.assign(document.createElement('strong'), { textContent: party.name });
       // a Generation 4 party says so: it battles only in rooms on Platinum's rules
       if (party.generation >= 4) name.prepend(Object.assign(document.createElement('span'), { className: 'party-generation', textContent: `Gen ${party.generation}`,
-        title: `A Generation ${party.generation} party: it battles only under Pokémon Platinum's battle rules` }));
+        title: party.generation >= 6 ? 'A Generation 6 party: it battles only under X and Y battle rules' : 'A Generation 4 party: it battles only under Diamond and Pearl or X and Y battle rules' }));
       const edit = Object.assign(document.createElement('button'), { className: 'party-card-edit', type: 'button', textContent: 'Edit' });
       edit.addEventListener('click', event => { event.stopPropagation(); openEditor(party); });
       const team = Object.assign(document.createElement('div'), { className: 'party-card-team' });
@@ -203,8 +203,8 @@
   // Why the chosen party can't play by these rules: [text]. A Generation 4 party battles only under Platinum's.
   function partyProblems(rules) {
     const own = setup.selected === STORY ? null : setup.parties.find(item => item.id === setup.selected);
-    if (own?.generation >= 6 && rules.battleRules < 6) return [`${own.name} is a Generation 6 party, which battles only under X and Y's battle rules.`];
-    if (own?.generation >= 4 && rules.battleRules < 4) return [`${own.name} is a Generation 4 party, which battles only under Pokémon Platinum's or X and Y's battle rules.`];
+    if (own?.generation >= 6 && rules.battleRules < 6) return [`${own.name} is a Generation 6 party, which battles only under X and Y battle rules.`];
+    if (own?.generation >= 4 && rules.battleRules < 4) return [`${own.name} is a Generation 4 party, which battles only under Diamond and Pearl or X and Y battle rules.`];
     const { party, members } = chosenParty();
     return F.problems(rules, party, members, names());
   }
@@ -226,19 +226,21 @@
     else if (rules < 6 && before >= 6) setup.fairy = false;
   }
 
-  // The room's mechanics (src/mechanics.js), but Gen 6 types (their own field): each on as its rules have it with the
-  // host's changes on top. A mechanic of the generation 4 engine needs Platinum's or X and Y's rules.
+  // Customize rules: Gen 6 types (their own row, first), then the room's other mechanics (src/mechanics.js), each on
+  // as its rules have it with the host's changes on top. A mechanic of the generation 4 engine isn't listed under
+  // Colosseum's rules.
   function renderMechanics(rules) {
     const M = window.coloMechanics, chosen = new Set(F.chosenMechanics(rules));
     const panel = $('online-mechanics');
-    panel.hidden = !state.mechanicsSupported;
-    const rows = M.MECHANICS.filter(each => each.id !== 'gen6Types').map(each => {
+    panel.hidden = !state.mechanicsSupported && !state.fairySupported;
+    $('online-mechanics-list').hidden = !state.mechanicsSupported;
+    const rows = M.MECHANICS.filter(each => each.id !== 'gen6Types' && !(each.engine && rules.battleRules < 4)).map(each => {
       const label = document.createElement('label'), input = document.createElement('input'), text = document.createElement('span');
       const note = document.createElement('small');
       input.type = 'checkbox';
       input.dataset.mechanic = each.id;
       input.checked = chosen.has(each.id);
-      input.disabled = (each.engine && rules.battleRules < 4) || Boolean(state.ready) || Boolean(state.battle);
+      input.disabled = Boolean(state.ready) || Boolean(state.battle);
       input.addEventListener('change', changeMechanics);
       note.textContent = each.note;
       text.append(document.createTextNode(`${each.name} (Gen ${each.generation})`), note);
@@ -246,7 +248,7 @@
       return label;
     });
     $('online-mechanics-list').replaceChildren(...rows);
-    const changed = Object.keys(rules.mechanics || {}).length;
+    const changed = Object.keys(rules.mechanics || {}).length + (Boolean(rules.fairy) !== (rules.battleRules >= 6) ? 1 : 0);
     $('online-mechanics-changed').textContent = changed ? `${changed} changed from the rules` : 'As the rules have them';
   }
   function changeMechanics() {
@@ -772,15 +774,15 @@
     $('online-size').value = String(setup.size);
     $('online-rules').value = String(setup.battleRules || 3);
     // the Fairy type, once the game has it (host/types.c)
-    $('online-fairy').value = setup.fairy && state.fairySupported ? '1' : '0';
-    $('online-fairy').disabled = !state.fairySupported;
-    $('online-fairy').title = state.fairySupported ? '' : 'Update the game from the Play page to battle with Gen 6 types.';
+    $('online-fairy').checked = Boolean(setup.fairy && state.fairySupported);
+    $('online-fairy').disabled = !state.fairySupported || Boolean(state.ready) || Boolean(state.battle);
+    $('online-fairy-row').title = state.fairySupported ? '' : 'Update the game from the Play page to battle with Gen 6 types.';
     $('online-listed').checked = setup.listed;
     // rooms for both games, when this game can play them, and Platinum's rules there once both games' sets have them
     $('online-crossplay-row').hidden = !state.crossBuild;
     $('online-crossplay').checked = Boolean(setup.crossplay) && Boolean(state.crossBuild);
     // the game's own battle rules: Colosseum's, or XD's (the third generation's in both)
-    $('online-rules').querySelector('option[value="3"]').textContent = `${state.game || 'Colosseum'}'s`;
+    $('online-rules').querySelector('option[value="3"]').textContent = `${state.game || 'Colosseum'} (Gen 3)`;
     $('online-rules').querySelector('option[value="4"]').disabled = !state.platinumSupported
       || Boolean(setup.crossplay && state.crossBuild && !state.crossPlatinumSupported);
     // X and Y's rules, once the game has generation 6's mechanics (host/mechanics.h), and in a room for both games
@@ -816,7 +818,7 @@
     $(id).addEventListener('change', event => { setup[key] = value(event.target.value); save(); });
   $('online-rules').addEventListener('change', event => { changeBattleRules(Number(event.target.value)); save(); });
   $('online-listed').addEventListener('change', event => { setup.listed = event.target.checked; save(); });
-  $('online-fairy').addEventListener('change', event => { setup.fairy = event.target.value === '1'; save(); });
+  $('online-fairy').addEventListener('change', event => { setup.fairy = event.target.checked; save(); });
   $('online-crossplay').addEventListener('change', event => { setup.crossplay = event.target.checked; setup.crossplayChosen = true; save(); });
   for (const [id, key] of TIMER_FIELDS) $(id).addEventListener('change', event => changeTimer(key, Number(event.target.value)));
   $('online-format').addEventListener('change', event => { setup.format = event.target.value; customOpen = false; save(); });

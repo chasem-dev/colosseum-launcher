@@ -2670,12 +2670,12 @@ function partyFor(rules, { cross = false } = {}) {
     throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
   // X and Y's rules, or any mechanic turned on or off, need a game with generation 6's mechanics (host/mechanics.h)
   if ((rules.battleRules >= 6 || rules.mechanics) && !features.mechanics)
-    throw Object.assign(new Error(`${rules.battleRules >= 6 ? 'X and Y\'s battle rules' : 'A room\'s own mechanics'} need a newer game. Update it from the Play page.`),
+    throw Object.assign(new Error(`${rules.battleRules >= 6 ? 'X and Y battle rules' : 'A room\'s own mechanics'} need a newer game. Update it from the Play page.`),
       { problems: ['Generation 6 mechanics'] });
   const platinum = rules.battleRules >= 4;
   if (platinum && (!features.platinum || (cross && !features.crossPlatinum))) {
-    const what = cross ? 'A room for both games with Pokémon Platinum\'s battle rules' : `Pokémon Platinum's battle rules in ${games.get(config.game).shortName}`;
-    throw Object.assign(new Error(`${what} need a newer game. Update it from the Play page.`), { problems: ['Platinum\'s battle rules'] });
+    const what = cross ? 'A room for both games with Diamond and Pearl battle rules' : `Diamond and Pearl battle rules in ${games.get(config.game).shortName}`;
+    throw Object.assign(new Error(`${what} need a newer game. Update it from the Play page.`), { problems: ['Diamond and Pearl battle rules'] });
   }
   // the other game makes a Pokémon from its species differently: each goes whole
   if (cross && config.online.selected !== parties.STORY && !features.members)

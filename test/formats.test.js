@@ -185,7 +185,7 @@ test('a short party, and picks', () => {
   assert.equal(formats.bestOf(7), 1);
 });
 
-test('any format plays by Colosseum\'s or Pokémon Platinum\'s battle rules, without becoming custom', () => {
+test('any format plays by Colosseum\'s or Diamond and Pearl battle rules, without becoming custom', () => {
   assert.equal(formats.normalize({}).battleRules, 3);
   assert.equal(formats.normalize({ format: 'orre', battleRules: 4 }).battleRules, 4);
   assert.equal(formats.normalize({ format: 'casual', battleRules: 5 }).battleRules, 3);
@@ -193,24 +193,24 @@ test('any format plays by Colosseum\'s or Pokémon Platinum\'s battle rules, wit
   const orre = formats.describe({ format: 'orre', battleRules: 4 });
   assert.equal(orre.name, 'Orre Colosseum');
   assert.equal(orre.custom, false);
-  assert.equal(orre.summary, 'Orre Colosseum · Pokémon Platinum\'s battle rules');
+  assert.equal(orre.summary, 'Orre Colosseum · Diamond and Pearl battle rules');
   assert.equal(formats.describe({ format: 'casual', level: 100, size: 3, battleRules: 4 }).summary,
-    'Level 100, 3 Pokémon each · Pokémon Platinum\'s battle rules');
+    'Level 100, 3 Pokémon each · Diamond and Pearl battle rules');
   assert.equal(formats.describe({ format: 'casual' }).summary, 'Level 50, 6 Pokémon each');
-  assert.ok(formats.rulesText({ format: 'hoenn', battleRules: 4 }).includes('Pokémon Platinum\'s battle rules'));
-  assert.ok(formats.rulesText({ format: 'casual', battleRules: 4 }).includes('Pokémon Platinum\'s battle rules'));
+  assert.ok(formats.rulesText({ format: 'hoenn', battleRules: 4 }).includes('Diamond and Pearl battle rules'));
+  assert.ok(formats.rulesText({ format: 'casual', battleRules: 4 }).includes('Diamond and Pearl battle rules'));
 });
 
-test('Generation 4 Pokémon and moves play only under Pokémon Platinum\'s battle rules, and not in Gen 3 OU', () => {
+test('Generation 4 Pokémon and moves play only under Diamond and Pearl battle rules, and not in Gen 3 OU', () => {
   const GARCHOMP = 471, OUTRAGE = 200, STONE_EDGE = 444 + 3, FIRE_FANG = 424 + 3, BULLET_PUNCH = 418 + 3;
   const ids = [GARCHOMP, 6, 9, 3, 25, 212];
   const party = ids.map(id => id === GARCHOMP ? wire(id, { moves: [OUTRAGE, STONE_EDGE, FIRE_FANG] }) : id === 212 ? wire(id, { moves: [BULLET_PUNCH] }) : wire(id));
   const casual = formats.problems({ format: 'casual' }, ids, party, { species: id => ({ [GARCHOMP]: 'Garchomp', 212: 'Scizor' })[id], move: id => `move ${id}` });
   assert.deepEqual(casual, [
-    'Garchomp is a Generation 4 Pokémon, which play only under Pokémon Platinum\'s battle rules.',
-    'Garchomp knows move 447, a Generation 4 move, which play only under Pokémon Platinum\'s battle rules.',
-    'Garchomp knows move 427, a Generation 4 move, which play only under Pokémon Platinum\'s battle rules.',
-    'Scizor knows move 421, a Generation 4 move, which play only under Pokémon Platinum\'s battle rules.']);
+    'Garchomp is a Generation 4 Pokémon, which play only under Diamond and Pearl battle rules.',
+    'Garchomp knows move 447, a Generation 4 move, which play only under Diamond and Pearl battle rules.',
+    'Garchomp knows move 427, a Generation 4 move, which play only under Diamond and Pearl battle rules.',
+    'Scizor knows move 421, a Generation 4 move, which play only under Diamond and Pearl battle rules.']);
   assert.deepEqual(formats.problems({ format: 'casual', battleRules: 4 }, ids, party), []);
   assert.deepEqual(formats.problems({ format: 'hoenn', battleRules: 4 }, ids, party), []);   // legal in the fourth generation
   assert.ok(formats.problems({ format: 'gen3ou', battleRules: 4 }, ids, party).some(text => /Gen 3 OU doesn't have/.test(text)));
@@ -218,13 +218,13 @@ test('Generation 4 Pokémon and moves play only under Pokémon Platinum\'s battl
   assert.equal(formats.problems({ format: 'casual' }, [GARCHOMP, 6, 9, 3, 25, 1]).length, 1);
 });
 
-test('Generation 4 held items play only under Pokémon Platinum\'s battle rules, and not in Gen 3 OU', () => {
+test('Generation 4 held items play only under Diamond and Pearl battle rules, and not in Gen 3 OU', () => {
   const LIFE_ORB = 0x251, FOCUS_SASH = 0x23f, CHOICE_SCARF = 0x22b, ENIGMA_BERRY = 175, ids = [143, 6, 9, 3, 25, 1];
   const party = items => ids.map((id, i) => wire(id, { item: items[i] || 0 }));
   const names = { species: id => ({ 143: 'Snorlax', 6: 'Charizard' })[id], item: id => ({ [LIFE_ORB]: 'Life Orb', [FOCUS_SASH]: 'Focus Sash' })[id] };
   assert.deepEqual(formats.problems({ format: 'casual' }, ids, party([LIFE_ORB, FOCUS_SASH]), names), [
-    'Snorlax holds Life Orb, a Generation 4 item, which play only under Pokémon Platinum\'s battle rules.',
-    'Charizard holds Focus Sash, a Generation 4 item, which play only under Pokémon Platinum\'s battle rules.']);
+    'Snorlax holds Life Orb, a Generation 4 item, which play only under Diamond and Pearl battle rules.',
+    'Charizard holds Focus Sash, a Generation 4 item, which play only under Diamond and Pearl battle rules.']);
   assert.equal(formats.problems({ format: 'casual' }, ids, party([ENIGMA_BERRY])).length, 1);   // blank in Colosseum
   const four = items => formats.problems({ format: 'hoenn', battleRules: 4 }, ids, party(items), names);
   assert.deepEqual(four([LIFE_ORB, FOCUS_SASH, CHOICE_SCARF, ENIGMA_BERRY, 0x224, 0x289]), []);   // Adamant Orb to Zoom Lens
@@ -260,13 +260,13 @@ test('the fourth generation\'s legendaries are restricted, mythical or legendary
   assert.deepEqual(formats.problems({ format: 'orre', battleRules: 4 }, party(471)), []);         // Garchomp
 });
 
-test('X and Y\'s battle rules: generation 6\'s types unless turned off, and the mechanics a host changes', () => {
+test('X and Y battle rules: generation 6\'s types unless turned off, and the mechanics a host changes', () => {
   const six = formats.normalize({ battleRules: 6 });
   assert.deepEqual([six.battleRules, six.fairy, six.mechanics], [6, true, undefined]);
-  assert.equal(formats.describe(six).summary, 'Level 50, 6 Pokémon each · X and Y\'s battle rules');
+  assert.equal(formats.describe(six).summary, 'Level 50, 6 Pokémon each · X and Y battle rules');
   const changed = formats.normalize({ battleRules: 6, fairy: false, mechanics: { criticalHits: false, gen6Types: true, bogus: true } });
   assert.deepEqual([changed.fairy, changed.mechanics], [false, { criticalHits: false }]);
-  assert.equal(formats.describe(changed).summary, 'Level 50, 6 Pokémon each · X and Y\'s battle rules · no Gen 6 critical hits · no Gen 6 types');
+  assert.equal(formats.describe(changed).summary, 'Level 50, 6 Pokémon each · X and Y battle rules · no Gen 6 critical hits · no Gen 6 types');
   assert.ok(!formats.chosenMechanics(changed).includes('criticalHits') && !formats.chosenMechanics(changed).includes('gen6Types'));
   // a mechanic under Platinum's rules
   const four = formats.normalize({ battleRules: 4, mechanics: { hiddenAbilities: true } });

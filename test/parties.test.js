@@ -125,14 +125,14 @@ test('a party is of the third generation or the fourth, whose Pokémon only it c
   assert.deepEqual(third.sets[0].moves, [34]);
   assert.equal(parties.normalizeParty({ generation: 5 }).generation, 3);
   assert.equal(parties.rulesProblem(fourth, 4), null);
-  assert.match(parties.rulesProblem(fourth, 3), /Sinnoh is a Generation 4 party, which battles only under Pokémon Platinum's or X and Y's battle rules/);
+  assert.match(parties.rulesProblem(fourth, 3), /Sinnoh is a Generation 4 party, which battles only under Diamond and Pearl or X and Y battle rules/);
   assert.equal(parties.rulesProblem(fourth, 6), null);
   // a Generation 6 party: X and Y's rules only, with its hidden abilities
   const sixth = parties.normalizeParty({ name: 'Kalos', generation: 6, members: [38], sets: [{ species: 38, ability: 2, moves: [53] }] });
   assert.deepEqual([sixth.generation, sixth.sets[0].ability], [6, 2]);
   assert.equal(parties.normalizeParty({ generation: 4, members: [38], sets: [{ species: 38, ability: 2 }] }).sets[0].ability, 0);
   assert.equal(parties.rulesProblem(sixth, 6), null);
-  assert.match(parties.rulesProblem(sixth, 4), /Kalos is a Generation 6 party, which battles only under X and Y's battle rules/);
+  assert.match(parties.rulesProblem(sixth, 4), /Kalos is a Generation 6 party, which battles only under X and Y battle rules/);
   assert.equal(parties.rulesProblem(third, 3), null);
   assert.equal(parties.rulesProblem(third, 4), null);
   assert.equal(parties.normalize({ parties: [{ ...fourth, id: 'p' }] }).parties[0].generation, 4);

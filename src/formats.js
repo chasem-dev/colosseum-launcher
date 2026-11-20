@@ -55,8 +55,8 @@
   // Whose battle rules both games play by, whatever the format: Colosseum's own (3), Pokémon Platinum's (4), or X and
   // Y's (6; the launcher's src/generations.js). Not a change to a format: any format plays by any of them.
   const BATTLE_RULES = [3, 4, 6];
-  const PLATINUM_RULES = 'Pokémon Platinum\'s battle rules';
-  const RULES_NAMES = { 4: PLATINUM_RULES, 6: 'X and Y\'s battle rules' };
+  const PLATINUM_RULES = 'Diamond and Pearl battle rules';
+  const RULES_NAMES = { 4: PLATINUM_RULES, 6: 'X and Y battle rules' };
   // Generation 6's held items, by the game's numbers (host/gen6_items.h): Assault Vest, Eviolite, Rocky Helmet,
   // Weakness Policy
   const GEN6_ITEMS = [0x28A, 0x28D];
@@ -370,7 +370,7 @@
   // The fourth generation's Pokémon, moves and held items where the rules can't have them: under Colosseum's battle
   // rules (the game has them only under Platinum's), and in Gen 3 OU.
   function generationProblems(rules, team, species, moveName, itemName = id => `item #${id}`) {
-    const out = [], why = rules.battleRules < 4 ? 'which play only under Pokémon Platinum\'s battle rules' : rules.format === 'gen3ou' ? 'which Gen 3 OU doesn\'t have' : null;
+    const out = [], why = rules.battleRules < 4 ? 'which play only under Diamond and Pearl battle rules' : rules.format === 'gen3ou' ? 'which Gen 3 OU doesn\'t have' : null;
     // generation 6's items and hidden abilities, where the room's mechanics have them
     const chosen = chosenMechanics(rules);
     for (const each of team) {

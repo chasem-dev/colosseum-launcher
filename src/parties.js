@@ -115,8 +115,8 @@ function selectedParty(online) {
 // X and Y's, a Generation 6 party X and Y's.
 function rulesProblem(party, battleRules) {
   if (!party || rulesFor(party.generation).includes(battleRules)) return null;
-  return party.generation >= 6 ? `${party.name} is a Generation 6 party, which battles only under X and Y's battle rules.`
-    : `${party.name} is a Generation 4 party, which battles only under Pokémon Platinum's or X and Y's battle rules.`;
+  return party.generation >= 6 ? `${party.name} is a Generation 6 party, which battles only under X and Y battle rules.`
+    : `${party.name} is a Generation 4 party, which battles only under Diamond and Pearl or X and Y battle rules.`;
 }
 
 module.exports = { PARTY_SIZE, MAX_PARTIES, NAME_LENGTH, TRAINER_LENGTH, LEVELS, SIZES, STORY, validSpecies, trainerName, normalizeParty, normalize, selectedParty, roomRules,

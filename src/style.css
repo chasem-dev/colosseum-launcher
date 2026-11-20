@@ -1827,5 +1827,6 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .online-mechanics { grid-column: 1 / -1; }
 .online-mechanics > summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
 .online-mechanics > summary small { font-weight: 400; }
-.online-mechanics .mechanics-list label { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-weight: 400; font-size: 12px; }
-.online-mechanics .mechanics-list label small { display: block; opacity: .8; }
+.online-mechanics > label, .online-mechanics .mechanics-list label { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-weight: 400; font-size: 12px; }
+.online-mechanics > label small, .online-mechanics .mechanics-list label small { display: block; opacity: .8; }
+.online-mechanics > label { margin-top: 8px; }
