@@ -1281,8 +1281,10 @@ function preparePokemonPacks(rom, folder) {
   for (const problem of loaded.problems) log(`Pokémon pack ${packLabel(problem)}: ${problem.message}`);
   for (const name of loaded.missing) log(`Pokémon pack ${name} isn't in the packs folder: Pokémon of it in your saves stay hidden until it's back.`);
   const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules, types } = loaded.built, { ownRows } = loaded;
-  // With a later generation's Pokémon, the Move Deleter also makes a Pokémon remember a move, as that generation's games do
-  const relearner = loaded.generationPokemon.length > 0;
+  // With a later generation's Pokémon, the Move Deleter also makes a Pokémon remember a move, as that generation's games do;
+  // and with the Fairy type, so a Pokémon from before it can learn the Fairy moves it's past the level for (Gardevoir's
+  // Moonblast). XD's Move Teacher reminds a Pokémon of its level-up moves without being asked.
+  const relearner = loaded.generationPokemon.length > 0 || Boolean(types);
   const looks = pbrOwnModels(loaded.tables);
   if (!pokemon.length && !moves.length && !rules && !ownRows.length && !looks.length && !types) return { file: null, own: 0 };
   if (loaded.registryChanged) pokemonPacks.writeRegistry(currentSaveDirectory(), loaded.registry);
