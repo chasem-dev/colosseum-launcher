@@ -778,22 +778,30 @@ function renderGame(data) {
 
 // Later generations, as each game has them: Colosseum's own, with packs and Battle Revolution assets; another game's are
 // made from Colosseum's disc (main.js prepareGenerations), and its Pokémon look as the ones standing in for them.
-const GENERATION_RULES = 'Generation 4: each move is physical or special by itself, not by its type; a sandstorm raises Rock types\' Sp. Def; and moves Diamond and Pearl changed play as they did there.';
+// The battle rules' note, in a sentence for the rules chosen (renderMechanics), and whose online battles play by them
+const RULES_NOTES = {
+  3: game => `${game}'s own battle rules.`,
+  4: () => 'Moves are physical or special by themselves, as in Diamond and Pearl.',
+  6: () => 'X and Y\'s damage, critical hits and status, hidden abilities and the Fairy type.',
+};
+let rulesGame = { own: true, name: 'Colosseum' };
+function renderRulesNote(rules) {
+  $('battle-rules-note').textContent = `${(RULES_NOTES[rules] || RULES_NOTES[3])(rulesGame.name)} ${rulesGame.own
+    ? 'Online battles use the room\'s rules.' : `${rulesGame.name}'s online battles use Gen 3 rules for now.`}`;
+}
 function renderGenerationsText(data, chosen) {
   // Colosseum's own (with the Pokédex and the randomizer), or another game's, made from Colosseum's disc
   const own = chosen.id === 'colosseum';
+  rulesGame = { own, name: chosen.shortName };
+  renderRulesNote(Number(data.config?.settings?.battleRules) || 3);
   $('battle-rules-gen3').textContent = `${chosen.shortName} (Gen 3)`;
-  $('battle-rules-note').textContent = own
-    ? `${GENERATION_RULES} An online battle plays by its room's rules, chosen under Rules on the Online page.`
-    : `${GENERATION_RULES} It applies to Colosseum too, and ${chosen.shortName}'s online battles play by Gen 3 rules for now.`;
   // another game's story gives none yet, but its randomizer can choose them
-  const story = gameHas(data, 'randomizer') ? `Nothing in ${chosen.shortName}'s story gives you one, but the randomizer can choose them, with Gen 4 under its Generations.`
-    : `Nothing in ${chosen.shortName}'s story gives you one yet.`;
+  const story = gameHas(data, 'randomizer') ? 'The randomizer can choose them.' : `Nothing in ${chosen.shortName}'s story gives you one yet.`;
+  const looks = gameHas(data, 'pbrAssets') || own ? 'Their models and cries come from your Pokémon Battle Revolution disc, if you have one.'
+    : `Each one looks and sounds like a Pokémon of ${chosen.shortName} standing in for it.`;
   $('generation4-note').textContent = own
-    ? 'Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl that Colosseum can play, to your game and the Pokédex. The randomizer can choose them, with Gen 4 under its Generations. Their models and cries come from your own Pokémon Battle Revolution disc, asked for when you turn this on; without it, a Colosseum Pokémon stands in for each one\'s looks and cry.'
-    : gameHas(data, 'pbrAssets')
-      ? `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}, and the game's own Pokémon learn moves and evolve as in Platinum. Their models and cries come from your own Pokémon Battle Revolution disc; without it, a Pokémon of the game stands in for each one's looks and cry. ${story} It applies to Colosseum too.`
-      : `Adds the 107 Pokémon from Turtwig to Arceus, and the new moves of Diamond and Pearl, to ${chosen.shortName}. Each one looks and sounds like a Pokémon of the game standing in for it. ${story} It applies to Colosseum too.`;
+    ? `Adds the 107 Pokémon from Turtwig to Arceus and their moves, for the randomizer and the Pokédex. ${looks}`
+    : `Adds the 107 Pokémon from Turtwig to Arceus and their moves. ${story} ${looks}`;
   // made from Colosseum's disc, which has to be set up first
   $('generations-disc-note').hidden = own || data.teamDiscReady !== false;
   $('generations-disc-note').textContent = `Generation 4 in ${chosen.shortName} is made from your Pokémon Colosseum disc. Choose Colosseum on the Play page and set up its disc first; until then ${chosen.shortName} plays by Gen 3 rules.`;
@@ -1100,6 +1108,7 @@ function refresh(data) {
   for (const key of SELECTS) $(key).value = String(config.settings[key]);
   renderRanges();
   for (const key of SWITCHES) $(key).checked = config.settings[key];
+  renderMechanics(config.settings);
   $('graphicsPreset').value = config.settings.graphicsPreset || 'custom';
   renderPreset();
   renderCrashReports(data.crashReports);
@@ -1436,6 +1445,44 @@ function renderDependents(busy = false) {
   }[$('textureLoading').value];
 }
 
+// Settings → Later generations → Customize rules (src/mechanics.js): Gen 6 types (their own switch, first), then a
+// switch for each other mechanic, on as the chosen battle rules' preset has it with the player's changes on top. A
+// mechanic the generation 4 engine plays isn't listed under Colosseum's rules. Changing the rules starts again from
+// their preset.
+const MECHANICS = window.coloMechanics;
+const GENERATION_NAMES = { 4: 'Gen 4', 5: 'Gen 5', 6: 'Gen 6' };
+function renderMechanics(settings) {
+  const rules = Number(settings.battleRules) || 3, chosen = new Set(settings.mechanics || []);
+  renderRulesNote(rules);
+  const rows = MECHANICS.MECHANICS.filter(each => each.id !== 'gen6Types' && !(each.engine && rules < 4)).map(each => {
+    const label = document.createElement('label'), span = document.createElement('span'), strong = document.createElement('strong');
+    const small = document.createElement('small'), input = document.createElement('input'), mark = document.createElement('i');
+    label.className = 'switch';
+    strong.textContent = each.name;
+    small.textContent = `${GENERATION_NAMES[each.generation] || `Gen ${each.generation}`}. ${each.note}`;
+    input.type = 'checkbox';
+    input.dataset.mechanic = each.id;
+    input.checked = chosen.has(each.id);
+    input.disabled = Boolean(current?.active);
+    input.addEventListener('change', saveSettings);
+    span.append(strong, small);
+    label.append(span, input, mark);
+    return label;
+  });
+  $('mechanics-list').replaceChildren(...rows);
+  const changed = Object.keys(settings.mechanicChanges || {}).length;
+  $('mechanics-changed').textContent = changed ? `· ${changed} changed` : '';
+}
+// The mechanics as the page has them, for the settings: { mechanicChanges, fairyType }
+function mechanicsValue(rules) {
+  const before = Number(current?.config?.settings?.battleRules) || 3;
+  // new rules: their preset, with Gen 6 types as they come with them (or as they were, leaving rules of neither)
+  if (rules !== before) return { mechanicChanges: {}, fairyType: rules >= 6 || (before < 6 && $('fairyType').checked) };
+  const chosen = [...document.querySelectorAll('#mechanics-list input[data-mechanic]')].filter(input => input.checked).map(input => input.dataset.mechanic);
+  if ($('fairyType').checked) chosen.push('gen6Types');
+  return { mechanicChanges: MECHANICS.changesFrom(rules, chosen), fairyType: $('fairyType').checked };
+}
+
 function settingsValue() {
   const value = { keyBindings, padBindings, stickDeadzone: Number($('stickDeadzone').value),
     triggerClick: Number($('triggerClick').value), rumbleStrength: Number($('rumbleStrength').value), gbaVolume: Number($('gbaVolume').value),
@@ -1443,6 +1490,7 @@ function settingsValue() {
     graphicsPreset: $('graphicsPreset').value };
   for (const key of SELECTS) value[key] = $(key).value;
   for (const key of SWITCHES) value[key] = $(key).checked;
+  Object.assign(value, mechanicsValue(Number(value.battleRules) || 3));
   return value;
 }
 

@@ -232,7 +232,7 @@ test('a DS save\'s Pokémon: Generation 4 numbers made the games\', Pal Park\'s 
   assert.equal(swampert.pokemon.species, 285);
   assert.equal(swampert.pokemon.attest[0], 10);
   assert.equal(swampert.pokemon.item, 0);
-  assert.match(swampert.notes[0], /Platinum's battle rules/);
+  assert.match(swampert.notes[0], /Diamond and Pearl battle rules/);
   assert.equal(si.judge(file.party[1], { ...RECEIVER, laterItems: true }).pokemon.item, 548);
   // Rotom's other forms aren't in the game; Garchomp's Honey is (a Generation 4 item)
   assert.match(si.judge(file.boxes[0].pokemon[0], RECEIVER).problems[0], /Rotom's usual form/);

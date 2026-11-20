@@ -38,7 +38,8 @@
   // and with the Fairy type setting on (data.fairy, main.js fairyBattleData), its moves, and the moves it made Fairy types
   const movesOf = () => {
     const base = later()?.moves || data?.moves || [], fairy = data?.fairy;
-    if (!fairy) return base;
+    // (generation 6's moves are its types' already)
+    if (!fairy || generation >= 6) return base;
     return [...base.map(move => fairy.retyped.includes(move.id) ? { ...move, type: 'Fairy' } : move), ...fairy.moves];
   };
   // the items to hold: the disc's, and a later generation's own too (Life Orb), which play only under its rules
@@ -104,6 +105,8 @@
   // Whether the party has a Pokémon, move or held item only a Generation 4 party can have.
   const hasLater = sets => sets.some(set => T.speciesGeneration(set.species) >= 4 || set.moves.some(move => T.moveGeneration(move) >= 4)
     || T.itemGeneration(set.item) >= 4);
+  // what only a Generation 6 party has: a hidden ability, or one of its held items
+  const hasSixth = sets => sets.some(set => set.ability === T.HIDDEN_ABILITY || T.itemGeneration(set.item) >= 6);
 
   function setStatus(text) { $('party-editor-status').textContent = text || ''; }
 
@@ -282,7 +285,7 @@
     const itemDoc = el('small', { className: 'tb-doc', textContent: itemById.get(set.item)?.doc || 'Choose an item for it to hold in battle.' });
 
     const ability = el('select');
-    for (const each of info.abilities) ability.append(el('option', { value: each.slot, textContent: each.name }));
+    for (const each of info.abilities) ability.append(el('option', { value: each.slot, textContent: each.hidden ? `${each.name} (hidden ability)` : each.name }));
     ability.value = String(info.abilities.some(each => each.slot === set.ability) ? set.ability : info.abilities[0]?.slot ?? 0);
     ability.disabled = info.abilities.length < 2;
     const abilityDoc = el('small', { className: 'tb-doc' });
@@ -641,6 +644,8 @@
     if (!$('party-editor').open) $('party-editor').showModal();
     $('party-slots').querySelector('button:not(:disabled)')?.focus();
     await load();
+    // a Generation 6 party once the launcher's data has it
+    $('party-generation').querySelector('option[value="6"]').disabled = !data?.generations?.[6] && generation < 6;
     useGeneration(generation);
     if (editing) render();
     if (view === 'picker') $('party-search').focus();
@@ -659,6 +664,11 @@
     if (wanted < 4 && hasLater(editing?.sets || [])) {
       event.target.value = String(generation);
       setStatus('Take out its Generation 4 Pokémon, moves and items first: a Generation 3 party can\'t have them.');
+      return;
+    }
+    if (wanted < 6 && hasSixth(editing?.sets || [])) {
+      event.target.value = String(generation);
+      setStatus('Take out its hidden abilities and Generation 6 items first: only a Generation 6 party can have them.');
       return;
     }
     useGeneration(wanted);

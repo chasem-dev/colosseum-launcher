@@ -29,9 +29,11 @@ test('generation 4 is there, with its Pokémon, moves and rules', () => {
 });
 
 test('settings keep only generations there is data for', () => {
-  assert.deepEqual(generations.normalize({}), { battleRules: 3, generationPokemon: [], fairyType: false });
-  assert.deepEqual(generations.normalize({ battleRules: '4', generationPokemon: [4, 4, 9] }), { battleRules: 4, generationPokemon: [4], fairyType: false });
-  assert.deepEqual(generations.normalize({ battleRules: 9 }), { battleRules: 3, generationPokemon: [], fairyType: false });
+  const plain = { battleRules: 3, generationPokemon: [], mechanics: [], mechanicChanges: {}, learnsets: 'auto', fairyType: false };
+  assert.deepEqual(generations.normalize({}), plain);
+  const four = generations.normalize({ battleRules: '4', generationPokemon: [4, 4, 9] });
+  assert.deepEqual([four.battleRules, four.generationPokemon, four.mechanics], [4, [4], ['physicalSpecialSplit', 'sandstormRockSpecialDefense']]);
+  assert.deepEqual(generations.normalize({ battleRules: 9 }), plain);
   // the Fairy type only when it's asked for in so many words
   assert.equal(generations.normalize({ fairyType: true }).fairyType, true);
   assert.equal(generations.normalize({ fairyType: 'yes' }).fairyType, false);

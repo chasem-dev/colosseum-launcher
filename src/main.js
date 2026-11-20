@@ -62,6 +62,7 @@ const battleData = require('./battle-data').create();
 const teamSets = require('./team-sets');
 const pokemonPacks = require('./pokemon-packs');
 const generations = require('./generations');
+const mechanics = require('./mechanics');
 const evolutionWays = require('./evolution-ways');
 const hsdModel = require('./hsd-model');
 const randomizer = require('./randomizer');
@@ -1111,9 +1112,21 @@ let packTables = null;   // { rom, tables }: what the disc has, read once for ea
 function fairyTypeReady() {
   try { return Boolean(config.repo && onlineFeatures(config.repo).fairy); } catch { return false; }
 }
+function mechanicsReady() {
+  try { return Boolean(config.repo && onlineFeatures(config.repo).mechanics); } catch { return false; }
+}
+// ...and generation 6's mechanics, where the game has them (a game from before them plays Platinum's rules for X and
+// Y's, with none of the mechanics turned on or off)
 function withFairyType(settings) {
-  if (!settings?.fairyType || fairyTypeReady()) return settings;
-  return { ...settings, fairyType: false };
+  if (!settings) return settings;
+  let out = settings;
+  if (out.fairyType && !fairyTypeReady()) out = { ...out, fairyType: false };
+  const changed = out.mechanicChanges && Object.keys(out.mechanicChanges).length;
+  if ((Number(out.battleRules) >= 6 || changed) && !mechanicsReady()) {
+    const sixth = Number(out.battleRules) >= 6;
+    out = { ...out, battleRules: sixth ? 4 : out.battleRules, mechanicChanges: {}, fairyType: Boolean(out.fairyType || (sixth && fairyTypeReady())) };
+  }
+  return out;
 }
 // The packs in their folder, and the later generations' Pokémon, moves and rules the settings ask for.
 function readPokemonPacks(rom, settings = config.settings) {
@@ -1280,20 +1293,20 @@ function preparePokemonPacks(rom, folder) {
   const loaded = readPokemonPacks(rom);
   for (const problem of loaded.problems) log(`Pokémon pack ${packLabel(problem)}: ${problem.message}`);
   for (const name of loaded.missing) log(`Pokémon pack ${name} isn't in the packs folder: Pokémon of it in your saves stay hidden until it's back.`);
-  const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules, types } = loaded.built, { ownRows } = loaded;
+  const pokemon = [...loaded.pokemon, ...loaded.generationPokemon], { moves, rules, types, speciesChanges } = loaded.built, { ownRows } = loaded;
   // With a later generation's Pokémon, the Move Deleter also makes a Pokémon remember a move, as that generation's games do;
   // and with the Fairy type, so a Pokémon from before it can learn the Fairy moves it's past the level for (Gardevoir's
   // Moonblast). XD's Move Teacher reminds a Pokémon of its level-up moves without being asked.
   const relearner = loaded.generationPokemon.length > 0 || Boolean(types);
   const looks = pbrOwnModels(loaded.tables);
-  if (!pokemon.length && !moves.length && !rules && !ownRows.length && !looks.length && !types) return { file: null, own: 0 };
+  if (!pokemon.length && !moves.length && !rules && !ownRows.length && !looks.length && !types && !speciesChanges.length) return { file: null, own: 0 };
   if (loaded.registryChanged) pokemonPacks.writeRegistry(currentSaveDirectory(), loaded.registry);
   const file = path.join(folder, 'pokemon-packs.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules, ownRows, relearner, looks, types }));
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves, rules, ownRows, relearner, looks, types, speciesChanges }));
   logOwnModels(looks);
   if (loaded.pokemon.length) log(`Pokémon packs: ${loaded.pokemon.map(each => `${pokedexNames.displayName(each.name)}${each.form ? ` (${each.form})` : ''} from ${each.key}`).join(', ')}.`);
   for (const generation of config.settings.generationPokemon) log(`Generation ${generation} Pokémon: ${loaded.generationPokemon.filter(each => each.generation === generation).length} Pokémon and ${moves.length} new moves.`);
-  if (rules) log(`Battle rules: generation ${rules.generation}.`);
+  if (rules) log(`Battle rules: generation ${rules.generation}${mechanicsLogText(generations.normalize(withFairyType(config.settings)).battleRules, loaded.built.mechanics)}.`);
   if (types) log(`Gen 6 types: ${types.species.length} of the game's Pokémon and ${types.moves.length} of its moves are Fairy types, with ${moves.filter(move => move.row[generations.MV.type] === generations.FAIRY_TYPE).length} Fairy-type moves.`);
   else if (config.settings.fairyType) log('Gen 6 types: this version of the game doesn\'t have them yet. Update the game to play with them.');
   return { file, own: loaded.pokemon.length };
@@ -1302,17 +1315,25 @@ function preparePokemonPacks(rom, folder) {
 // An online room's battle rules for its game: the generation's rules, moves and Pokémon (which a party of that generation
 // can have: src/team-sets.js), and no packs' Pokémon. Both games have the same rows; each looks as the player's own
 // Battle Revolution models make it, or as its stand-in does, which changes nothing in the battle.
-function prepareBattleRules(rom, folder, battleRules, fairyType = false) {
+function prepareBattleRules(rom, folder, battleRules, fairyType = false, mechanicChanges = {}) {
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
-  const built = generations.build(packTables.tables, { battleRules, generationPokemon: battleRules > generations.COLOSSEUM_RULES ? [battleRules] : [], fairyType });
+  // the generation's Pokémon: generation 6's rules play the fourth's (it brought none the game has)
+  const generationPokemon = battleRules >= 6 ? [4] : battleRules > generations.COLOSSEUM_RULES ? [battleRules] : [];
+  const built = generations.build(packTables.tables, { battleRules, generationPokemon, fairyType, mechanicChanges });
   const { pokemon, problems } = pokemonPacks.generationPokemon(packTables.tables, built, { modelsDirectory: pbrModels() });
   for (const problem of problems) log(`Generation ${battleRules} Pokémon ${packLabel(problem)}: ${problem.message}`);
   const looks = pbrOwnModels(packTables.tables);
   const file = path.join(folder, 'online-rules.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, looks, types: built.types }));
-  log(`Battle rules: generation ${battleRules}, the room's, with its ${pokemon.length} Pokémon${built.types ? ', with Gen 6 types' : ''}.`);
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, looks, types: built.types, speciesChanges: built.speciesChanges }));
+  log(`Battle rules: generation ${battleRules}, the room's, with its ${pokemon.length} Pokémon${built.types ? ', with Gen 6 types' : ''}${mechanicsLogText(battleRules, built.mechanics)}.`);
   logOwnModels(looks);
   return file;
+}
+
+// The mechanics a choice changes from its rules' preset, for the log: ", with Gen 6 critical hits, without Shorter sleep"
+function mechanicsLogText(battleRules, chosen) {
+  const changes = mechanics.changesFrom(battleRules, chosen || []);
+  return Object.entries(changes).map(([id, on]) => `, ${on ? 'with' : 'without'} ${mechanics.get(id)?.name || id}`).join('');
 }
 
 // An online battle by Colosseum's own rules: no packs and no later generation, only the player's Battle Revolution models
@@ -1339,15 +1360,15 @@ function logOwnModels(looks) {
 // the ones standing in for them, so no models or cries go in.
 function prepareGenerations(rom, folder, settings = config.settings) {
   const chosen = generations.normalize(withFairyType(settings));
-  if (chosen.battleRules <= generations.COLOSSEUM_RULES && !chosen.generationPokemon.length && !chosen.fairyType) return null;
+  if (chosen.battleRules <= generations.COLOSSEUM_RULES && !chosen.generationPokemon.length && !chosen.fairyType && !chosen.mechanics.length) return null;
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
   const built = generations.build(packTables.tables, chosen);
   const { pokemon, problems } = pokemonPacks.generationPokemon(packTables.tables, built);
   for (const problem of problems) log(`Later generation's Pokémon ${packLabel(problem)}: ${problem.message}`);
   const file = path.join(folder, 'generations.bin');
-  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, types: built.types }));
+  fs.writeFileSync(file, pokemonPacks.compile({ pokemon, moves: built.moves, rules: built.rules, types: built.types, speciesChanges: built.speciesChanges }));
   for (const generation of chosen.generationPokemon) log(`Generation ${generation} Pokémon, from Pokémon Colosseum's disc: ${pokemon.filter(each => each.generation === generation).length} Pokémon and ${built.moves.length} new moves.`);
-  if (built.rules) log(`Battle rules: generation ${built.rules.generation}.`);
+  if (built.rules) log(`Battle rules: generation ${built.rules.generation}${mechanicsLogText(chosen.battleRules, built.mechanics)}.`);
   return file;
 }
 
@@ -1360,8 +1381,9 @@ function prepareGenerations(rom, folder, settings = config.settings) {
 function packsDisc(rom, what) { return config.game === games.DEFAULT ? rom : teamDisc(what); }
 function preparePlayPacks(rom, folder, battle = null) {
   if (battle) {
-    if ((battle.rules?.battleRules > generations.COLOSSEUM_RULES || battle.rules?.fairy) && supports('generations'))
-      return { file: prepareBattleRules(packsDisc(rom, 'The room\'s battle rules are made'), folder, battle.rules.battleRules, Boolean(battle.rules.fairy)), own: 0 };
+    if ((battle.rules?.battleRules > generations.COLOSSEUM_RULES || battle.rules?.fairy || battle.rules?.mechanics) && supports('generations'))
+      return { file: prepareBattleRules(packsDisc(rom, 'The room\'s battle rules are made'), folder, battle.rules.battleRules, Boolean(battle.rules.fairy),
+        { ...(battle.rules.mechanics || {}), gen6Types: Boolean(battle.rules.fairy) }), own: 0 };
     if (!pbrReplacing() || !supports('pbrAssets')) return { file: null, own: 0 };
     try { return { file: prepareOwnModels(packsDisc(rom, 'Your Battle Revolution models are given to the game'), folder), own: 0 }; }
     catch (error) { log(`Your Battle Revolution models of the game's own Pokémon weren't loaded: ${error.message}`); return { file: null, own: 0 }; }
@@ -1467,7 +1489,9 @@ function generationDex(rom, generation = 4) {
   if (packTables?.rom !== rom) packTables = { rom, tables: pokemonPacks.readGameTables(rom) };
   const made = n => fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.model)) && fs.existsSync(path.join(pbrModels(), String(n), pokemonPacks.FILES.body));
   const fairyType = Boolean(withFairyType(config.settings).fairyType);
-  const built = generations.build(packTables.tables, { battleRules: generation, generationPokemon: [generation], fairyType });
+  // generation 6 brought none the game has: its party picks the fourth's
+  const withPokemon = generation >= 6 ? 4 : generation;
+  const built = generations.build(packTables.tables, { battleRules: generation, generationPokemon: [withPokemon], fairyType });
   const { pokemon } = pokemonPacks.generationPokemon(packTables.tables, built);
   const stamp = `${rom}:${generation}:${fairyType}:${pokemon.filter(each => made(each.national)).map(each => each.national).join(',')}`;
   if (generationDexCache?.stamp === stamp) return generationDexCache.list;
@@ -2435,6 +2459,7 @@ function onlineState() {
     platinumSupported: !binaryReady() || onlineFeatures(config.repo).platinum, game: games.get(config.game).shortName,
     // the Fairy type (host/types.c): in a room for both games too, as both games of one battle version have it
     fairySupported: binaryReady() && onlineFeatures(config.repo).fairy,
+    mechanicsSupported: binaryReady() && onlineFeatures(config.repo).mechanics,
     // and in a room for both games, where both games' Pokémon sets take the fourth generation's under them
     crossPlatinumSupported: binaryReady() && onlineFeatures(config.repo).crossPlatinum,
     // watching others' battles: this game plays a battle as a spectator's
@@ -2502,6 +2527,9 @@ function onlineFeatures(root, id = config.game) {
         randomizerSpread: bytes.includes('randomizer: similar strength spread evenly'),
         // the Fairy type (host/types.c, both games): the game reads the expansion file's TYPE chunk
         fairy: bytes.includes('online: Fairy type'),
+        // generation 6's mechanics, each its own choice (host/mechanics.h, host/species.c, both games): X and Y's rules,
+        // and the mechanics a player or a room turns on or off
+        mechanics: bytes.includes('Pokemon have later base stats, %u a hidden ability'),
         // which games this one battles alike (host/battleversion.h, both games): rooms pair games by it (online.buildId)
         battle: battleVersion(bytes) };
     }
@@ -2509,7 +2537,7 @@ function onlineFeatures(root, id = config.game) {
   } catch (_) {
     return { online: false, story: false, members: false, rules: false, timers: false, picks: false, platinum: false, crossPlatinum: false, crossplay: false, spectate: false, replays: false,
       looks: false, randomizer: false, randomizerGenerations: false, randomizerPacks: false, randomizerNoRepeats: false, randomizerBaseForms: false,
-      randomizerSpread: false, fairy: false, battle: null };
+      randomizerSpread: false, fairy: false, mechanics: false, battle: null };
   }
 }
 
@@ -2640,10 +2668,14 @@ function partyFor(rules, { cross = false } = {}) {
   const features = onlineFeatures(config.repo);
   if (rules.format !== 'casual' && !features.rules)
     throw new Error(`This room plays ${formats.describe(rules).name.replace(/\*$/, '')}, which needs the newest game. Update it from the Play page.`);
-  const platinum = rules.battleRules === 4;
+  // X and Y's rules, or any mechanic turned on or off, need a game with generation 6's mechanics (host/mechanics.h)
+  if ((rules.battleRules >= 6 || rules.mechanics) && !features.mechanics)
+    throw Object.assign(new Error(`${rules.battleRules >= 6 ? 'X and Y battle rules' : 'A room\'s own mechanics'} need a newer game. Update it from the Play page.`),
+      { problems: ['Generation 6 mechanics'] });
+  const platinum = rules.battleRules >= 4;
   if (platinum && (!features.platinum || (cross && !features.crossPlatinum))) {
-    const what = cross ? 'A room for both games with Pokémon Platinum\'s battle rules' : `Pokémon Platinum's battle rules in ${games.get(config.game).shortName}`;
-    throw Object.assign(new Error(`${what} need a newer game. Update it from the Play page.`), { problems: ['Platinum\'s battle rules'] });
+    const what = cross ? 'A room for both games with Diamond and Pearl battle rules' : `Diamond and Pearl battle rules in ${games.get(config.game).shortName}`;
+    throw Object.assign(new Error(`${what} need a newer game. Update it from the Play page.`), { problems: ['Diamond and Pearl battle rules'] });
   }
   // the other game makes a Pokémon from its species differently: each goes whole
   if (cross && config.online.selected !== parties.STORY && !features.members)

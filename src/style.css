@@ -1813,3 +1813,20 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .save-import-status { margin: 0 18px 8px; white-space: pre-line; }
 .save-import > .actions { flex: none; padding: 12px 18px 16px; border-top: 1px solid var(--dex-line); }
 .save-import-note { flex: 1; min-width: 200px; margin: 0; }
+
+/* Settings → Later generations → Mechanics: a switch for each, under its summary */
+.mechanics-panel { padding: 10px 0; }
+.mechanics-panel > summary { cursor: pointer; list-style: none; display: flex; }
+.mechanics-panel > summary::-webkit-details-marker { display: none; }
+.mechanics-panel > summary > span { display: flex; flex-direction: column; gap: 3px; }
+.mechanics-panel > summary strong::after { content: ' ▸'; color: #b4889f; }
+.mechanics-panel[open] > summary strong::after { content: ' ▾'; }
+.mechanics-panel > summary small { color: #8a6f81; font-weight: 400; }
+.mechanics-list { margin-top: 8px; padding-left: 12px; border-left: 2px solid rgba(180, 136, 159, .35); }
+.mechanics-list .switch small .generation { font-weight: 600; }
+.online-mechanics { grid-column: 1 / -1; }
+.online-mechanics > summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+.online-mechanics > summary small { font-weight: 400; }
+.online-mechanics > label, .online-mechanics .mechanics-list label { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-weight: 400; font-size: 12px; }
+.online-mechanics > label small, .online-mechanics .mechanics-list label small { display: block; opacity: .8; }
+.online-mechanics > label { margin-top: 8px; }

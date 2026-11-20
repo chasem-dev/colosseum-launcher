@@ -252,7 +252,7 @@ function judge(entry, receiver) {
   if (found.some(each => itemCodes.includes(each.code))) {
     p.item = 0;
     notes.push(found.some(each => each.code === 'later-item')
-      ? 'It comes without its held item: a Generation 4 item needs Platinum\'s battle rules.'
+      ? 'It comes without its held item: a Generation 4 item needs Diamond and Pearl battle rules.'
       : 'It comes without its held item: the game doesn\'t have it.');
   }
   for (const each of found) if (!itemCodes.includes(each.code)) problems.push(PROBLEM[each.code] || each.text);

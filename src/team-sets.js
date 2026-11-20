@@ -14,10 +14,16 @@
   const STAT_NAMES = ['HP', 'Attack', 'Defense', 'Sp. Atk', 'Sp. Def', 'Speed'];
   const EV_MAX = 252, EV_TOTAL = 510, IV_MAX = 31;
   const MOVE_LAST = 0x162;        // the game's Shadow moves come after
-  const GENERATIONS = [3, 4];
+  // A party's generation: the third's, the fourth's (Platinum's rules, or X and Y's), or the sixth's (X and Y's rules
+  // only: generation 6's level-up moves, hidden abilities and held items)
+  const GENERATIONS = [3, 4, 6];
   // The fourth generation's Pokémon (Turtwig to Arceus), its last move (Shadow Force) and its held items (Adamant Orb to
   // Zoom Lens, and the Enigma Berry, blank in Colosseum), by the game's numbers.
-  const LATER = { 4: { species: [413, 519], lastMove: 470, items: [0x224, 0x289], enigmaBerry: 175 } };
+  const LATER = { 4: { species: [413, 519], lastMove: 470, items: [0x224, 0x289], enigmaBerry: 175 },
+    // generation 6's held items (Assault Vest, Eviolite, Rocky Helmet, Weakness Policy); its moves are the Fairy type's
+    6: { items: [0x28A, 0x28D] } };
+  // A set's ability: its species' first (0), second (1), or with generation 6 its hidden ability (2)
+  const HIDDEN_ABILITY = 2;
   const ITEM_LAST = 0xffff;
   const BALLS = 12, BALL = 4;     // Poké Ball
   const NICKNAME_LENGTH = 10;
@@ -56,7 +62,8 @@
   // Whether the species or move is one only a later generation's party can have: the generation, or 3.
   const speciesGeneration = id => id >= LATER[4].species[0] && id <= LATER[4].species[1] ? 4 : 3;
   const moveGeneration = id => id > MOVE_LAST && id <= LATER[4].lastMove ? 4 : 3;
-  const itemGeneration = id => id === LATER[4].enigmaBerry || (id >= LATER[4].items[0] && id <= LATER[4].items[1]) ? 4 : 3;
+  const itemGeneration = id => id >= LATER[6].items[0] && id <= LATER[6].items[1] ? 6
+    : id === LATER[4].enigmaBerry || (id >= LATER[4].items[0] && id <= LATER[4].items[1]) ? 4 : 3;
 
   function natureEffect(nature) {
     const up = NATURE_STATS[Math.floor(nature / 5)], down = NATURE_STATS[nature % 5];
@@ -110,7 +117,8 @@
   function normalizeSet(input, species, generation = 3) {
     const set = defaultSet(species);
     if (!input || typeof input !== 'object' || input.species !== species) return set;
-    return { species, nickname: cleanNickname(input.nickname), item: int(input.item, 0, ITEM_LAST, 0), ability: input.ability === 1 ? 1 : 0,
+    return { species, nickname: cleanNickname(input.nickname), item: int(input.item, 0, ITEM_LAST, 0),
+      ability: input.ability === 1 ? 1 : input.ability === HIDDEN_ABILITY && generation >= 6 ? HIDDEN_ABILITY : 0,
       nature: int(input.nature, 0, 24, 0), gender: input.gender === 'M' || input.gender === 'F' ? input.gender : '',
       shiny: input.shiny === true, moves: cleanMoves(input.moves, generation), evs: cleanEvs(input.evs), ivs: cleanIvs(input.ivs),
       friendship: int(input.friendship, 0, 255, 255), ball: int(input.ball, 1, BALLS, BALL) };
@@ -237,7 +245,7 @@
       if (genders(dex.gender(species.id)).includes(gender)) set.gender = gender;
       if (itemName) {
         const item = find(dex.items, itemName);
-        if (item && itemGeneration(item.id) > generation) problems.push(`${species.name}: ${item.name} is a Generation 4 item, which only a Generation 4 party can hold.`);
+        if (item && itemGeneration(item.id) > generation) problems.push(`${species.name}: ${item.name} is a Generation ${itemGeneration(item.id)} item, which only a Generation ${itemGeneration(item.id)} party can hold.`);
         else if (item) set.item = item.id; else problems.push(`${species.name}: no held item called ${itemName}.`);
       }
       let ivsGiven = false, hiddenType = null;
@@ -303,7 +311,7 @@
     }).join('\n\n');
   }
 
-  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, GENERATIONS, LATER, FAIRY_MOVES, generationOf, lastMove, speciesGeneration, moveGeneration, itemGeneration, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
+  const api = { STATS, STAT_NAMES, EV_MAX, EV_TOTAL, IV_MAX, MOVE_LAST, GENERATIONS, LATER, HIDDEN_ABILITY, FAIRY_MOVES, generationOf, lastMove, speciesGeneration, moveGeneration, itemGeneration, NATURES, NICKNAME_LENGTH, HIDDEN_POWER, HIDDEN_POWER_TYPES, TRAINER, GENDER,
     PHYSICAL_TYPES, category, validSpecies, natureEffect, natureLabel, cleanNickname, cleanEvs, defaultSet, normalizeSet, genders, genderOf, stats, hiddenPower,
     hiddenPowerIvs, personality, toWire, parseShowdown, formatShowdown };
   if (typeof module === 'object' && module.exports) module.exports = api;
