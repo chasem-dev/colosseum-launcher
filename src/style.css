@@ -979,6 +979,24 @@ pre { height: 120px; margin: 0; padding: 12px; overflow: auto; border-radius: 8p
 .online-heading .group-title { margin: 0; }
 .online-heading #online-refresh { margin-right: auto; padding: 5px 11px; }
 .online-field { display: grid; gap: 4px; color: #6a5163; font-size: 11px; font-weight: 700; }
+/* online co-op: host or join the story (below the parties: the column scrolls before the list gets small) */
+.online-body > .online-column:first-child { overflow-y: auto; padding-right: 4px; }
+.online-body > .online-column:first-child .party-list { flex: 0 0 auto; min-height: 150px; max-height: 260px; }
+.together { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--dex-line); }
+.together .group-title { margin: 0; }
+.together .helper { margin: 0; }
+.together-row { display: flex; align-items: end; gap: 8px; }
+.together-row .online-field { flex: 1; }
+.together-label { flex: 1; color: #6a5163; font-size: 12px; }
+.dark .together-label { color: #c8abc0; }
+.together-code input { text-transform: uppercase; letter-spacing: 1px; }
+.together-room { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid var(--dex-accent); border-radius: 10px; background: var(--dex-panel); }
+.together-room strong { display: block; font-size: 18px; letter-spacing: 2px; }
+.together-room small { color: #6a5163; font-size: 11px; }
+.dark .together-room small { color: #c8abc0; }
+.together-row button { min-width: 96px; padding: 7px 12px; }
+.together-error { color: #b4234a; }
+.dark .together-error { color: #ff8fae; }
 .online-input { width: 100%; padding: 7px 10px; border: 1px solid var(--dex-line); border-radius: 7px; background: var(--dex-panel); color: inherit; font: inherit; font-size: 13px; font-weight: 500; }
 .online-input:focus-visible { outline: 2px solid var(--dex-accent); outline-offset: 1px; }
 .party-list { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; padding: 1px; }

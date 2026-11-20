@@ -766,6 +766,31 @@
   $('online-pick-go').addEventListener('click', () => sendPick(picking));
   $('online-trainer').addEventListener('change', event => { setup.trainer = event.target.value; save(); });
   $('online-create').addEventListener('click', createRoom);
+
+  // Play the story together (src/together.js, src/coop-relay.js): hosting this player's save (a co-op code to send) or
+  // joining the host's by its code
+  async function playTogether(mode) {
+    const error = $('together-error');
+    error.hidden = true;
+    try {
+      await window.colo.playTogether({ mode, code: $('together-code').value, name: $('online-trainer').value });
+    } catch (e) {
+      error.textContent = String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+      error.hidden = false;
+    }
+  }
+  function showTogether(state) {
+    $('together-room').hidden = !state?.code;
+    if (!state?.code) return;
+    $('together-room-code').textContent = state.code;
+    $('together-room-detail').textContent = state.playing ? `Playing with ${state.peer || 'the other player'}`
+      : state.hosting ? 'Your co-op code: send it to the other player. They join while your game runs.' : 'Joining';
+  }
+  $('together-host').addEventListener('click', () => playTogether('host'));
+  $('together-join').addEventListener('click', () => playTogether('join'));
+  $('together-copy').addEventListener('click', () => window.colo.togetherCopy($('together-room-code').textContent));
+  window.colo.onTogether?.(showTogether);
+  window.colo.togetherState?.().then(state => { if (state?.code) $('together-code').value = `${state.code.slice(0, 3)}-${state.code.slice(3)}`; }).catch(() => {});
   $('online-leave').addEventListener('click', () => window.colo.onlineLeave());
   $('online-refresh').addEventListener('click', refreshNow);
   document.addEventListener('visibilitychange', () => poll.wake());

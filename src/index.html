@@ -89,6 +89,14 @@
             <div id="party-list" class="party-list" role="radiogroup" aria-label="Choose the party to battle with"></div>
             <p id="party-empty" class="helper" hidden>Build a party of six to battle with.</p>
             <label class="online-field"><span>Trainer name</span><input id="online-trainer" class="online-input" type="text" maxlength="10" spellcheck="false" autocomplete="off"></label>
+            <section class="together" aria-labelledby="together-title">
+              <h2 id="together-title" class="group-title">Play the story together</h2>
+              <p class="helper">One player hosts their own save and the other joins it. You play the host's story side by side, each on your own screen: through doors together, into battles together (the host chooses for the first Pokémon, the other player for the second), and the story's progress, items and party are the host's save. No port forwarding: the games talk through the room server.</p>
+              <div class="together-row"><span class="together-label">Host your save, and send the code to the other player</span><button id="together-host" class="solid">Host game</button></div>
+              <div id="together-room" class="together-room" role="status" hidden><div><strong id="together-room-code"></strong><small id="together-room-detail"></small></div><button id="together-copy" class="subtle" type="button">Copy</button></div>
+              <div class="together-row"><label class="online-field together-code"><span>Host's co-op code</span><input id="together-code" class="online-input" type="text" maxlength="7" spellcheck="false" autocomplete="off" placeholder="KQ7-M2D"></label><button id="together-join" class="solid">Join</button></div>
+              <p id="together-error" class="helper together-error" role="status" hidden></p>
+            </section>
           </div>
           <div class="online-column online-rooms">
             <div id="online-banner" class="online-banner" role="status" hidden>
