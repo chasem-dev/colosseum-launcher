@@ -45,9 +45,9 @@
     { id: 'moves', bit: 12, generation: 6, engine: true, name: 'Gen 6 move effects',
       note: 'Knock Off does half again to a Pokémon holding an item, Hidden Power is always 60, Toxic never misses when a Poison type uses it, Defog clears hazards from both sides, Wring Out and Crush Grip go by the HP as generation 5 works it, Disable, Encore and Taunt last generation 6\'s turns, and binding moves last 4 or 5 turns (7 with Grip Claw) and hurt an eighth.' },
     { id: 'abilities', bit: 13, generation: 6, engine: true, name: 'Gen 6 abilities',
-      note: 'Sturdy survives a hit from full HP with 1 HP left, Lightning Rod and Storm Drain take their type\'s moves and raise Sp. Atk, Effect Spore doesn\'t affect Grass types, Keen Eye ignores the target\'s raised evasion, and Frisk shows every foe\'s item.' },
+      note: 'Sturdy survives a hit from full HP with 1 HP left, Lightning Rod and Storm Drain take their type\'s moves and raise Sp. Atk, Effect Spore doesn\'t affect Grass types, Keen Eye ignores the target\'s raised evasion, Frisk shows every foe\'s item, Oblivious stops Taunt, and Stench may make the target flinch.' },
     { id: 'items', bit: 14, generation: 6, engine: true, name: 'Gen 6 items',
-      note: 'Assault Vest, Eviolite, Rocky Helmet and Weakness Policy can be held, in the team builder and online.' },
+      note: 'Assault Vest, Eviolite, Rocky Helmet and Weakness Policy can be held, in the team builder and online, and Mental Herb also cures Taunt, Encore, Torment and Disable.' },
     { id: 'hiddenAbilities', bit: 15, generation: 5, engine: true, name: 'Hidden abilities',
       note: 'A Pokémon can have its hidden ability, where it\'s one the game has (Ninetales\' Drought), in the team builder and online.' }
   ];
