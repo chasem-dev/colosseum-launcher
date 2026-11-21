@@ -438,3 +438,13 @@ test('Colosseum has a hall of its own: Miror B.\'s eight-sided gold platforms on
   assert.match(preload, /jukeboxGame: \(\) => ipcRenderer\.invoke\('jukebox-game'\)/);
   assert.doesNotMatch(main, /DEBUG_MIROR/);
 });
+
+test('a song picked never waits behind the next one being made ahead: they are rendered by workers of their own', () => {
+  const main = read('main.js'), preload = read('preload.js'), page = read('jukebox-page.js');
+  assert.match(main, /const jukeboxWorkers = \{ now: null, ahead: null \};/);
+  assert.match(main, /const lane = ahead \? 'ahead' : 'now'/);
+  assert.match(main, /ipcMain\.handle\('jukebox-render', \(_event, id, ahead\) => jukeboxRender\(String\(id\), ahead === true\)\)/);
+  assert.match(preload, /jukeboxRender: \(id, ahead = false\) => ipcRenderer\.invoke\('jukebox-render', id, ahead\)/);
+  assert.match(page, /song\(next\.id, true\)/);
+  assert.match(page, /jukeboxRender\(id, ahead\)/);
+});

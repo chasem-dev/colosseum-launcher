@@ -303,15 +303,15 @@
   }
 
   const inFlight = new Map();   // id -> the render under way, so that a song asked for twice (ahead of time, then for real) is made once
-  function song(id) {
+  function song(id, ahead = false) {
     if (songs.has(id)) { const found = songs.get(id); songs.delete(id); songs.set(id, found); return Promise.resolve(found); }   // (the most recently used goes last)
-    if (!inFlight.has(id)) inFlight.set(id, makeSong(id).finally(() => inFlight.delete(id)));
+    if (!inFlight.has(id)) inFlight.set(id, makeSong(id, ahead).finally(() => inFlight.delete(id)));
     return inFlight.get(id);
   }
 
   // The song rendered from the disc (in the main process), as the page keeps it: its sound, loop, beat grid and intensity.
-  async function makeSong(id) {
-    const rendered = await window.colo.jukeboxRender(id);
+  async function makeSong(id, ahead) {
+    const rendered = await window.colo.jukeboxRender(id, ahead);   // (ahead: made for later, by a worker of its own, so that a song picked meanwhile is not kept waiting)
     const ctx = output();
     const buffer = ctx.createBuffer(2, rendered.left.length, rendered.rate);
     buffer.copyToChannel(rendered.left, 0);
@@ -487,7 +487,7 @@
     prefetchTimer = setTimeout(() => {
       if (mine !== token || !active) return;
       const next = upcoming();
-      if (next && !next.same && !songs.has(next.id)) song(next.id).catch(() => {});
+      if (next && !next.same && !songs.has(next.id)) song(next.id, true).catch(() => {});
     }, 3000);
   }
 

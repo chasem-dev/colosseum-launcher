@@ -1728,32 +1728,43 @@ function heroAsk(message) {
   });
 }
 
-let jukeboxWorker = null, jukeboxRequest = 0;
+// A song picked is rendered by one worker, and the song to come, made ahead of time, by another, so that a song someone has just picked
+// never waits behind one nobody asked for yet (a Colosseum song takes up to several seconds). Each opens the disc and its instruments itself.
+const jukeboxWorkers = { now: null, ahead: null };
+let jukeboxRequest = 0;
 const jukeboxPending = new Map();
 function jukeboxStopWorker() {
-  jukeboxWorker?.terminate();
-  jukeboxWorker = null;
+  for (const lane of Object.keys(jukeboxWorkers)) { jukeboxWorkers[lane]?.terminate(); jukeboxWorkers[lane] = null; }
   for (const { reject } of jukeboxPending.values()) reject(new Error('The Jukebox was closed.'));
   jukeboxPending.clear();
 }
-function jukeboxRender(id) {
+function jukeboxWorkerFor(lane) {
+  if (jukeboxWorkers[lane]) return jukeboxWorkers[lane];
+  const worker = new Worker(path.join(__dirname, 'jukebox-worker.js'));
+  worker.on('message', ({ id: request, error, ...song }) => {
+    const pending = jukeboxPending.get(request);
+    if (!pending) return;
+    jukeboxPending.delete(request);
+    if (error) pending.reject(new Error(error)); else pending.resolve(song);
+  });
+  worker.on('error', error => {
+    log(`Jukebox: ${error.message}`);
+    // (only this lane's renders fail; the other lane's carry on)
+    for (const [request, pending] of jukeboxPending) if (pending.lane === lane) { jukeboxPending.delete(request); pending.reject(new Error('The Jukebox was closed.')); }
+    worker.terminate();
+    if (jukeboxWorkers[lane] === worker) jukeboxWorkers[lane] = null;
+  });
+  worker.on('exit', () => { if (jukeboxWorkers[lane] === worker) jukeboxWorkers[lane] = null; });
+  return jukeboxWorkers[lane] = worker;
+}
+function jukeboxRender(id, ahead = false) {
   const track = jukeboxTracks().find(each => each.id === id);
   if (!track) return Promise.reject(new Error('That song is not on the list.'));
-  if (!jukeboxWorker) {
-    jukeboxWorker = new Worker(path.join(__dirname, 'jukebox-worker.js'));
-    jukeboxWorker.on('message', ({ id: request, error, ...song }) => {
-      const pending = jukeboxPending.get(request);
-      if (!pending) return;
-      jukeboxPending.delete(request);
-      if (error) pending.reject(new Error(error)); else pending.resolve(song);
-    });
-    jukeboxWorker.on('error', error => { log(`Jukebox: ${error.message}`); jukeboxStopWorker(); });
-    jukeboxWorker.on('exit', () => { jukeboxWorker = null; });
-  }
+  const lane = ahead ? 'ahead' : 'now', worker = jukeboxWorkerFor(lane), rom = jukeboxRom();
   const request = ++jukeboxRequest;
   return new Promise((resolve, reject) => {
-    jukeboxPending.set(request, { resolve, reject });
-    jukeboxWorker.postMessage({ id: request, rom: jukeboxRom(), sound: track.sound });
+    jukeboxPending.set(request, { resolve, reject, lane });
+    worker.postMessage({ id: request, rom, sound: track.sound });
   });
 }
 
@@ -3511,7 +3522,7 @@ function registerHandlers() {
   });
   ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
   ipcMain.handle('game-logos', () => gameLogos());
-  ipcMain.handle('jukebox-render', (_event, id) => jukeboxRender(String(id)));
+  ipcMain.handle('jukebox-render', (_event, id, ahead) => jukeboxRender(String(id), ahead === true));
   ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('jukebox-window-open', (_event, snapshot) => openJukeboxWindow(snapshot));
   ipcMain.handle('jukebox-window-take', () => { const taken = aged(jukeboxHandoff); jukeboxHandoff = null; return taken; });

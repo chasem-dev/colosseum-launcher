@@ -247,7 +247,8 @@ function panGains(pan) {
   const p = Math.max(0, Math.min(127, pan)) / 127;
   return { left: at(2 * (1 - p)), right: at(2 * p) };
 }
-const attenuation = index => Math.pow(10, -index / 40);   // 0.5 dB to the index; the game's dspAttenuationTab
+const DECIBEL_STEP = Math.LN10 / 40;
+const attenuation = index => Math.exp(-index * DECIBEL_STEP);   // 0.5 dB to the index; the game's dspAttenuationTab
 const attenuationIndex = gain => Math.min(193, Math.max(0, Math.round(-40 * Math.log10(Math.max(gain, 1e-6)))));
 const dlsVolume = index => (index / 128) ** 2;             // dspDLSVolTab
 
@@ -266,21 +267,31 @@ function envelopeOf(curve, dls, velocity, key) {
 }
 
 // An envelope's gain at a time since the note began, with the note ending at releaseAt (seconds); null once it has died away.
+// This runs for every sample of every voice, so what does not change while a voice sounds (the sustain's place on the attenuation
+// table, how long the decay takes, and where the release starts from) is worked out once, and kept on the envelope.
 function gainAt(env, t, releaseAt) {
   if (!env) return t < releaseAt ? 1 : (t - releaseAt < 0.05 ? 1 - (t - releaseAt) / 0.05 : null);
-  const level = time => {
-    if (time < env.atk) return env.atk > 0 ? time / env.atk : 1;
-    const since = time - env.atk;
-    if (env.linear) return since < env.dec ? 1 - (1 - env.sus) * (since / (env.dec || 1)) : env.sus;
-    const target = attenuationIndex(env.sus), span = env.dec * (target / 193);
-    return span > 0 && since < span ? attenuation(target * since / span) : env.sus > 0 ? attenuation(target) : 0;
-  };
-  if (t < releaseAt) return level(t);
-  const from = level(releaseAt), since = t - releaseAt;
+  let fixed = env.fixed;
+  if (!fixed) {
+    const target = env.linear ? 0 : attenuationIndex(env.sus);
+    fixed = env.fixed = { target, span: env.linear ? 0 : env.dec * (target / 193), hold: !env.linear && env.sus > 0 ? attenuation(target) : 0, releaseAt: NaN, from: 0, fromIndex: 0, duration: 0 };
+  }
+  if (t < releaseAt) return envelopeLevel(env, fixed, t);
   if (env.rel <= 0) return null;
-  if (env.linear) { const v = from * (1 - since / env.rel); return v > 0 ? v : null; }
-  const fromIndex = attenuationIndex(from), duration = env.rel * ((193 - fromIndex) / 193);
-  return since < duration ? attenuation(fromIndex + (193 - fromIndex) * since / duration) : null;
+  const since = t - releaseAt;
+  if (fixed.releaseAt !== releaseAt) {
+    fixed.releaseAt = releaseAt;
+    fixed.from = envelopeLevel(env, fixed, releaseAt);
+    if (!env.linear) { fixed.fromIndex = attenuationIndex(fixed.from); fixed.duration = env.rel * ((193 - fixed.fromIndex) / 193); }
+  }
+  if (env.linear) { const v = fixed.from * (1 - since / env.rel); return v > 0 ? v : null; }
+  return since < fixed.duration ? attenuation(fixed.fromIndex + (193 - fixed.fromIndex) * since / fixed.duration) : null;
+}
+function envelopeLevel(env, fixed, time) {
+  if (time < env.atk) return env.atk > 0 ? time / env.atk : 1;
+  const since = time - env.atk;
+  if (env.linear) return since < env.dec ? 1 - (1 - env.sus) * (since / (env.dec || 1)) : env.sus;
+  return fixed.span > 0 && since < fixed.span ? attenuation(fixed.target * since / fixed.span) : fixed.hold;
 }
 
 // The notes a macro makes of a key and velocity at some time: a list of voices { sample, note, ... }. A macro is run to
