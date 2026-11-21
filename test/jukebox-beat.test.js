@@ -471,3 +471,17 @@ test('the first seconds of a song are the song\'s own: the same sound as the who
   const until = head.left.length - head.rate * 2;
   for (let n = 0; n < until; n += 7) assert.equal(head.left[n], whole.left[n]);
 });
+
+test('the whole song is asked for with no limit: only a number of seconds above nothing cuts a song short', () => {
+  const { asked } = require('../src/jukebox-songs');
+  assert.equal(asked(0), 0);
+  assert.equal(asked(undefined), 0);
+  assert.equal(asked(null), 0);
+  assert.equal(asked(NaN), 0);
+  assert.equal(asked('15'), 0);
+  assert.equal(asked(-3), 0);
+  assert.equal(asked(15), 15);
+  assert.equal(asked(0.2), 1);
+  assert.equal(asked(5000), 120);
+  assert.match(read('main.js'), /jukeboxSongs\.asked\(most\)/);
+});

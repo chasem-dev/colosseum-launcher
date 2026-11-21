@@ -3524,7 +3524,7 @@ function registerHandlers() {
   });
   ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
   ipcMain.handle('game-logos', () => gameLogos());
-  ipcMain.handle('jukebox-render', (_event, id, lane, most) => jukeboxRender(String(id), String(lane), Number.isFinite(most) ? Math.max(1, Math.min(120, most)) : 0));
+  ipcMain.handle('jukebox-render', (_event, id, lane, most) => jukeboxRender(String(id), String(lane), jukeboxSongs.asked(most)));
   ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('jukebox-window-open', (_event, snapshot) => openJukeboxWindow(snapshot));
   ipcMain.handle('jukebox-window-take', () => { const taken = aged(jukeboxHandoff); jukeboxHandoff = null; return taken; });
