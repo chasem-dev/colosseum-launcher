@@ -208,11 +208,12 @@ test('the dancers keep to the song\'s own beat grid when it has one, and to the 
   const tempoSource = read('jukebox-tempo.js'), worker = read('jukebox-analysis-worker.js');
   assert.match(tempoSource, /refineEvents\(result\.intensity\.events, result\.grid,/);
   assert.match(worker, /importScripts\('jukebox-tempo\.js'\)/);
-  assert.match(worker, /coloJukeboxTempo\.study\(left, right, rate, visual\)/);
+  assert.match(worker, /coloJukeboxTempo\.study\(left, right, rate, visual, beats\)/);
   assert.match(page, /new Worker\('jukebox-analysis-worker\.js'\)/);
   assert.match(page, /grid: \(\) => \(active \? songs\.get\(active\.id\)\?\.grid \?\? null : null\)/);
   assert.match(chamber, /function beatNow\(seconds\)/);
-  assert.match(chamber, /source\.position\(\) - source\.latency\(\) - grid\.offset/);
+  assert.match(chamber, /const map = tempoOf\(\)\.gridMap\(grid\), heard = source\.position\(\) - source\.latency\(\)/);
+  assert.match(chamber, /raw = map\.beatAt\(heard\)/);
   assert.match(chamber, /beatOf\(\)\.warp\(marks, clip\.frames, b, perHop\)/);
   assert.ok(html.indexOf('jukebox-tempo.js') > 0 && html.indexOf('jukebox-tempo.js') < html.indexOf('jukebox-page.js'));
 });
@@ -437,4 +438,59 @@ test('Colosseum has a hall of its own: Miror B.\'s eight-sided gold platforms on
   assert.match(main, /ipcMain\.handle\('jukebox-game', \(\) => config\.game\)/);
   assert.match(preload, /jukeboxGame: \(\) => ipcRenderer\.invoke\('jukebox-game'\)/);
   assert.doesNotMatch(main, /DEBUG_MIROR/);
+});
+
+test('a song picked never waits behind the next one being made ahead: they are rendered by workers of their own', () => {
+  const main = read('main.js'), preload = read('preload.js'), page = read('jukebox-page.js');
+  assert.match(main, /const jukeboxWorkers = \{ now: null, ahead: null, head: null \};/);
+  assert.match(main, /ipcMain\.handle\('jukebox-render', \(_event, id, lane, most\) => jukeboxRender\(String\(id\), String\(lane\)/);
+  assert.match(preload, /jukeboxRender: \(id, lane = 'now', most = 0\) => ipcRenderer\.invoke\('jukebox-render', id, lane, most\)/);
+  assert.match(page, /song\(next\.id, 'ahead'\)/);
+  assert.match(page, /jukeboxRender\(id, lane\)/);
+});
+
+test('a long song starts from its first seconds, made on their own, and the whole song takes over in the same place', () => {
+  const main = read('main.js'), worker = read('jukebox-worker.js'), page = read('jukebox-page.js');
+  assert.match(worker, /render\(sound, most > 0 \? \{ most \} : undefined\)/);
+  assert.match(main, /worker\.postMessage\(\{ id: request, rom, sound: track\.sound, most \}\)/);
+  assert.match(page, /const HEAD = 15, HEAD_MIN = 45, HANDOVER = 0\.06;/);
+  assert.match(page, /jukeboxRender\(id, 'head', HEAD\)/);
+  assert.match(page, /Promise\.race\(\[whole\.then\(found => \(\{ found \}\)\), headOf\(id\)/);
+  assert.match(page, /await start\(id, first\.head, 0, false, \{ fade: active \? MANUAL : QUICK, partial: true \}\)/);
+  assert.match(page, /await handOver\(id, found, first\.head\.buffer\.duration\)/);
+  // the first seconds running out is not a song finishing, and they never take part in the crossing into the next song
+  assert.match(page, /if \(!partial\) finished\(\);/);
+  assert.match(page, /if \(!active \|\| active\.partial \|\| state\.paused/);
+});
+
+test('the first seconds of a song are the song\'s own: the same sound as the whole render, to the last sample, until their end nears', () => {
+  const { Disc } = require('../src/disc');
+  const rom = process.env.COLOSSEUM_ROM;
+  if (!rom) return;   // (needs the player's disc)
+  const render = require('../src/jukebox-render').create(new Disc(rom));
+  const head = render.render(2, { most: 6 }), whole = render.render(2);
+  const until = head.left.length - head.rate * 2;
+  for (let n = 0; n < until; n += 7) assert.equal(head.left[n], whole.left[n]);
+});
+
+test('the whole song is asked for with no limit: only a number of seconds above nothing cuts a song short', () => {
+  const { asked } = require('../src/jukebox-songs');
+  assert.equal(asked(0), 0);
+  assert.equal(asked(undefined), 0);
+  assert.equal(asked(null), 0);
+  assert.equal(asked(NaN), 0);
+  assert.equal(asked('15'), 0);
+  assert.equal(asked(-3), 0);
+  assert.equal(asked(15), 15);
+  assert.equal(asked(0.2), 1);
+  assert.equal(asked(5000), 120);
+  assert.match(read('main.js'), /jukeboxSongs\.asked\(most\)/);
+});
+
+test('a Colosseum song gives the dancers its own beats, from its sequence, and the page hands them to the study', () => {
+  const render = read('jukebox-render.js'), worker = read('jukebox-worker.js'), page = read('jukebox-page.js');
+  assert.match(render, /beats: music\.beatTimes\(song, length\)/);
+  assert.match(worker, /beats: song\.beats/);
+  assert.match(page, /beats: rendered\.beats \|\| null/);
+  assert.match(page, /visual, beats: entry\.beats/);
 });

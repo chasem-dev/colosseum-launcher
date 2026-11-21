@@ -66,7 +66,8 @@ function create(disc) {
     const result = music.render(project, song, setup, { seconds: length, reverb: data[row + 2], loops: 0 });
     if (options.limit !== false) music.limit(result.left, result.right);   // (options.limit: false is for measuring a render as mixed)
     const frames = Math.floor(length * result.rate);
-    return { left: result.left.subarray(0, frames), right: result.right.subarray(0, frames), rate: result.rate, loop: region };
+    // (a song's own beats, from its tempo track: the dancers keep to them, where the sound alone can only be guessed at)
+    return { left: result.left.subarray(0, frames), right: result.right.subarray(0, frames), rate: result.rate, loop: region, beats: music.beatTimes(song, length) };
   }
   return { render };
 }

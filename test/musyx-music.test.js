@@ -33,6 +33,20 @@ test('a pitch or modulation stream is time and value steps, to a 0x80 0x00 end',
   assert.deepEqual(mx.readStream(song, 0, 0x2000), []);   // no stream at all
 });
 
+test('a song\'s beats are its tempo track\'s, from where its own tempo comes in after the count-in', () => {
+  // a count-in beat at 400 bpm, then 120 bpm: the beats fall every half second from the first of them
+  const song = { initialBpm: 400, tempo: [{ tick: 0, bpm: 400 }, { tick: 384, bpm: 120 }] };
+  const { times, period } = mx.beatTimes(song, 5);
+  assert.ok(Math.abs(times[0] - 0.15) < 1e-9);
+  assert.ok(Math.abs(times[1] - 0.65) < 1e-9);
+  assert.equal(period, 0.5);
+  assert.equal(times.length, 10);
+  // a song that starts at its own tempo has its first beat at its start, and a tempo change moves the later beats
+  const slowing = mx.beatTimes({ initialBpm: 120, tempo: [{ tick: 0, bpm: 120 }, { tick: 768, bpm: 60 }] }, 6);
+  assert.deepEqual(Array.from(slowing.times), [0, 0.5, 1, 2, 3, 4, 5]);
+  assert.equal(slowing.period, 1);
+});
+
 test('a tick is a 384th of a beat, over the tempo track', () => {
   const clock = mx.tickClock({ initialBpm: 120, tempo: [{ tick: 0, bpm: 120 }, { tick: 384, bpm: 60 }] });
   assert.equal(clock(0), 0);

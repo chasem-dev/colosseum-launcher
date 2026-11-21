@@ -9,6 +9,7 @@ import { createPost, GLOW_LAYER } from './jukebox-post.js';
 
 const $ = id => document.getElementById(id);
 const beatOf = () => window.coloJukeboxBeat;
+const tempoOf = () => window.coloJukeboxTempo;
 
 const NATIONAL_LUDICOLO = 272;
 const DANCERS = 6;               // round the middle, as the game's chamber has pedestals: turned half a step so none is dead ahead of the camera or behind Miror B.
@@ -741,8 +742,9 @@ export function createChamber(canvas, which = 'xd') {
     lastHeard = info.heard;
     for (let i = 0; i < profile.events.length; i++) {
       if (fired.has(i)) continue;
-      const kb = info.grid ? Math.round((profile.events[i].time - info.grid.offset) / info.period) : null;
-      const at = info.grid ? info.grid.offset + kb * info.period : profile.events[i].time, lead = 2 * info.period;
+      const map = info.grid ? tempoOf().gridMap(info.grid) : null;
+      const kb = map ? Math.round(map.beatAt(profile.events[i].time)) : null;
+      const at = map ? map.timeAt(kb) : profile.events[i].time, lead = 2 * (map ? map.periodAt(at) : info.period);
       if (info.heard < at - lead) continue;
       fired.add(i);
       // only if it is not too late to take off on the moment
@@ -853,11 +855,12 @@ export function createChamber(canvas, which = 'xd') {
   function beatNow(seconds) {
     const source = listening?.(), grid = source?.grid?.();
     if (grid) {
-      const period = beatOf().normalizePeriod(grid.period), raw = (source.position() - source.latency() - grid.offset) / period;
+      // (with the song's own beats the count follows their tempo changes: tempo.js's gridMap)
+      const map = tempoOf().gridMap(grid), heard = source.position() - source.latency(), period = map.periodAt(heard), raw = map.beatAt(heard);
       if (raw < lastRaw - 2) wraps += Math.ceil(lastRaw - raw - 1);   // the song went round again: keep counting
       lastRaw = raw;
       // the strongest of each four beats is the first of the bar, when the beats are the song's own
-      const shift = period === grid.period ? grid.bar : 0;
+      const shift = map.folded ? 0 : grid.bar;
       return { b: raw + wraps, period, inBar: (((Math.floor(raw) - shift) % 4) + 4) % 4, grid, wraps, heard: source.position() - source.latency() };
     }
     lastRaw = 0; wraps = 0;

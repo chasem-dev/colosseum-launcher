@@ -173,11 +173,57 @@
 
   // Everything the page wants to know about a song, in one go (this is what the analysis worker runs): where it is heard (always), and, when `visual`, its
   // beat grid, its intensity, tone and key and its drops, breaks and changes put on the beat.
-  function study(left, right, rate, visual = true) {
+  // A song's beat grid for the dancers when its own sequence gives the beats (a Colosseum song's tempo track): the beats' times as they fall, with
+  // the tempo it spends longest in. `bar` is which of four beats opens a bar (a sequence starts with one).
+  function gridFromBeats(beats) {
+    const times = beats?.times;
+    if (!times || times.length < 8 || !(beats.period > 0)) return null;
+    return { period: beats.period, offset: times[0], bar: 0, confidence: Infinity, beats: times };
+  }
+
+  // Where a grid's beats fall, in the beats a dancer keeps (the grid's tempo folded into the dancing range, as normalizePeriod does for the whole
+  // song at once, so that the count never jumps): { beatAt(seconds), timeAt(beat), periodAt(seconds), folded }. A grid of one steady beat is a
+  // line; a grid with its own `beats` (seconds, one a beat) follows them, tempo changes and all, and goes on at the first or last beat's pace past its ends.
+  const maps = new WeakMap();
+  function gridMap(grid) {
+    if (maps.has(grid)) return maps.get(grid);
+    const period = normalizePeriod(grid.period), scale = period / grid.period, beats = grid.beats;
+    let map;
+    if (!beats || beats.length < 2) {
+      map = { beatAt: t => (t - grid.offset) / period, timeAt: b => grid.offset + b * period, periodAt: () => period, folded: scale !== 1 };
+    } else {
+      const last = beats.length - 1, gapAt = i => beats[Math.min(last, i + 1)] - beats[Math.max(0, Math.min(last - 1, i))] || grid.period;
+      // the beat (a number, with the part of a beat past it) that a time falls in
+      const rawAt = t => {
+        if (t <= beats[0]) return (t - beats[0]) / gapAt(0);
+        if (t >= beats[last]) return last + (t - beats[last]) / gapAt(last - 1);
+        let low = 0, high = last;
+        while (high - low > 1) { const mid = (low + high) >> 1; if (beats[mid] <= t) low = mid; else high = mid; }
+        return low + (t - beats[low]) / (beats[low + 1] - beats[low]);
+      };
+      const rawTime = r => {
+        if (r <= 0) return beats[0] + r * gapAt(0);
+        if (r >= last) return beats[last] + (r - last) * gapAt(last - 1);
+        const i = Math.floor(r);
+        return beats[i] + (r - i) * (beats[i + 1] - beats[i]);
+      };
+      map = {
+        beatAt: t => rawAt(t) / scale,
+        timeAt: b => rawTime(b * scale),
+        periodAt: t => gapAt(Math.max(0, Math.min(last - 1, Math.floor(rawAt(t))))) * scale,
+        folded: scale !== 1
+      };
+    }
+    maps.set(grid, map);
+    return map;
+  }
+
+  // `beats`: the song's own beats ({ times, period }) when its sequence gives them, and then the grid is those; else it is worked out from the sound.
+  function study(left, right, rate, visual = true, beats = null) {
     const result = { heard: audible(left, right, rate), grid: null, intensity: null };
     if (!visual) return result;
-    const found = analyze(left, right, rate);
-    if (found && found.confidence >= CONFIDENT) result.grid = found;
+    const exact = gridFromBeats(beats), found = exact || analyze(left, right, rate);
+    if (found && (exact || found.confidence >= CONFIDENT)) result.grid = found;
     result.intensity = intensity(left, right, rate);
     if (result.intensity && result.grid) result.intensity.events = refineEvents(result.intensity.events, result.grid, left, right, rate);
     return result;
@@ -419,7 +465,7 @@
   const REACH = 1;   // beats either way that an event may be moved (a wider reach moved some to another change altogether)
   function refineEvents(events, grid, left, right, rate) {
     if (!events?.length || !grid) return events || [];
-    const period = normalizePeriod(grid.period), decimate = Math.max(1, Math.floor(rate / 8000)), sr = rate / decimate, N = 1024, bands = 32;
+    const map = gridMap(grid), decimate = Math.max(1, Math.floor(rate / 8000)), sr = rate / decimate, N = 1024, bands = 32;
     const length = Math.floor(left.length / decimate), mono = new Float32Array(length);
     for (let i = 0; i < length; i++) {
       let sum = 0;
@@ -442,9 +488,9 @@
       return out;
     };
     return events.map(event => {
-      const centre = Math.round((event.time - grid.offset) / period);
+      const centre = Math.round(map.beatAt(event.time));
       // four looks to a beat, over the two beats either side of each candidate beat
-      const cache = new Map(), at = quarter => { if (!cache.has(quarter)) cache.set(quarter, look(grid.offset + quarter * period / 4)); return cache.get(quarter); };
+      const cache = new Map(), at = quarter => { if (!cache.has(quarter)) cache.set(quarter, look(map.timeAt(quarter / 4))); return cache.get(quarter); };
       const side = (from, to) => {
         const mean = new Float64Array(bands);
         for (let q = from; q < to; q++) { const f = at(q); for (let b = 0; b < bands; b++) mean[b] += f[b] / (to - from); }
@@ -456,17 +502,17 @@
         let distance = 0;
         for (let b = 0; b < bands; b++) distance += Math.pow(after[b] - before[b], 2);
         // (a half step from the quarter-second reading counts for less, so that a change that was already on a beat stays there)
-        distance *= 1 - 0.04 * Math.abs(k - (event.time - grid.offset) / period);
+        distance *= 1 - 0.04 * Math.abs(k - map.beatAt(event.time));
         if (distance > top) { top = distance; best = k; }
       }
-      return { ...event, time: grid.offset + best * period, beat: best, found: event.time };
+      return { ...event, time: map.timeAt(best), beat: best, found: event.time };
     }).filter(each => each.time > 0 && each.time < left.length / rate);
   }
 
   // What a result's confidence must beat to be trusted: songs with a beat score from about 5 up, and noise about 1.6.
   const CONFIDENT = 3;
 
-  const api = { fft, onsets, analyze, audible, study, intensity, intensityAt, toneAt, keyAt, pitchTrack, refineEvents, normalizePeriod, CONFIDENT };
+  const api = { fft, onsets, analyze, audible, study, intensity, intensityAt, toneAt, keyAt, pitchTrack, refineEvents, normalizePeriod, gridFromBeats, gridMap, CONFIDENT };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.coloJukeboxTempo = api;
 })(typeof globalThis === 'object' ? globalThis : this);

@@ -215,6 +215,25 @@ function tickClock(song) {
   };
 }
 
+// A song's beats, as its own tempo track puts them: { times (seconds, one a beat from the song's first, up to `seconds`), period (of the beat
+// the song spends longest in) }. Songs open with a count-in: a beat or three at a tempo of 300 to 500 (a fast flick that no one dances to) before
+// the song's own tempo comes in, so the first beat is where that comes in. A song that begins at its own tempo has its first beat at its start.
+const COUNT_IN_BPM = 250;
+function beatTimes(song, seconds) {
+  const clock = tickClock(song), tempo = song.tempo || [];
+  const countIn = song.initialBpm >= COUNT_IN_BPM && tempo.find(change => change.tick > 0 && change.bpm < COUNT_IN_BPM);
+  const first = countIn ? countIn.tick : 0, times = [], spent = new Map();
+  for (let k = 0; ; k++) {
+    const at = clock(first + k * TICKS_PER_BEAT);
+    if (at >= seconds) break;
+    times.push(at);
+    if (times.length > 1) { const gap = Math.round((at - times[times.length - 2]) * 1000) / 1000; spent.set(gap, (spent.get(gap) || 0) + 1); }
+  }
+  let period = 0, most = 0;
+  for (const [gap, count] of spent) if (count > most) { most = count; period = gap; }
+  return { times: Float64Array.from(times), period };
+}
+
 // --- Instruments ---------------------------------------------------------------------------------------------------------
 
 // The game's volume curve (hw_volconv.c musyx_vol_tab): a voice's volume, 0 to 1, to the gain it plays at.
@@ -242,12 +261,14 @@ function volumeGain(volume) {
   return (1 - f) * VOLUME_CURVE[i] + f * VOLUME_CURVE[i + 1];
 }
 // Panning, 0 (left) to 127 (right), as the game's pan_tab spreads it: [0, 0.7079, 1, 1] over the pan's two halves.
+const PAN_TAB = [0, 0.7079, 1, 1];
+const panAt = x => { const i = Math.min(2, Math.floor(x)), f = x - i; return (1 - f) * PAN_TAB[i] + f * PAN_TAB[i + 1]; };
 function panGains(pan) {
-  const tab = [0, 0.7079, 1, 1], at = x => { const i = Math.min(2, Math.floor(x)), f = x - i; return (1 - f) * tab[i] + f * tab[i + 1]; };
   const p = Math.max(0, Math.min(127, pan)) / 127;
-  return { left: at(2 * (1 - p)), right: at(2 * p) };
+  return { left: panAt(2 * (1 - p)), right: panAt(2 * p) };
 }
-const attenuation = index => Math.pow(10, -index / 40);   // 0.5 dB to the index; the game's dspAttenuationTab
+const DECIBEL_STEP = Math.LN10 / 40;
+const attenuation = index => Math.exp(-index * DECIBEL_STEP);   // 0.5 dB to the index; the game's dspAttenuationTab
 const attenuationIndex = gain => Math.min(193, Math.max(0, Math.round(-40 * Math.log10(Math.max(gain, 1e-6)))));
 const dlsVolume = index => (index / 128) ** 2;             // dspDLSVolTab
 
@@ -266,21 +287,31 @@ function envelopeOf(curve, dls, velocity, key) {
 }
 
 // An envelope's gain at a time since the note began, with the note ending at releaseAt (seconds); null once it has died away.
+// This runs for every sample of every voice, so what does not change while a voice sounds (the sustain's place on the attenuation
+// table, how long the decay takes, and where the release starts from) is worked out once, and kept on the envelope.
 function gainAt(env, t, releaseAt) {
   if (!env) return t < releaseAt ? 1 : (t - releaseAt < 0.05 ? 1 - (t - releaseAt) / 0.05 : null);
-  const level = time => {
-    if (time < env.atk) return env.atk > 0 ? time / env.atk : 1;
-    const since = time - env.atk;
-    if (env.linear) return since < env.dec ? 1 - (1 - env.sus) * (since / (env.dec || 1)) : env.sus;
-    const target = attenuationIndex(env.sus), span = env.dec * (target / 193);
-    return span > 0 && since < span ? attenuation(target * since / span) : env.sus > 0 ? attenuation(target) : 0;
-  };
-  if (t < releaseAt) return level(t);
-  const from = level(releaseAt), since = t - releaseAt;
+  let fixed = env.fixed;
+  if (!fixed) {
+    const target = env.linear ? 0 : attenuationIndex(env.sus);
+    fixed = env.fixed = { target, span: env.linear ? 0 : env.dec * (target / 193), hold: !env.linear && env.sus > 0 ? attenuation(target) : 0, releaseAt: NaN, from: 0, fromIndex: 0, duration: 0 };
+  }
+  if (t < releaseAt) return envelopeLevel(env, fixed, t);
   if (env.rel <= 0) return null;
-  if (env.linear) { const v = from * (1 - since / env.rel); return v > 0 ? v : null; }
-  const fromIndex = attenuationIndex(from), duration = env.rel * ((193 - fromIndex) / 193);
-  return since < duration ? attenuation(fromIndex + (193 - fromIndex) * since / duration) : null;
+  const since = t - releaseAt;
+  if (fixed.releaseAt !== releaseAt) {
+    fixed.releaseAt = releaseAt;
+    fixed.from = envelopeLevel(env, fixed, releaseAt);
+    if (!env.linear) { fixed.fromIndex = attenuationIndex(fixed.from); fixed.duration = env.rel * ((193 - fixed.fromIndex) / 193); }
+  }
+  if (env.linear) { const v = fixed.from * (1 - since / env.rel); return v > 0 ? v : null; }
+  return since < fixed.duration ? attenuation(fixed.fromIndex + (193 - fixed.fromIndex) * since / fixed.duration) : null;
+}
+function envelopeLevel(env, fixed, time) {
+  if (time < env.atk) return env.atk > 0 ? time / env.atk : 1;
+  const since = time - env.atk;
+  if (env.linear) return since < env.dec ? 1 - (1 - env.sus) * (since / (env.dec || 1)) : env.sus;
+  return fixed.span > 0 && since < fixed.span ? attenuation(fixed.target * since / fixed.span) : fixed.hold;
 }
 
 // The notes a macro makes of a key and velocity at some time: a list of voices { sample, note, ... }. A macro is run to
@@ -510,8 +541,10 @@ function render(bank, song, midiSetup, options = {}) {
       const releaseAt = ringsOut ? Infinity : voice.releaseAt - voice.startAt, bendList = bends[ev.midi & 15], modList = mods[ev.midi & 15];
       const bendCursor = { i: 0 }, modCursor = { i: 0 };
       let position = 0, ratio = 0;
+      const pcm = sample.pcm, pcmLength = pcm.length, looping = sample.loopEnd > 0, loopStart = sample.loopStart, loopEnd = sample.loopEnd;
+      const loopSpan = Math.max(1, loopEnd - loopStart), env = voice.env;
       for (let n = first, t = 0; n < total; n++, t = (n - first) / RATE) {
-        const g = gainAt(voice.env, t, releaseAt);
+        const g = gainAt(env, t, releaseAt);
         if (g === null) break;
         if (((n - first) & 31) === 0) {   // the pitch and volume are worked out each millisecond, as the game does
           const at = startTime + t;
@@ -533,12 +566,11 @@ function render(bank, song, midiSetup, options = {}) {
           ratio = (sample.rate / RATE) * Math.pow(2, semis / 12);
         }
         let index = Math.floor(position);
-        const looping = sample.loopEnd > 0;
-        if (looping && index >= sample.loopEnd) { position = sample.loopStart + (position - sample.loopEnd) % Math.max(1, sample.loopEnd - sample.loopStart); index = Math.floor(position); }
-        if (!looping && index + 1 >= sample.pcm.length) break;
+        if (looping && index >= loopEnd) { position = loopStart + (position - loopEnd) % loopSpan; index = Math.floor(position); }
+        if (!looping && index + 1 >= pcmLength) break;
         // a loop that ends on the sample's last point (as they do) joins back to its start, so the point after the last is the loop's first
-        const next = looping && index + 1 >= sample.loopEnd ? sample.loopStart : index + 1;
-        const frac = position - index, value = (sample.pcm[index] * (1 - frac) + sample.pcm[next] * frac) / 32768 * g;
+        const next = looping && index + 1 >= loopEnd ? loopStart : index + 1;
+        const frac = position - index, value = (pcm[index] * (1 - frac) + pcm[next] * frac) / 32768 * g;
         left[n] += value * gl; right[n] += value * gr;
         if (al || ar) { auxLeft[n] += value * al; auxRight[n] += value * ar; }
         position += ratio;
@@ -611,4 +643,4 @@ function wavStereo(left, right, rate, length = left.length) {
   return out;
 }
 
-module.exports = { songSeconds, limit, MIDI_TIME, reverbSide, REVERB_PRESETS, DEFAULT_GAIN, readStream, readPatternStreams, volumeGain, panGains, RATE, loadBank, readSong, readPattern, tickClock, midiSetupFor, samplePcm, voicesFor, runMacro, envelopeOf, gainAt, render, wavStereo };
+module.exports = { beatTimes, songSeconds, limit, MIDI_TIME, reverbSide, REVERB_PRESETS, DEFAULT_GAIN, readStream, readPatternStreams, volumeGain, panGains, RATE, loadBank, readSong, readPattern, tickClock, midiSetupFor, samplePcm, voicesFor, runMacro, envelopeOf, gainAt, render, wavStereo };

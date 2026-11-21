@@ -209,3 +209,56 @@ test('a song in a major key sounds lighter than the same song in a minor one', (
   const found = tempo.keyAt(profile, 20);
   assert.ok(found && found.tonic >= 0 && found.tonic < 12 && found.mode >= -1 && found.mode <= 1);
 });
+
+test('a song\'s own beats make its grid, whatever its sound does, and the dancers\' count follows them through a change of tempo', () => {
+  // 0.4 s a beat for four beats, then 0.6 s: beats at 0, 0.4, 0.8, 1.2, 1.6, then 2.2, 2.8, 3.4, 4.0, 4.6
+  const times = Float64Array.from([0, 0.4, 0.8, 1.2, 1.6, 2.2, 2.8, 3.4, 4.0, 4.6]);
+  const grid = tempo.gridFromBeats({ times, period: 0.6 });
+  assert.equal(grid.period, 0.6);
+  assert.equal(grid.offset, 0);
+  assert.equal(grid.confidence, Infinity);
+  assert.equal(tempo.gridFromBeats({ times: Float64Array.from([0, 1]), period: 1 }), null);   // too few to be a song's
+  const map = tempo.gridMap(grid), near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} is not ${b}`);
+  // the count is one a beat, the tempo's own: a beat is a beat at either speed
+  near(map.beatAt(0), 0);
+  near(map.beatAt(1.4), 3.5);
+  near(map.beatAt(1.6), 4);
+  near(map.beatAt(2.5), 5.5);
+  near(map.timeAt(5.5), 2.5);
+  near(map.periodAt(0.5), 0.4);
+  near(map.periodAt(3), 0.6);
+  // before the first beat and past the last it goes on at the pace nearest
+  near(map.beatAt(-0.4), -1);
+  near(map.beatAt(5.2), 10);
+  near(map.timeAt(-1), -0.4);
+  assert.equal(map.folded, false);
+});
+
+test('a grid of one steady beat is a line, and a tempo outside the dancing range is danced at half or double speed on either kind of grid', () => {
+  const steady = tempo.gridMap({ period: 0.5, offset: 0.2, bar: 0 });
+  assert.equal(steady.beatAt(0.2), 0);
+  assert.equal(steady.beatAt(1.2), 2);
+  assert.equal(steady.timeAt(4), 2.2);
+  assert.equal(steady.periodAt(9), 0.5);
+  assert.equal(steady.folded, false);
+  // 0.2 s a beat is too fast to dance to: two beats of the song are one of the dance
+  const quick = tempo.gridMap({ period: 0.2, offset: 0, bar: 0 });
+  assert.equal(quick.folded, true);
+  assert.ok(Math.abs(quick.periodAt(0) - 0.4) < 1e-9);
+  assert.ok(Math.abs(quick.beatAt(0.8) - 2) < 1e-9);
+  const times = Float64Array.from({ length: 20 }, (_, i) => i * 0.2);
+  const own = tempo.gridMap({ period: 0.2, offset: 0, bar: 0, beats: times });
+  assert.equal(own.folded, true);
+  assert.ok(Math.abs(own.periodAt(1) - 0.4) < 1e-9);
+  assert.ok(Math.abs(own.beatAt(0.8) - 2) < 1e-9);
+});
+
+test('a song with its own beats is studied with them, and its drops and breaks are put on those beats', () => {
+  const rate = 8000, seconds = 24, left = new Float32Array(rate * seconds), right = new Float32Array(rate * seconds);
+  const times = Float64Array.from({ length: 48 }, (_, i) => 0.3 + i * 0.5);
+  const result = tempo.study(left, right, rate, true, { times, period: 0.5 });
+  assert.equal(result.grid.beats, times);
+  assert.equal(result.grid.offset, 0.3);
+  // no beats given: worked out from the sound, as before (silence has none)
+  assert.equal(tempo.study(left, right, rate, true).grid, null);
+});
