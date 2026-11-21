@@ -215,6 +215,25 @@ function tickClock(song) {
   };
 }
 
+// A song's beats, as its own tempo track puts them: { times (seconds, one a beat from the song's first, up to `seconds`), period (of the beat
+// the song spends longest in) }. Songs open with a count-in: a beat or three at a tempo of 300 to 500 (a fast flick that no one dances to) before
+// the song's own tempo comes in, so the first beat is where that comes in. A song that begins at its own tempo has its first beat at its start.
+const COUNT_IN_BPM = 250;
+function beatTimes(song, seconds) {
+  const clock = tickClock(song), tempo = song.tempo || [];
+  const countIn = song.initialBpm >= COUNT_IN_BPM && tempo.find(change => change.tick > 0 && change.bpm < COUNT_IN_BPM);
+  const first = countIn ? countIn.tick : 0, times = [], spent = new Map();
+  for (let k = 0; ; k++) {
+    const at = clock(first + k * TICKS_PER_BEAT);
+    if (at >= seconds) break;
+    times.push(at);
+    if (times.length > 1) { const gap = Math.round((at - times[times.length - 2]) * 1000) / 1000; spent.set(gap, (spent.get(gap) || 0) + 1); }
+  }
+  let period = 0, most = 0;
+  for (const [gap, count] of spent) if (count > most) { most = count; period = gap; }
+  return { times: Float64Array.from(times), period };
+}
+
 // --- Instruments ---------------------------------------------------------------------------------------------------------
 
 // The game's volume curve (hw_volconv.c musyx_vol_tab): a voice's volume, 0 to 1, to the gain it plays at.
@@ -624,4 +643,4 @@ function wavStereo(left, right, rate, length = left.length) {
   return out;
 }
 
-module.exports = { songSeconds, limit, MIDI_TIME, reverbSide, REVERB_PRESETS, DEFAULT_GAIN, readStream, readPatternStreams, volumeGain, panGains, RATE, loadBank, readSong, readPattern, tickClock, midiSetupFor, samplePcm, voicesFor, runMacro, envelopeOf, gainAt, render, wavStereo };
+module.exports = { beatTimes, songSeconds, limit, MIDI_TIME, reverbSide, REVERB_PRESETS, DEFAULT_GAIN, readStream, readPatternStreams, volumeGain, panGains, RATE, loadBank, readSong, readPattern, tickClock, midiSetupFor, samplePcm, voicesFor, runMacro, envelopeOf, gainAt, render, wavStereo };

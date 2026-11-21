@@ -208,11 +208,12 @@ test('the dancers keep to the song\'s own beat grid when it has one, and to the 
   const tempoSource = read('jukebox-tempo.js'), worker = read('jukebox-analysis-worker.js');
   assert.match(tempoSource, /refineEvents\(result\.intensity\.events, result\.grid,/);
   assert.match(worker, /importScripts\('jukebox-tempo\.js'\)/);
-  assert.match(worker, /coloJukeboxTempo\.study\(left, right, rate, visual\)/);
+  assert.match(worker, /coloJukeboxTempo\.study\(left, right, rate, visual, beats\)/);
   assert.match(page, /new Worker\('jukebox-analysis-worker\.js'\)/);
   assert.match(page, /grid: \(\) => \(active \? songs\.get\(active\.id\)\?\.grid \?\? null : null\)/);
   assert.match(chamber, /function beatNow\(seconds\)/);
-  assert.match(chamber, /source\.position\(\) - source\.latency\(\) - grid\.offset/);
+  assert.match(chamber, /const map = tempoOf\(\)\.gridMap\(grid\), heard = source\.position\(\) - source\.latency\(\)/);
+  assert.match(chamber, /raw = map\.beatAt\(heard\)/);
   assert.match(chamber, /beatOf\(\)\.warp\(marks, clip\.frames, b, perHop\)/);
   assert.ok(html.indexOf('jukebox-tempo.js') > 0 && html.indexOf('jukebox-tempo.js') < html.indexOf('jukebox-page.js'));
 });
@@ -484,4 +485,12 @@ test('the whole song is asked for with no limit: only a number of seconds above 
   assert.equal(asked(0.2), 1);
   assert.equal(asked(5000), 120);
   assert.match(read('main.js'), /jukeboxSongs\.asked\(most\)/);
+});
+
+test('a Colosseum song gives the dancers its own beats, from its sequence, and the page hands them to the study', () => {
+  const render = read('jukebox-render.js'), worker = read('jukebox-worker.js'), page = read('jukebox-page.js');
+  assert.match(render, /beats: music\.beatTimes\(song, length\)/);
+  assert.match(worker, /beats: song\.beats/);
+  assert.match(page, /beats: rendered\.beats \|\| null/);
+  assert.match(page, /visual, beats: entry\.beats/);
 });

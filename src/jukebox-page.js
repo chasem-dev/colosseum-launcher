@@ -301,7 +301,7 @@
       analyst.onerror = () => { for (const { id: each } of studies.values()) { const found = songs.get(each); if (found) found.studying = false; } studies.clear(); };
       const request = ++studyCount;
       studies.set(request, { id, visual });
-      analyst.postMessage({ id: request, left, right, rate: entry.buffer.sampleRate, visual }, [left.buffer, right.buffer]);
+      analyst.postMessage({ id: request, left, right, rate: entry.buffer.sampleRate, visual, beats: entry.beats }, [left.buffer, right.buffer]);
     } catch (_) { entry.studying = false; /* the dancers keep their own time, and the songs cross at their ends */ }
   }
 
@@ -321,7 +321,7 @@
     buffer.copyToChannel(rendered.right, 1);
     // the song is kept as it is, to be played now; what is worked out about it (where it is heard, and for the visualizer its beat, intensity, tone and key)
     // comes a little later, from a worker, and is put on it then
-    songs.set(id, { buffer, loop: rendered.loop, grid: null, intensity: null, heard: null, studied: null });
+    songs.set(id, { buffer, loop: rendered.loop, beats: rendered.beats || null, grid: null, intensity: null, heard: null, studied: null });
     while (songs.size > KEEP) songs.delete(songs.keys().next().value);
     study(id, visualizerOn());
     return songs.get(id);
