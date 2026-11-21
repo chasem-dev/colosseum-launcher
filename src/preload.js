@@ -103,7 +103,7 @@ contextBridge.exposeInMainWorld('colo', {
   heroLooks: () => ipcRenderer.invoke('hero-looks'),
   saveHeroLooks: looks => ipcRenderer.invoke('save-hero-looks', looks),
   jukeboxTracks: () => ipcRenderer.invoke('jukebox-tracks'),
-  jukeboxRender: (id, ahead = false) => ipcRenderer.invoke('jukebox-render', id, ahead),
+  jukeboxRender: (id, lane = 'now', most = 0) => ipcRenderer.invoke('jukebox-render', id, lane, most),
   jukeboxClose: () => ipcRenderer.invoke('jukebox-close'),
   jukeboxPlaylists: () => ipcRenderer.invoke('jukebox-playlists'),
   jukeboxSavePlaylists: list => ipcRenderer.invoke('jukebox-playlists-save', list),

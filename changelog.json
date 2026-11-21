@@ -29,7 +29,7 @@
       "120 fps: choose it under Settings, Display, Frame rate, for Colosseum and XD.",
       "Fixed Michael's Hair colour leaving the strands at the back of his head red, and the reflections on Wes's and Michael's gear taking their other colours with HD textures.",
       "Pokédex: glowing parts of Battle Revolution models, such as Manaphy's discs, no longer have a dark ring around them.",
-      "Jukebox: Colosseum songs load faster. A song's sound is now made in about half the time, and a song you pick is no longer kept waiting while the next song is being made ahead of time."
+      "Jukebox: songs start much sooner. A long song starts playing from its first seconds while the rest of it is made, and carries on seamlessly. Colosseum songs are also made in about half the time, and a song you pick is no longer kept waiting while the next song is being made ahead of time."
     ],
     "game": [
       "120 fps in Colosseum and XD: characters, the camera and fades move twice as smoothly, menu text stays steady, Snag Balls play out in full, and the game keeps its normal speed.",

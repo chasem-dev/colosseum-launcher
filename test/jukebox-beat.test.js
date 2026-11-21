@@ -441,10 +441,33 @@ test('Colosseum has a hall of its own: Miror B.\'s eight-sided gold platforms on
 
 test('a song picked never waits behind the next one being made ahead: they are rendered by workers of their own', () => {
   const main = read('main.js'), preload = read('preload.js'), page = read('jukebox-page.js');
-  assert.match(main, /const jukeboxWorkers = \{ now: null, ahead: null \};/);
-  assert.match(main, /const lane = ahead \? 'ahead' : 'now'/);
-  assert.match(main, /ipcMain\.handle\('jukebox-render', \(_event, id, ahead\) => jukeboxRender\(String\(id\), ahead === true\)\)/);
-  assert.match(preload, /jukeboxRender: \(id, ahead = false\) => ipcRenderer\.invoke\('jukebox-render', id, ahead\)/);
-  assert.match(page, /song\(next\.id, true\)/);
-  assert.match(page, /jukeboxRender\(id, ahead\)/);
+  assert.match(main, /const jukeboxWorkers = \{ now: null, ahead: null, head: null \};/);
+  assert.match(main, /ipcMain\.handle\('jukebox-render', \(_event, id, lane, most\) => jukeboxRender\(String\(id\), String\(lane\)/);
+  assert.match(preload, /jukeboxRender: \(id, lane = 'now', most = 0\) => ipcRenderer\.invoke\('jukebox-render', id, lane, most\)/);
+  assert.match(page, /song\(next\.id, 'ahead'\)/);
+  assert.match(page, /jukeboxRender\(id, lane\)/);
+});
+
+test('a long song starts from its first seconds, made on their own, and the whole song takes over in the same place', () => {
+  const main = read('main.js'), worker = read('jukebox-worker.js'), page = read('jukebox-page.js');
+  assert.match(worker, /render\(sound, most > 0 \? \{ most \} : undefined\)/);
+  assert.match(main, /worker\.postMessage\(\{ id: request, rom, sound: track\.sound, most \}\)/);
+  assert.match(page, /const HEAD = 15, HEAD_MIN = 45, HANDOVER = 0\.06;/);
+  assert.match(page, /jukeboxRender\(id, 'head', HEAD\)/);
+  assert.match(page, /Promise\.race\(\[whole\.then\(found => \(\{ found \}\)\), headOf\(id\)/);
+  assert.match(page, /await start\(id, first\.head, 0, false, \{ fade: active \? MANUAL : QUICK, partial: true \}\)/);
+  assert.match(page, /await handOver\(id, found, first\.head\.buffer\.duration\)/);
+  // the first seconds running out is not a song finishing, and they never take part in the crossing into the next song
+  assert.match(page, /if \(!partial\) finished\(\);/);
+  assert.match(page, /if \(!active \|\| active\.partial \|\| state\.paused/);
+});
+
+test('the first seconds of a song are the song\'s own: the same sound as the whole render, to the last sample, until their end nears', () => {
+  const { Disc } = require('../src/disc');
+  const rom = process.env.COLOSSEUM_ROM;
+  if (!rom) return;   // (needs the player's disc)
+  const render = require('../src/jukebox-render').create(new Disc(rom));
+  const head = render.render(2, { most: 6 }), whole = render.render(2);
+  const until = head.left.length - head.rate * 2;
+  for (let n = 0; n < until; n += 7) assert.equal(head.left[n], whole.left[n]);
 });

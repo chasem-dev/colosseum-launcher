@@ -1728,9 +1728,10 @@ function heroAsk(message) {
   });
 }
 
-// A song picked is rendered by one worker, and the song to come, made ahead of time, by another, so that a song someone has just picked
-// never waits behind one nobody asked for yet (a Colosseum song takes up to several seconds). Each opens the disc and its instruments itself.
-const jukeboxWorkers = { now: null, ahead: null };
+// A song picked is rendered by one worker, the song to come, made ahead of time, by another, and the first seconds of a picked song, which it
+// starts playing from while the rest is made, by a third, so that none of them waits behind another (a Colosseum song takes up to several
+// seconds). Each opens the disc and its instruments itself.
+const jukeboxWorkers = { now: null, ahead: null, head: null };
 let jukeboxRequest = 0;
 const jukeboxPending = new Map();
 function jukeboxStopWorker() {
@@ -1757,14 +1758,15 @@ function jukeboxWorkerFor(lane) {
   worker.on('exit', () => { if (jukeboxWorkers[lane] === worker) jukeboxWorkers[lane] = null; });
   return jukeboxWorkers[lane] = worker;
 }
-function jukeboxRender(id, ahead = false) {
+function jukeboxRender(id, lane = 'now', most = 0) {
   const track = jukeboxTracks().find(each => each.id === id);
   if (!track) return Promise.reject(new Error('That song is not on the list.'));
-  const lane = ahead ? 'ahead' : 'now', worker = jukeboxWorkerFor(lane), rom = jukeboxRom();
+  if (!(lane in jukeboxWorkers)) lane = 'now';
+  const worker = jukeboxWorkerFor(lane), rom = jukeboxRom();
   const request = ++jukeboxRequest;
   return new Promise((resolve, reject) => {
     jukeboxPending.set(request, { resolve, reject, lane });
-    worker.postMessage({ id: request, rom, sound: track.sound });
+    worker.postMessage({ id: request, rom, sound: track.sound, most });
   });
 }
 
@@ -3522,7 +3524,7 @@ function registerHandlers() {
   });
   ipcMain.handle('jukebox-tracks', () => jukeboxTracks());
   ipcMain.handle('game-logos', () => gameLogos());
-  ipcMain.handle('jukebox-render', (_event, id, ahead) => jukeboxRender(String(id), ahead === true));
+  ipcMain.handle('jukebox-render', (_event, id, lane, most) => jukeboxRender(String(id), String(lane), Number.isFinite(most) ? Math.max(1, Math.min(120, most)) : 0));
   ipcMain.handle('jukebox-close', () => jukeboxStopWorker());
   ipcMain.handle('jukebox-window-open', (_event, snapshot) => openJukeboxWindow(snapshot));
   ipcMain.handle('jukebox-window-take', () => { const taken = aged(jukeboxHandoff); jukeboxHandoff = null; return taken; });

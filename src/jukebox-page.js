@@ -10,6 +10,9 @@
   // How songs give way to each other, in seconds: a song that plays through is overlapped with the next for CROSS; a song picked, or Next and Previous,
   // are crossfaded over MANUAL; and every start, seek and stop has at least a QUICK fade, so that there is never a click.
   const CROSS = 2.5, MANUAL = 0.7, QUICK = 0.12;
+  // A song that takes long to make starts playing from its first HEAD seconds, made on their own in a fraction of the time, and the whole song
+  // takes over from there, in the same place, over HANDOVER seconds. Songs shorter than HEAD_MIN are made whole at once.
+  const HEAD = 15, HEAD_MIN = 45, HANDOVER = 0.06;
   // A time as a clock shows it: 1:41.
   const clock = seconds => {
     const whole = seconds >= 0 ? Math.round(seconds) : 0;
@@ -303,15 +306,15 @@
   }
 
   const inFlight = new Map();   // id -> the render under way, so that a song asked for twice (ahead of time, then for real) is made once
-  function song(id, ahead = false) {
+  function song(id, lane = 'now') {
     if (songs.has(id)) { const found = songs.get(id); songs.delete(id); songs.set(id, found); return Promise.resolve(found); }   // (the most recently used goes last)
-    if (!inFlight.has(id)) inFlight.set(id, makeSong(id, ahead).finally(() => inFlight.delete(id)));
+    if (!inFlight.has(id)) inFlight.set(id, makeSong(id, lane).finally(() => inFlight.delete(id)));
     return inFlight.get(id);
   }
 
   // The song rendered from the disc (in the main process), as the page keeps it: its sound, loop, beat grid and intensity.
-  async function makeSong(id, ahead) {
-    const rendered = await window.colo.jukeboxRender(id, ahead);   // (ahead: made for later, by a worker of its own, so that a song picked meanwhile is not kept waiting)
+  async function makeSong(id, lane) {
+    const rendered = await window.colo.jukeboxRender(id, lane);   // (each kind of asking has a worker of its own, so that none waits behind another)
     const ctx = output();
     const buffer = ctx.createBuffer(2, rendered.left.length, rendered.rate);
     buffer.copyToChannel(rendered.left, 0);
@@ -350,7 +353,7 @@
 
   // offset: where in the song to begin; keepPaused: seeking while paused leaves it paused, at the new place; fade: seconds over which it comes in as the
   // song that was playing, if any, goes out (a song starting from nothing comes in over QUICK).
-  async function start(id, { buffer, loop }, offset = 0, keepPaused = false, { fade: seconds = QUICK } = {}) {
+  async function start(id, { buffer, loop }, offset = 0, keepPaused = false, { fade: seconds = QUICK, partial = false } = {}) {
     const ctx = output();
     if (!keepPaused) await ctx.resume();
     const source = ctx.createBufferSource(), fader = ctx.createGain();
@@ -361,12 +364,13 @@
     source.connect(fader);
     fader.connect(gain);
     fader.connect(analyser);
-    source.onended = () => { if (active?.source === source) { active = null; state = { ...state, playing: null, paused: false }; render(); finished(); } };
+    // (the first seconds of a song, played while the rest is made, running out is not the song finishing: the whole song takes over from there)
+    source.onended = () => { if (active?.source === source) { active = null; state = { ...state, playing: null, paused: false }; render(); if (!partial) finished(); } };
     // the length shown is the list's (the song played once), not the buffer's: that has the seconds the sound takes to die away after it
     const known = tracks?.find(each => each.id === id)?.seconds;
-    const shown = known > 0 ? Math.min(known, buffer.duration) : buffer.duration;
+    const shown = known > 0 ? (partial ? known : Math.min(known, buffer.duration)) : buffer.duration;
     const going = active;
-    active = { id, source, fader, loop: Boolean(loop), region: loop, duration: buffer.duration, shown, offset, startedAt: ctx.currentTime, fadeSeconds: seconds, heardEnd: songs.get(id)?.heard?.end ?? buffer.duration };
+    active = { id, source, fader, partial, loop: Boolean(loop), region: loop, duration: buffer.duration, shown, offset, startedAt: ctx.currentTime, fadeSeconds: seconds, heardEnd: songs.get(id)?.heard?.end ?? buffer.duration };
     state = { ...state, playing: id, paused: keepPaused };
     source.start(0, offset);
     fade(fader.gain, true, seconds);
@@ -399,13 +403,45 @@
     // what is playing goes on while the song is made (and is not cut off for the wait), then gives way to it
     render();
     try {
-      const found = await song(id);
+      const whole = song(id), known = tracks?.find(each => each.id === id)?.seconds;
+      // a long song that is not made yet: its first seconds are made on their own, and play while the rest is
+      const first = !songs.has(id) && known >= HEAD_MIN
+        ? await Promise.race([whole.then(found => ({ found })), headOf(id).then(head => ({ head }), () => ({}))])
+        : {};
+      if (mine !== token) return;
+      if (first.head) {
+        await start(id, first.head, 0, false, { fade: active ? MANUAL : QUICK, partial: true });
+        busy = false;
+        render();
+        const found = await whole;   // (a failure to make it says so, below, and the first seconds play on)
+        if (mine === token) await handOver(id, found, first.head.buffer.duration);
+        return;
+      }
+      const found = first.found || await whole;
       if (mine !== token) return;
       await start(id, found, 0, false, { fade: active ? MANUAL : QUICK });
     } catch (error) {
       if (mine === token) notice = message(error);
     }
     if (mine === token) { busy = false; render(); }
+  }
+
+  // The first seconds of a song, as a buffer to play (it does not repeat: the whole song takes over before it ends).
+  async function headOf(id) {
+    const rendered = await window.colo.jukeboxRender(id, 'head', HEAD);
+    const buffer = output().createBuffer(2, rendered.left.length, rendered.rate);
+    buffer.copyToChannel(rendered.left, 0);
+    buffer.copyToChannel(rendered.right, 1);
+    return { buffer, loop: null };
+  }
+
+  // The whole song takes over from its first seconds, in the place they have got to (or, if they ran out first, where they ended).
+  async function handOver(id, found, headEnd) {
+    const playing = active?.id === id && active.partial;
+    if (!playing && active) return;   // (something else is playing now)
+    const at = playing ? Math.min(position(), found.buffer.duration - 0.05) : headEnd;
+    await start(id, found, at, playing ? state.paused : false, { fade: playing ? HANDOVER : QUICK });
+    render();
   }
 
   async function pause() {
@@ -487,14 +523,14 @@
     prefetchTimer = setTimeout(() => {
       if (mine !== token || !active) return;
       const next = upcoming();
-      if (next && !next.same && !songs.has(next.id)) song(next.id, true).catch(() => {});
+      if (next && !next.same && !songs.has(next.id)) song(next.id, 'ahead').catch(() => {});
     }, 3000);
   }
 
   // Near the end of a song that is to play through, the next one comes in over it: CROSS seconds before the old song's last audible moment, so that it is
   // still loud as the new one begins, and the new one starts where it first is heard.
   function watchEnd() {
-    if (!active || state.paused || busy || crossing || active.source.loop || !context) return;
+    if (!active || active.partial || state.paused || busy || crossing || active.source.loop || !context) return;
     const elapsed = active.offset + (context.currentTime - active.startedAt), left = Math.min(active.heardEnd, active.duration) - elapsed;
     if (left > CROSS) return;
     const next = upcoming();
