@@ -33,6 +33,7 @@
     "game": [
       "120 fps in Colosseum and XD: characters, the camera and fades move twice as smoothly, menu text stays steady, Snag Balls play out in full, and the game keeps its normal speed.",
       "Fixed people in Colosseum's cutscenes sometimes walking on the spot just short of where they were going at 60 and 120 fps, such as Rui in the mayor's house in Phenac City: after a second they arrive.",
+      "Fixed XD at 120 fps: people walked and turned at half speed, and a scene could stop for good when someone reached the end of a walk, such as the lab worker who runs into the lift in the Cipher Lab. After a stutter, at any frame rate, people no longer take a moment longer to finish a walk.",
       "Fixed the game crashing when an opponent's Pokémon knows Heal Bell or Aromatherapy, such as in Pokémon XD's last battle with Miror B. Colosseum had the same fault, and it's fixed there too.",
       "Shadowtrade: with the game running, a Generation 4 Shadow Pokémon you receive goes straight into your save, as the third generation's do.",
       "Shadowtrade: a shiny Shadow Pokémon you receive now looks shiny in both games while it's still a Shadow, as the Pokémon tab shows it, instead of only once it's purified.",
