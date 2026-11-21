@@ -78,4 +78,9 @@ function readTracks(disc) {
   return build({ sounds: data.subarray(SOUNDS.offset, SOUNDS.offset + SOUNDS.count * SOUNDS.size), songs, names, lengths });
 }
 
-module.exports = { SHORT, title, build, arrange, read };
+// How many seconds of a song the page asked for the start of: 0 (the whole song) unless it is a number of seconds, at most two minutes.
+function asked(most) {
+  return typeof most === 'number' && most > 0 && Number.isFinite(most) ? Math.min(120, Math.max(1, most)) : 0;
+}
+
+module.exports = { SHORT, title, build, arrange, read, asked };
