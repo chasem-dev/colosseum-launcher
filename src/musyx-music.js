@@ -242,10 +242,11 @@ function volumeGain(volume) {
   return (1 - f) * VOLUME_CURVE[i] + f * VOLUME_CURVE[i + 1];
 }
 // Panning, 0 (left) to 127 (right), as the game's pan_tab spreads it: [0, 0.7079, 1, 1] over the pan's two halves.
+const PAN_TAB = [0, 0.7079, 1, 1];
+const panAt = x => { const i = Math.min(2, Math.floor(x)), f = x - i; return (1 - f) * PAN_TAB[i] + f * PAN_TAB[i + 1]; };
 function panGains(pan) {
-  const tab = [0, 0.7079, 1, 1], at = x => { const i = Math.min(2, Math.floor(x)), f = x - i; return (1 - f) * tab[i] + f * tab[i + 1]; };
   const p = Math.max(0, Math.min(127, pan)) / 127;
-  return { left: at(2 * (1 - p)), right: at(2 * p) };
+  return { left: panAt(2 * (1 - p)), right: panAt(2 * p) };
 }
 const DECIBEL_STEP = Math.LN10 / 40;
 const attenuation = index => Math.exp(-index * DECIBEL_STEP);   // 0.5 dB to the index; the game's dspAttenuationTab
@@ -521,8 +522,10 @@ function render(bank, song, midiSetup, options = {}) {
       const releaseAt = ringsOut ? Infinity : voice.releaseAt - voice.startAt, bendList = bends[ev.midi & 15], modList = mods[ev.midi & 15];
       const bendCursor = { i: 0 }, modCursor = { i: 0 };
       let position = 0, ratio = 0;
+      const pcm = sample.pcm, pcmLength = pcm.length, looping = sample.loopEnd > 0, loopStart = sample.loopStart, loopEnd = sample.loopEnd;
+      const loopSpan = Math.max(1, loopEnd - loopStart), env = voice.env;
       for (let n = first, t = 0; n < total; n++, t = (n - first) / RATE) {
-        const g = gainAt(voice.env, t, releaseAt);
+        const g = gainAt(env, t, releaseAt);
         if (g === null) break;
         if (((n - first) & 31) === 0) {   // the pitch and volume are worked out each millisecond, as the game does
           const at = startTime + t;
@@ -544,12 +547,11 @@ function render(bank, song, midiSetup, options = {}) {
           ratio = (sample.rate / RATE) * Math.pow(2, semis / 12);
         }
         let index = Math.floor(position);
-        const looping = sample.loopEnd > 0;
-        if (looping && index >= sample.loopEnd) { position = sample.loopStart + (position - sample.loopEnd) % Math.max(1, sample.loopEnd - sample.loopStart); index = Math.floor(position); }
-        if (!looping && index + 1 >= sample.pcm.length) break;
+        if (looping && index >= loopEnd) { position = loopStart + (position - loopEnd) % loopSpan; index = Math.floor(position); }
+        if (!looping && index + 1 >= pcmLength) break;
         // a loop that ends on the sample's last point (as they do) joins back to its start, so the point after the last is the loop's first
-        const next = looping && index + 1 >= sample.loopEnd ? sample.loopStart : index + 1;
-        const frac = position - index, value = (sample.pcm[index] * (1 - frac) + sample.pcm[next] * frac) / 32768 * g;
+        const next = looping && index + 1 >= loopEnd ? loopStart : index + 1;
+        const frac = position - index, value = (pcm[index] * (1 - frac) + pcm[next] * frac) / 32768 * g;
         left[n] += value * gl; right[n] += value * gr;
         if (al || ar) { auxLeft[n] += value * al; auxRight[n] += value * ar; }
         position += ratio;
